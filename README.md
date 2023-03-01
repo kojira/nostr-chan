@@ -34,7 +34,7 @@ Please rewrite as appropriate
 
 `common/config.yml`
 
-Please rewrite as appropriatePlease rewrite as appropriate
+Please rewrite as appropriate
 
 ```yml
 relay_servers:
