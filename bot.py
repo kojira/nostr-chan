@@ -162,14 +162,15 @@ while True:
               if result:
                 text = event_msg.event.content
                 answer = gpt.get_answer(text)
-                print("answer:", answer)
-                event = Event(content=answer)
-                event.add_event_ref(event_msg.event.id)
-                event.add_pubkey_ref(event_msg.event.public_key)
-                privatekey.sign_event(event)
-                relay_manager.publish_event(event)
-                now = datetime.now()
-                posted_timestamp = now.timestamp()
+                if answer:
+                  print("answer:", answer)
+                  event = Event(content=answer)
+                  event.add_event_ref(event_msg.event.id)
+                  event.add_pubkey_ref(event_msg.event.public_key)
+                  privatekey.sign_event(event)
+                  relay_manager.publish_event(event)
+                  now = datetime.now()
+                  posted_timestamp = now.timestamp()
 
   if events == 0:
     no_event_count += 1
