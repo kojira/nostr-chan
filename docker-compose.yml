@@ -1,7 +1,7 @@
 version: "3.9"
 services:
-  subscriber:
-    container_name: bot
+  nostrchan:
+    container_name: nostrchan
     build:
       context: "./"
       dockerfile: "./Dockerfile"
@@ -10,12 +10,3 @@ services:
     tty: true
     command: python bot.py
     restart: always
-  # tester:
-  #   container_name: tester
-  #   build:
-  #     context: "./"
-  #     dockerfile: "./Dockerfile"
-  #   volumes:
-  #     - "./:/var/bot/"
-  #   tty: true
-  #   command: python gpt_test.py
