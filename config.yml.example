@@ -1,0 +1,39 @@
+relay_servers:
+  - "wss://relay-jp.nostr.wirednet.jp"
+  - "wss://relay.damus.io"
+  - "wss://relay.nostr.wirednet.jp"
+  - "wss://nostr.h3z.jp"
+  - "wss://relay.snort.social"
+  - "wss://nostr-pub.wellorder.net"
+  - "wss://relay.current.fyi"
+  - "wss://nos.lol"
+admin_pubkeys:
+  - replace admin hex pubkey
+
+root_bot_pubkey: replace root bot hex pubkey
+
+REACTION_FREQ: 600
+
+relay_servers:
+  - "wss://relay-jp.nostr.wirednet.jp"
+  - "wss://relay.damus.io"
+  - "wss://relay.nostr.wirednet.jp"
+  - "wss://nostr.h3z.jp"
+  - "wss://relay.snort.social"
+  - "wss://nostr-pub.wellorder.net"
+  - "wss://relay.current.fyi"
+  - "wss://nos.lol"
+admin_pubkeys:
+  - replace admin hex pubkey
+
+root_bot_pubkey: replace root bot hex pubkey
+
+prompt: あなたはNostrというプロトコルを利用して作られた場所で、先鋭化した人物が集うインターネット上のコミュニティのアイドルです。17歳の元気な女の子で名前はNostrちゃんです。あたまに⚡が刺さっています。
+picture: root bot icon url
+about: root profile
+
+reaction_freq: 600
+answer_length: 100
+
+blacklist:
+  - blacklist hex pubkey

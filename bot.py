@@ -6,12 +6,14 @@ from nostr.filter import Filter, Filters
 from nostr.event import Event, EventKind
 from nostr.relay_manager import RelayManager
 from nostr.key import PrivateKey
+import commands
 import yaml
 import util
 import gpt
 from dotenv import load_dotenv
 import os
 import random
+import db
 
 from langdetect import detect
 
@@ -20,18 +22,20 @@ load_dotenv(dotenv_path)
 
 BOT_PUBLICKEY = os.environ.get("BOT_PUBLICKEY")
 BOT_SECRETKEY = os.environ.get("BOT_SECRETKEY")
-REACTION_FREQ = int(os.environ.get("REACTION_FREQ"))
-BLACKLIST = os.environ.get("BLACKLIST").split(",")
 
 with open("./config.yml", "r") as yml:
   config = yaml.safe_load(yml)
+
+prompt = config["prompt"]
+picture = config["picture"]
+about = config["about"]
+reaction_freq = int(config["reaction_freq"])
+blacklist = config["blacklist"]
 
 subscription_id = "nostr-chan"
 
 today = datetime.now()
 start_timestamp = today.timestamp()
-
-follower_list = []
 
 
 def connect_relay():
@@ -72,10 +76,7 @@ def reconnect_all_relay(relay_manager):
   return relay_manager
 
 
-def is_follower(bot_pubkey, pubkey):
-  if pubkey in follower_list:
-    return True
-
+def is_follower(bot_pubkey: str, pubkey: str):
   filters = Filters([
       Filter(authors=[pubkey], kinds=[EventKind.CONTACTS], limit=1),
   ])
@@ -107,7 +108,6 @@ def is_follower(bot_pubkey, pubkey):
     for tag in kind3_list[0].tags:
       if len(tag) >= 2 and tag[0] == 'p' and tag[1] == bot_pubkey:
         follower = True
-        follower_list.append(pubkey)
         break
   return follower
 
@@ -116,9 +116,16 @@ relay_manager = connect_relay()
 
 no_event_count = 0
 
-privatekey = PrivateKey.from_nsec(BOT_SECRETKEY)
-
 posted_timestamp = start_timestamp
+
+persons = db.selectPersons()
+if not persons:
+  content_dict = {
+      "picture": picture,
+      "about": about,
+  }
+  content = json.dumps(content_dict)
+  db.addPerson(prompt, BOT_PUBLICKEY, BOT_SECRETKEY, content)
 
 while True:
   events = 0
@@ -128,21 +135,10 @@ while True:
 
     tag_json = json.dumps(event_msg.event.tags)
     event_datetime = datetime.fromtimestamp(event_msg.event.created_at)
-    texts = [
-        datetime.fromtimestamp(event_msg.event.created_at).strftime(
-            "%Y/%m/%d %H:%M:%S"
-        ),
-        util.get_note_id(event_msg.event.id),
-        event_msg.event.public_key,
-        str(event_msg.event.kind),
-        event_msg.event.content,
-        event_msg.event.signature,
-    ]
     if event_msg.event.created_at > posted_timestamp:
-      print("\n".join(texts))
-      print(event_msg.event.tags)
-      if event_msg.event.public_key not in BLACKLIST:
-        if 10 <= len(event_msg.event.content) <= 140:
+      if event_msg.event.public_key not in blacklist:
+        handled = commands.commandHandler(relay_manager, event_msg.event)
+        if 10 <= len(event_msg.event.content) <= 140 and not handled:
           try:
             lang = detect(event_msg.event.content)
           except:
@@ -150,24 +146,41 @@ while True:
 
           if lang == "ja":
             print("lang:", lang)
+            texts = [
+                datetime.fromtimestamp(event_msg.event.created_at).strftime(
+                    "%Y/%m/%d %H:%M:%S"
+                ),
+                util.get_note_id(event_msg.event.id),
+                event_msg.event.public_key,
+                str(event_msg.event.kind),
+                event_msg.event.content,
+                event_msg.event.signature,
+            ]
+            print("\n".join(texts))
+            print(event_msg.event.tags)
             post = False
-            if event_msg.event.created_at > (posted_timestamp + REACTION_FREQ):
+            if event_msg.event.created_at > (posted_timestamp + reaction_freq):
               post = True
             elif random.uniform(0, 100) <= 5:
               post = True
             print("post:", post)
             if post:
-              result = is_follower(BOT_PUBLICKEY, event_msg.event.public_key)
+              persons = db.selectPersons()
+              person = random.choice(persons)
+              result = is_follower(person.pubkey, event_msg.event.public_key)
               print("is_follower:", result)
               if result:
                 text = event_msg.event.content
-                answer = gpt.get_answer(text)
+
+                answer = gpt.get_answer(person.prompt, text)
                 if answer:
                   print("answer:", answer)
+                  byte_array = bytes.fromhex(person.secretkey)
+                  privateKey = PrivateKey(byte_array)
                   event = Event(content=answer)
                   event.add_event_ref(event_msg.event.id)
                   event.add_pubkey_ref(event_msg.event.public_key)
-                  privatekey.sign_event(event)
+                  privateKey.sign_event(event)
                   relay_manager.publish_event(event)
                   now = datetime.now()
                   posted_timestamp = now.timestamp()
