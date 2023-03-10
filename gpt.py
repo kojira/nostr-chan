@@ -29,6 +29,7 @@ def get_answer(prompt, text):
         presence_penalty=-0.5,
         frequency_penalty=-0,
         top_p=0.9,
+        timeout=30
     )
     answer = response["choices"][0]["message"]["content"]
 

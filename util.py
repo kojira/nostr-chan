@@ -1,9 +1,7 @@
 
 import re
-from nostr import bech32
-from nostr.event import Event, EventKind
-from nostr.key import PublicKey
-import json
+from pynostr import bech32
+from pynostr.event import Event, EventKind
 
 
 def get_note_id(_id):

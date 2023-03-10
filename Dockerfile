@@ -19,7 +19,3 @@ RUN apt-get install -y pkg-config \
 RUN pip install --upgrade pip
 COPY ./requirements.txt .
 RUN pip install -r requirements.txt
-
-RUN git clone -b relay-threads https://github.com/jeffthibault/python-nostr.git\
-    && cd python-nostr\
-    && python setup.py install

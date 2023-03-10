@@ -1,7 +1,7 @@
 
 import yaml
-from nostr.key import PrivateKey
-from nostr.event import Event
+from pynostr.key import PrivateKey
+from pynostr.event import Event
 import db
 import json
 import util
@@ -19,7 +19,7 @@ def commandHandler(relay_manager, event: Event):
     db.addPerson(prompt, pubKeyHex, privateKeyHex, content)
     util.set_user_meta(privateKey, relay_manager, content)
     text = f"はじめまして。\n{parsed_params['display_name']}です。\nコンゴトモヨロシク！"
-    util.post_event(privateKey, relay_manager, text, event.id, event.public_key)
+    util.post_event(privateKey, relay_manager, text, event.id, event.pubkey)
 
   commands = [
       {"command": "!new", "admin": True,
@@ -46,7 +46,7 @@ def commandHandler(relay_manager, event: Event):
   for command in commands:
     if text.startswith(command["command"]):
       if command["admin"]:
-        if event.public_key in config["admin_pubkeys"]:
+        if event.pubkey in config["admin_pubkeys"]:
           if mention_pubkey == config["root_bot_pubkey"]:
             params = text.split("\n")
             parsed_params = {}

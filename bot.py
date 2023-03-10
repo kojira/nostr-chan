@@ -2,10 +2,10 @@ import json
 import time
 from datetime import datetime, timedelta
 
-from nostr.filter import Filter, Filters
-from nostr.event import Event, EventKind
-from nostr.relay_manager import RelayManager
-from nostr.key import PrivateKey
+from pynostr.filters import FiltersList, Filters
+from pynostr.event import Event, EventKind
+from pynostr.relay_manager import RelayManager
+from pynostr.key import PrivateKey
 import commands
 import yaml
 import util
@@ -14,6 +14,7 @@ from dotenv import load_dotenv
 import os
 import random
 import db
+from collections import deque
 
 from langdetect import detect
 
@@ -43,16 +44,16 @@ def connect_relay():
   before_min = today - timedelta(minutes=20)
   since = before_min.timestamp()
 
-  filters = Filters(
+  filters = FiltersList(
       [
-          Filter(kinds=[EventKind.TEXT_NOTE], since=since),
+          Filters(kinds=[EventKind.TEXT_NOTE], since=since),
       ]
   )
   relay_manager = RelayManager()
   add_all_relay(relay_manager, config["relay_servers"])
 
   relay_manager.add_subscription_on_all_relays(subscription_id, filters)
-  time.sleep(1.25)
+  relay_manager.run_sync()
 
   return relay_manager
 
@@ -77,8 +78,8 @@ def reconnect_all_relay(relay_manager):
 
 
 def is_follower(bot_pubkey: str, pubkey: str):
-  filters = Filters([
-      Filter(authors=[pubkey], kinds=[EventKind.CONTACTS], limit=1),
+  filters = FiltersList([
+      Filters(authors=[pubkey], kinds=[EventKind.CONTACTS], limit=1),
   ])
   subscription_id = "nostr-chan-get-kind3"
 
@@ -87,7 +88,7 @@ def is_follower(bot_pubkey: str, pubkey: str):
     relay_manager.add_relay(relay_server)
 
   relay_manager.add_subscription_on_all_relays(subscription_id, filters)
-  time.sleep(1.25)
+  relay_manager.run_sync()
 
   event_list = []
   give_up_count = 0
@@ -98,6 +99,7 @@ def is_follower(bot_pubkey: str, pubkey: str):
     if len(event_list) > 0 or give_up_count > 10:
       break
     time.sleep(1)
+    relay_manager.run_sync()
     give_up_count += 1
 
   relay_manager.close_all_relay_connections()
@@ -127,6 +129,8 @@ if not persons:
   content = json.dumps(content_dict)
   db.addPerson(prompt, BOT_PUBLICKEY, BOT_SECRETKEY, content)
 
+fifo_list = deque(maxlen=20)
+
 while True:
   events = 0
   while relay_manager.message_pool.has_events():
@@ -135,8 +139,9 @@ while True:
 
     tag_json = json.dumps(event_msg.event.tags)
     event_datetime = datetime.fromtimestamp(event_msg.event.created_at)
-    if event_msg.event.created_at > posted_timestamp:
-      if event_msg.event.public_key not in blacklist:
+    if event_msg.event.created_at > posted_timestamp and event_msg.event.id not in fifo_list:
+      fifo_list.append(event_msg.event.id)
+      if event_msg.event.pubkey not in blacklist:
         handled = commands.commandHandler(relay_manager, event_msg.event)
         if 10 <= len(event_msg.event.content) <= 140 and not handled:
           try:
@@ -151,10 +156,10 @@ while True:
                     "%Y/%m/%d %H:%M:%S"
                 ),
                 util.get_note_id(event_msg.event.id),
-                event_msg.event.public_key,
+                event_msg.event.pubkey,
                 str(event_msg.event.kind),
                 event_msg.event.content,
-                event_msg.event.signature,
+                event_msg.event.sig,
             ]
             print("\n".join(texts))
             print(event_msg.event.tags)
@@ -167,7 +172,7 @@ while True:
             if post:
               persons = db.selectPersons()
               person = random.choice(persons)
-              result = is_follower(person.pubkey, event_msg.event.public_key)
+              result = is_follower(person.pubkey, event_msg.event.pubkey)
               print("is_follower:", result)
               if result:
                 text = event_msg.event.content
@@ -179,8 +184,8 @@ while True:
                   privateKey = PrivateKey(byte_array)
                   event = Event(content=answer)
                   event.add_event_ref(event_msg.event.id)
-                  event.add_pubkey_ref(event_msg.event.public_key)
-                  privateKey.sign_event(event)
+                  event.add_pubkey_ref(event_msg.event.pubkey)
+                  event.sign(privateKey.hex())
                   relay_manager.publish_event(event)
                   now = datetime.now()
                   posted_timestamp = now.timestamp()
@@ -198,3 +203,4 @@ while True:
     now = datetime.now()
     posted_timestamp = now.timestamp()
   time.sleep(1)
+  relay_manager.run_sync()
