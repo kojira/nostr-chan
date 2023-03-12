@@ -102,7 +102,7 @@ async fn main() -> Result<()> {
                             Lang::Jpn => {
                                 println!("{:?}", event);
                                 let random_number = rand::thread_rng().gen_range(0..100);
-                                if random_number <= 50 {
+                                if random_number <= 5 {
                                     let person = db::get_random_person(&conn).unwrap();
                                     let follower =
                                         is_follower(&event.pubkey.to_string(), &person.secretkey)
