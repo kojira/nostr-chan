@@ -8,5 +8,6 @@ services:
     volumes:
       - "./:/var/bot/"
     tty: true
-    command: python bot.py
+    working_dir: /var/bot/src
+    command: bash -c "cargo run"
     restart: always
