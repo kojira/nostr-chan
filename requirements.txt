@@ -1,8 +1,0 @@
-python-dotenv
-pyyaml
-pytz
-easydict
-openai==0.27.0
-langdetect
-SQLAlchemy
-pynostr[websocket-client]
