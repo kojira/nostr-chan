@@ -7,7 +7,7 @@ pub struct BotConfig {
     pub prompt: String,
     pub picture: String,
     pub about: String,
-    pub reaction_freq: i32,
+    pub reaction_freq: i64,
     pub blacklist: Vec<String>,
 }
 

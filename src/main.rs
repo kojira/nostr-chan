@@ -1,6 +1,7 @@
 mod config;
 mod db;
 mod gpt;
+use chrono::Utc;
 use dotenv::dotenv;
 use nostr_sdk::prelude::*;
 use rand::Rng;
@@ -91,18 +92,25 @@ async fn main() -> Result<()> {
 
     client.subscribe(vec![subscription]).await;
     println!("subscribe");
-
+    let mut last_post_time = Utc::now().timestamp() - config.bot.reaction_freq;
     let mut notifications = client.notifications();
     while let Ok(notification) = notifications.recv().await {
         if let RelayPoolNotification::Event(_url, event) = notification {
             if event.kind == Kind::TextNote {
-                if event.content.len() > 0 {
+                if event.content.len() > 0 && (event.created_at.as_i64() > last_post_time) {
                     if let Some(lang) = detect(&event.content) {
                         match lang.lang() {
                             Lang::Jpn => {
                                 println!("{:?}", event);
+                                let mut post = false;
+                                if event.created_at.as_i64()
+                                    > (last_post_time + config.bot.reaction_freq)
+                                {
+                                    post = true;
+                                }
                                 let random_number = rand::thread_rng().gen_range(0..100);
-                                if random_number <= 5 {
+                                println!("random_number:{:?}", random_number);
+                                if random_number <= 10 || post {
                                     let person = db::get_random_person(&conn).unwrap();
                                     let follower =
                                         is_follower(&event.pubkey.to_string(), &person.secretkey)
@@ -121,11 +129,17 @@ async fn main() -> Result<()> {
                                             }
                                             client_temp.connect().await;
                                             let mut tags: Vec<Tag> = vec![];
-                                            tags.push(Tag::Event(event.id, None, None));
+                                            tags.push(Tag::Event(
+                                                event.id,
+                                                None,
+                                                Some(Marker::Reply),
+                                            ));
+                                            tags.push(Tag::PubKey(event.pubkey, None));
                                             let event_id = client_temp
-                                                .publish_text_note(format!("#[0]{}", reply), &tags)
+                                                .publish_text_note(format!("{}", reply), &tags)
                                                 .await?;
                                             println!("publish_text_note! eventId:{}", event_id);
+                                            last_post_time = Utc::now().timestamp();
                                             client_temp.shutdown().await?;
                                         }
                                         println!("publish_text_note!");
