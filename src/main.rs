@@ -6,6 +6,8 @@ use dotenv::dotenv;
 use nostr_sdk::prelude::*;
 use rand::Rng;
 use std::fs::File;
+use std::thread;
+use std::time::Duration;
 use std::{env, str::FromStr};
 use whatlang::{detect, Lang};
 
@@ -140,6 +142,7 @@ async fn main() -> Result<()> {
                                                 .await?;
                                             println!("publish_text_note! eventId:{}", event_id);
                                             last_post_time = Utc::now().timestamp();
+                                            thread::sleep(Duration::from_secs(10));
                                             client_temp.shutdown().await?;
                                         }
                                         println!("publish_text_note!");
