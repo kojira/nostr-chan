@@ -65,6 +65,87 @@ async fn is_follower(user_pubkey: &str, bot_secret_key: &str) -> Result<bool> {
     Ok(detect)
 }
 
+fn extract_mention(persons: Vec<db::Person>, event: &Event) -> Result<Option<db::Person>> {
+    let mut person: Option<db::Person> = None;
+    for _tag in event.tags.iter() {
+        if _tag.as_vec().len() > 1 {
+            if _tag.as_vec()[0].len() == 1 {
+                if _tag.as_vec()[0].starts_with('p') {
+                    for _person in &persons {
+                        if _tag.as_vec()[1].to_string() == _person.pubkey.to_string() {
+                            person = Some(_person.clone());
+                        }
+                    }
+                }
+            }
+        }
+    }
+    Ok(person)
+}
+
+async fn command_handler(
+    config: &config::AppConfig,
+    persons: &Vec<db::Person>,
+    event: &Event,
+) -> Result<bool> {
+    let mut handled: bool = false;
+    let persons_ = persons.clone();
+    let event_ = event.clone();
+    let person_op = extract_mention(persons_, &event).unwrap();
+    if person_op.is_some() {
+        let person = person_op.unwrap();
+        let replaced = event.content.replace("#[0]", "");
+        let trimed = replaced.trim_start();
+        if trimed.starts_with("占って") {
+            let text = "今日のわたしの運勢を占って。結果はランダムで決めて、その結果に従って占いの内容を運の良さは★マークを５段階でラッキーアイテム、ラッキーカラーとかも教えて";
+            let reply = gpt::get_reply(&person.prompt, text).await.unwrap();
+            reply_to(&config, event_, person, &reply).await?;
+            handled = true;
+        }
+    }
+    Ok(handled)
+}
+
+fn judge_post(persons: Vec<db::Person>, event: &Event) -> Result<(bool, Option<db::Person>)> {
+    let mut post = false;
+    println!("{:?}", event);
+    let random_number = rand::thread_rng().gen_range(0..100);
+    println!("random_number:{:?}", random_number);
+    let person = extract_mention(persons, &event).unwrap();
+    let mut base_percent = 10;
+    if person.is_some() {
+        base_percent += 10;
+    }
+    if random_number <= (10 + base_percent) {
+        post = true;
+    }
+    Ok((post, person))
+}
+
+async fn reply_to(
+    config: &config::AppConfig,
+    event: Event,
+    person: db::Person,
+    text: &str,
+) -> Result<()> {
+    let bot_keys = Keys::from_sk_str(&person.secretkey)?;
+    let client_temp = Client::new(&bot_keys);
+    for item in config.relay_servers.iter() {
+        client_temp.add_relay(item, None).await?;
+    }
+    client_temp.connect().await;
+    let mut tags: Vec<Tag> = vec![];
+    tags.push(Tag::Event(event.id, None, Some(Marker::Reply)));
+    tags.push(Tag::PubKey(event.pubkey, None));
+    let event_id = client_temp
+        .publish_text_note(format!("{}", text), &tags)
+        .await?;
+    println!("publish_text_note! eventId:{}", event_id);
+    thread::sleep(Duration::from_secs(10));
+    client_temp.shutdown().await?;
+    Ok(())
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     dotenv().ok();
@@ -99,62 +180,50 @@ async fn main() -> Result<()> {
     while let Ok(notification) = notifications.recv().await {
         if let RelayPoolNotification::Event(_url, event) = notification {
             if event.kind == Kind::TextNote {
-                if event.content.len() > 0 && (event.created_at.as_i64() > last_post_time) {
-                    if let Some(lang) = detect(&event.content) {
-                        match lang.lang() {
-                            Lang::Jpn => {
-                                println!("{:?}", event);
-                                let mut post = false;
-                                if event.created_at.as_i64()
-                                    > (last_post_time + config.bot.reaction_freq)
-                                {
-                                    post = true;
-                                }
-                                let random_number = rand::thread_rng().gen_range(0..100);
-                                println!("random_number:{:?}", random_number);
-                                if random_number <= 10 || post {
-                                    let person = db::get_random_person(&conn).unwrap();
-                                    let follower =
-                                        is_follower(&event.pubkey.to_string(), &person.secretkey)
-                                            .await?;
-                                    println!("follower:{}", follower);
-                                    if follower {
-                                        let reply = gpt::get_reply(&person.prompt, &event.content)
-                                            .await
-                                            .unwrap();
-                                        println!("publish_text_note...{}", reply);
-                                        if reply.len() > 0 {
-                                            let bot_keys = Keys::from_sk_str(&person.secretkey)?;
-                                            let client_temp = Client::new(&bot_keys);
-                                            for item in config.relay_servers.iter() {
-                                                client_temp.add_relay(item, None).await?;
-                                            }
-                                            client_temp.connect().await;
-                                            let mut tags: Vec<Tag> = vec![];
-                                            tags.push(Tag::Event(
-                                                event.id,
-                                                None,
-                                                Some(Marker::Reply),
-                                            ));
-                                            tags.push(Tag::PubKey(event.pubkey, None));
-                                            let event_id = client_temp
-                                                .publish_text_note(format!("{}", reply), &tags)
-                                                .await?;
-                                            println!("publish_text_note! eventId:{}", event_id);
-                                            last_post_time = Utc::now().timestamp();
-                                            thread::sleep(Duration::from_secs(10));
-                                            client_temp.shutdown().await?;
-                                        }
-                                        println!("publish_text_note!");
-                                    }
-                                } else {
-                                    println!("hazure!");
+                let mut japanese: bool = false;
+                if let Some(lang) = detect(&event.content) {
+                    match lang.lang() {
+                        Lang::Jpn => japanese = true,
+                        _ => (),
+                    }
+                } else {
+                    println!("Language detection failed.");
+                }
+                if japanese {
+                    let persons = db::get_all_persons(&conn).unwrap();
+                    let handled = command_handler(&config, &persons, &event).await?;
+                    if !handled
+                        && event.content.len() > 0
+                        && (event.created_at.as_i64() > last_post_time)
+                    {
+                        let (mut post, person_op) = judge_post(persons, &event).unwrap();
+                        println!("post:{}", post);
+                        let person: db::Person;
+                        if event.created_at.as_i64() > (last_post_time + config.bot.reaction_freq) {
+                            post = true;
+                        }
+                        if post {
+                            if person_op.is_none() {
+                                person = db::get_random_person(&conn).unwrap();
+                            } else {
+                                person = person_op.unwrap();
+                            }
+                            let follower =
+                                is_follower(&event.pubkey.to_string(), &person.secretkey).await?;
+                            println!("follower:{}", follower);
+                            if follower {
+                                let reply = gpt::get_reply(&person.prompt, &event.content)
+                                    .await
+                                    .unwrap();
+                                println!("publish_text_note...{}", reply);
+                                if reply.len() > 0 {
+                                    reply_to(&config, event, person, &reply).await?;
+                                    last_post_time = Utc::now().timestamp();
                                 }
                             }
-                            _ => (),
+                        } else {
+                            println!("hazure!");
                         }
-                    } else {
-                        println!("Language detection failed.");
                     }
                 }
             } else {
