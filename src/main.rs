@@ -7,6 +7,7 @@ use dotenv::dotenv;
 use nostr_sdk::prelude::*;
 use rand::Rng;
 use regex::Regex;
+use serde_json::Value;
 use std::fs::File;
 use std::thread;
 use std::time::Duration;
@@ -69,13 +70,25 @@ async fn is_follower(user_pubkey: &str, bot_secret_key: &str) -> Result<bool> {
 
 fn extract_mention(persons: Vec<db::Person>, event: &Event) -> Result<Option<db::Person>> {
     let mut person: Option<db::Person> = None;
-    for _tag in event.tags.iter() {
-        if _tag.as_vec().len() > 1 {
-            if _tag.as_vec()[0].len() == 1 {
-                if _tag.as_vec()[0].starts_with('p') {
-                    for _person in &persons {
-                        if _tag.as_vec()[1].to_string() == _person.pubkey.to_string() {
-                            person = Some(_person.clone());
+    for _person in &persons {
+        let content: Value = serde_json::from_str(&_person.content)?;
+        let name = &content["name"].to_string();
+        let display_name = &content["display_name"].to_string();
+        if event.content.contains(name) || event.content.contains(display_name) {
+            person = Some(_person.clone());
+            break;
+        }
+    }
+
+    if person.is_some() {
+        for _tag in event.tags.iter() {
+            if _tag.as_vec().len() > 1 {
+                if _tag.as_vec()[0].len() == 1 {
+                    if _tag.as_vec()[0].starts_with('p') {
+                        for _person in &persons {
+                            if _tag.as_vec()[1].to_string() == _person.pubkey.to_string() {
+                                person = Some(_person.clone());
+                            }
                         }
                     }
                 }
@@ -154,7 +167,7 @@ async fn reply_to(
 }
 
 #[tokio::main]
-async fn main() -> Result<()> {
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
     dotenv().ok();
     println!("start");
     let file = File::open("../config.yml")?;
