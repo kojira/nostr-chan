@@ -71,7 +71,6 @@ pub(crate) fn insert_person(
     )?;
     stmt.execute(params![
         prompt,
-        content,
         keys.public_key().to_string(),
         secretkey,
         content
