@@ -1,3 +1,4 @@
+use nostr_sdk::prelude::*;
 use rusqlite::{params, Connection, Result};
 
 pub(crate) fn connect() -> Result<Connection> {
@@ -37,7 +38,7 @@ pub fn get_all_persons(conn: &Connection) -> Result<Vec<Person>> {
     Ok(persons.clone())
 }
 
-fn get_person(conn: &Connection, pubkey: &str) -> Result<Person> {
+pub fn get_person(conn: &Connection, pubkey: &str) -> Result<Person> {
     let mut stmt = conn.prepare("SELECT * FROM Persons WHERE pubkey = ?")?;
     let person = stmt
         .query_map(params![pubkey], |row| {
@@ -56,6 +57,34 @@ fn get_person(conn: &Connection, pubkey: &str) -> Result<Person> {
         .unwrap()?;
 
     Ok(person.clone())
+}
+
+pub(crate) fn insert_person(
+    conn: &Connection,
+    keys: &Keys,
+    prompt: &str,
+    content: &str,
+) -> Result<()> {
+    let secretkey = keys.secret_key().unwrap().display_secret().to_string();
+    let mut stmt = conn.prepare(
+        "INSERT INTO Persons (status, prompt, pubkey, secretkey, content) VALUES(0,?,?,?,?)",
+    )?;
+    stmt.execute(params![
+        prompt,
+        content,
+        keys.public_key().to_string(),
+        secretkey,
+        content
+    ])?;
+
+    Ok(())
+}
+
+pub(crate) fn update_person_content(conn: &Connection, pubkey: &str, content: &str) -> Result<()> {
+    let mut stmt = conn.prepare("UPDATE Persons SET content=? WHERE pubkey=?")?;
+    stmt.execute(params![content, pubkey])?;
+
+    Ok(())
 }
 
 pub fn get_random_person(conn: &Connection) -> Result<Person> {
