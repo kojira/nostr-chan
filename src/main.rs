@@ -184,6 +184,14 @@ async fn main() -> Result<()> {
     let mut notifications = client.notifications();
     while let Ok(notification) = notifications.recv().await {
         if let RelayPoolNotification::Event(_url, event) = notification {
+            let result = config
+                .bot
+                .blacklist
+                .iter()
+                .any(|s| s == &event.id.to_string());
+            if result {
+                continue;
+            }
             if event.kind == Kind::TextNote {
                 let mut japanese: bool = false;
                 if let Some(lang) = detect(&event.content) {
