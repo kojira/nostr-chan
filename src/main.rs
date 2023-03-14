@@ -6,6 +6,7 @@ use config::AppConfig;
 use dotenv::dotenv;
 use nostr_sdk::prelude::*;
 use rand::Rng;
+use regex::Regex;
 use std::fs::File;
 use std::thread;
 use std::time::Duration;
@@ -95,7 +96,8 @@ async fn command_handler(
     let person_op = extract_mention(persons_, &event).unwrap();
     if person_op.is_some() {
         let person = person_op.unwrap();
-        let replaced = event.content.replace("#[0]", "");
+        let re = Regex::new(r"#\[0\]\s*").unwrap();
+        let replaced = re.replace_all(&event.content, "");
         let trimed = replaced.trim_start();
         if trimed.starts_with("占って") {
             let text = "今日のわたしの運勢を占って。結果はランダムで決めて、その結果に従って占いの内容を運の良さは★マークを５段階でラッキーアイテム、ラッキーカラーとかも教えて";
