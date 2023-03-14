@@ -1,3 +1,4 @@
+use chrono::Utc;
 use nostr_sdk::prelude::*;
 use rusqlite::{params, Connection, Result};
 
@@ -66,14 +67,17 @@ pub(crate) fn insert_person(
     content: &str,
 ) -> Result<()> {
     let secretkey = keys.secret_key().unwrap().display_secret().to_string();
+    let now = Utc::now();
+    let created_at = now.timestamp();
     let mut stmt = conn.prepare(
-        "INSERT INTO Persons (status, prompt, pubkey, secretkey, content) VALUES(0,?,?,?,?)",
+        "INSERT INTO Persons (status, prompt, pubkey, secretkey, content, created_at) VALUES(0,?,?,?,?,datetime(?, 'unixepoch'))",
     )?;
     stmt.execute(params![
         prompt,
         keys.public_key().to_string(),
         secretkey,
-        content
+        content,
+        created_at
     ])?;
 
     Ok(())
