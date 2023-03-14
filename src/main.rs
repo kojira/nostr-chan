@@ -129,10 +129,15 @@ fn extract_mention(persons: Vec<db::Person>, event: &Event) -> Result<Option<db:
     let mut person: Option<db::Person> = None;
     for _person in &persons {
         let content: Value = serde_json::from_str(&_person.content)?;
+        let words: Vec<String> = event
+            .content
+            .split_whitespace()
+            .map(|word| word.to_string())
+            .collect();
         let name = &content["name"].to_string().replace('"', "");
         let display_name = &content["display_name"].to_string().replace('"', "");
 
-        if event.content.contains(name) || event.content.contains(display_name) {
+        if &words[0] == name || &words[0] == display_name {
             person = Some(_person.clone());
             break;
         }
