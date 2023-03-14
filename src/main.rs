@@ -2,6 +2,7 @@ mod config;
 mod db;
 mod gpt;
 use chrono::Utc;
+use config::AppConfig;
 use dotenv::dotenv;
 use nostr_sdk::prelude::*;
 use rand::Rng;
@@ -106,17 +107,21 @@ async fn command_handler(
     Ok(handled)
 }
 
-fn judge_post(persons: Vec<db::Person>, event: &Event) -> Result<(bool, Option<db::Person>)> {
+fn judge_post(
+    config: &AppConfig,
+    persons: Vec<db::Person>,
+    event: &Event,
+) -> Result<(bool, Option<db::Person>)> {
     let mut post = false;
     println!("{:?}", event);
     let random_number = rand::thread_rng().gen_range(0..100);
     println!("random_number:{:?}", random_number);
     let person = extract_mention(persons, &event).unwrap();
-    let mut base_percent = 10;
+    let mut base_percent = config.bot.reaction_percent;
     if person.is_some() {
         base_percent += 10;
     }
-    if random_number <= (10 + base_percent) {
+    if random_number <= base_percent {
         post = true;
     }
     Ok((post, person))
@@ -196,7 +201,7 @@ async fn main() -> Result<()> {
                         && event.content.len() > 0
                         && (event.created_at.as_i64() > last_post_time)
                     {
-                        let (mut post, person_op) = judge_post(persons, &event).unwrap();
+                        let (mut post, person_op) = judge_post(&config, persons, &event).unwrap();
                         println!("post:{}", post);
                         let person: db::Person;
                         if event.created_at.as_i64() > (last_post_time + config.bot.reaction_freq) {
