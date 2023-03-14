@@ -188,7 +188,7 @@ async fn main() -> Result<()> {
                 .bot
                 .blacklist
                 .iter()
-                .any(|s| s == &event.id.to_string());
+                .any(|s| s == &event.pubkey.to_string());
             if result {
                 continue;
             }
