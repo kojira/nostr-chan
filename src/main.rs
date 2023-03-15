@@ -187,9 +187,9 @@ async fn command_handler(
         } else {
             let is_admin = admin_pubkeys.iter().any(|s| *s == event.pubkey.to_string());
             if is_admin {
-                if event.content.contains("new") {
-                    let lines: Vec<String> =
-                        event.content.lines().map(|line| line.to_string()).collect();
+                let lines: Vec<String> =
+                    event.content.lines().map(|line| line.to_string()).collect();
+                if lines[0].contains("new") {
                     let keys = Keys::generate();
                     let prompt = &lines[1];
                     let content = &lines[2];
@@ -206,7 +206,7 @@ async fn command_handler(
                         &format!("{}です。コンゴトモヨロシク！", display_name),
                     )
                     .await?;
-                } else if event.content.contains("get kind 0") {
+                } else if lines[0].contains("get kind 0") {
                     println!("get kind 0");
                     let _meta_event = get_kind0(&person.pubkey, &person.secretkey).await?;
                     db::update_person_content(
@@ -221,10 +221,8 @@ async fn command_handler(
                         &format!("リレーからkindo 0を取得してデータベース情報を更新しました"),
                     )
                     .await?;
-                } else if event.content.contains("update kind 0") {
+                } else if lines[0].contains("update kind 0") {
                     println!("update kind 0");
-                    let lines: Vec<String> =
-                        event.content.lines().map(|line| line.to_string()).collect();
                     db::update_person_content(conn, &person.pubkey, &lines[1])?;
                     send_kind0(&person.secretkey.to_string(), &lines[1]).await?;
                     reply_to(
@@ -234,7 +232,7 @@ async fn command_handler(
                         &format!("データベースのkind 0を更新してブロードキャストしました"),
                     )
                     .await?;
-                } else if event.content.contains("broadcast kind 0") {
+                } else if lines[0].contains("broadcast kind 0") {
                     println!("broadcast kind 0");
                     send_kind0(&person.secretkey.to_string(), &person.content.to_string()).await?;
                     reply_to(
