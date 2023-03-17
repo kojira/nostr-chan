@@ -162,7 +162,7 @@ fn extract_mention(persons: Vec<db::Person>, event: &Event) -> Result<Option<db:
 }
 
 async fn fortune(config: &config::AppConfig, person: &db::Person, event: &Event) -> Result<()> {
-    let text = "今日のわたしの運勢を占って。結果はランダムで決めて、その結果に従って占いの内容を運の良さは★マークを５段階でラッキーアイテム、ラッキーカラーとかも教えて";
+    let text = &format!("今日のわたしの運勢を占って。結果はランダムで決めて、その結果に従って占いの内容を運の良さは★マークを５段階でラッキーアイテム、ラッキーカラーとかも教えて。\n{}",event.content);
     let reply = gpt::get_reply(&person.prompt, text).await.unwrap();
     reply_to(config, event.clone(), person.clone(), &reply).await?;
     Ok(())
@@ -257,12 +257,15 @@ fn judge_post(
     let mut post = false;
     println!("{:?}", event);
     let random_number = rand::thread_rng().gen_range(0..100);
-    println!("random_number:{:?}", random_number);
     let person = extract_mention(persons, &event).unwrap();
     let mut base_percent = config.bot.reaction_percent;
     if person.is_some() {
         base_percent += 10;
     }
+    println!(
+        "random_number:{:?} base_percent:{:?}",
+        random_number, base_percent
+    );
     if random_number <= base_percent {
         post = true;
     }
