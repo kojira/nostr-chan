@@ -45,7 +45,7 @@ async fn is_follower(user_pubkey: &str, bot_secret_key: &str) -> Result<bool> {
         }
         count += 1;
         println!("count:{:?}", count);
-        if count > 10 {
+        if count >= (config.relay_servers.len() / 2) {
             break;
         }
     }
@@ -98,7 +98,7 @@ async fn get_kind0(target_pubkey: &str, bot_secret_key: &str) -> Result<Event> {
         }
         count += 1;
         println!("count:{:?}", count);
-        if count > 5 {
+        if count >= (config.relay_servers.len() / 2) {
             break;
         }
     }
@@ -137,13 +137,18 @@ fn extract_mention(persons: Vec<db::Person>, event: &Event) -> Result<Option<db:
         let name = &content["name"].to_string().replace('"', "");
         let display_name = &content["display_name"].to_string().replace('"', "");
 
-        if &words[0] == name || &words[0] == display_name {
+        if words.len() > 0
+            && (&words[0] == name
+                || &words[0] == display_name
+                || event.content.contains(display_name))
+        {
+            println!("name:{} display_name:{}", name, display_name);
             person = Some(_person.clone());
             break;
         }
     }
 
-    if person.is_some() {
+    if person.is_none() {
         for _tag in event.tags.iter() {
             if _tag.as_vec().len() > 1 {
                 if _tag.as_vec()[0].len() == 1 {
@@ -151,10 +156,14 @@ fn extract_mention(persons: Vec<db::Person>, event: &Event) -> Result<Option<db:
                         for _person in &persons {
                             if _tag.as_vec()[1].to_string() == _person.pubkey.to_string() {
                                 person = Some(_person.clone());
+                                break;
                             }
                         }
                     }
                 }
+            }
+            if person.is_some() {
+                break;
             }
         }
     }
@@ -164,7 +173,9 @@ fn extract_mention(persons: Vec<db::Person>, event: &Event) -> Result<Option<db:
 async fn fortune(config: &config::AppConfig, person: &db::Person, event: &Event) -> Result<()> {
     let text = &format!("今日のわたしの運勢を占って。結果はランダムで決めて、その結果に従って占いの内容を運の良さは★マークを５段階でラッキーアイテム、ラッキーカラーとかも教えて。\n{}",event.content);
     let reply = gpt::get_reply(&person.prompt, text).await.unwrap();
-    reply_to(config, event.clone(), person.clone(), &reply).await?;
+    if reply.len() > 0 {
+        reply_to(config, event.clone(), person.clone(), &reply).await?;
+    }
     Ok(())
 }
 
@@ -370,11 +381,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 is_follower(&event.pubkey.to_string(), &person.secretkey).await?;
                             println!("follower:{}", follower);
                             if follower {
-                                let reply = gpt::get_reply(&person.prompt, &event.content)
-                                    .await
-                                    .unwrap();
-                                println!("publish_text_note...{}", reply);
+                                let reply =
+                                    match gpt::get_reply(&person.prompt, &event.content).await {
+                                        Ok(reply) => reply,
+                                        Err(e) => {
+                                            eprintln!("Error: {}", e);
+                                            continue;
+                                        }
+                                    };
+
                                 if reply.len() > 0 {
+                                    println!("publish_text_note...{}", reply);
                                     reply_to(&config, event, person, &reply).await?;
                                     last_post_time = Utc::now().timestamp();
                                 }

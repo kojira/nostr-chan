@@ -3,6 +3,8 @@ use chat_gpt_rs::prelude::*;
 use dotenv::dotenv;
 use std::env;
 use std::fs::File;
+use std::time::Duration;
+use tokio::time::timeout;
 
 pub async fn get_reply<'a>(personality: &'a str, user_text: &'a str) -> Result<String> {
     dotenv().ok();
@@ -34,8 +36,20 @@ pub async fn get_reply<'a>(personality: &'a str, user_text: &'a str) -> Result<S
 
         ..Default::default()
     };
-    let response = api.chat(request).await.unwrap();
-    let reply = response.choices[0].message.content.clone();
-    println!("{:?}", reply);
-    Ok(reply)
+    // let response = api.chat(request).await?;
+    let reply;
+    let result = timeout(Duration::from_secs(30), api.chat(request)).await;
+    match result {
+        Ok(response) => {
+            // 非同期処理が完了した場合の処理
+            reply = response.unwrap().choices[0].message.content.clone();
+            println!("{:?}", reply);
+            Ok(reply)
+        }
+        Err(_) => {
+            eprintln!("**********Timeout occurred while calling api.chat");
+            reply = "".to_string();
+            Ok(reply)
+        }
+    }
 }
