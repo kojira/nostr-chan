@@ -7,4 +7,4 @@ RUN apt-get update && \
     rustup component add rls rust-analysis rust-src rustfmt clippy && \
     cargo install cargo-edit cargo-watch
 
-RUN apt-get install -y mecab libmecab-dev mecab-ipadic-utf8
+# RUN apt-get install -y mecab libmecab-dev mecab-ipadic-utf8
