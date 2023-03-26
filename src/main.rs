@@ -302,6 +302,7 @@ async fn command_handler(
                         }
                         if japanese
                             && !event.content.starts_with("lnbc")
+                            && !event.content.contains("#まとめ除外")
                             && event.content.len() < 400
                         {
                             summary = format!("{}{}\n", summary, event.content);
@@ -317,7 +318,7 @@ async fn command_handler(
                         event.clone(),
                         person,
                         &format!(
-                            "{from}〜{to}の日本語投稿{event_count}件の要約ですわ。\n{summary}"
+                            "{from}〜{to}の日本語投稿{event_count}件の要約ですわ。\n{summary}\n#まとめ除外"
                         ),
                     )
                     .await?;
