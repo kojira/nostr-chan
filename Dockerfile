@@ -6,3 +6,5 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/* && \
     rustup component add rls rust-analysis rust-src rustfmt clippy && \
     cargo install cargo-edit cargo-watch
+
+RUN apt-get install -y mecab libmecab-dev mecab-ipadic-utf8

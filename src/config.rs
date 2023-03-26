@@ -19,8 +19,14 @@ pub struct GptConfig {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+pub struct RelayConfig {
+    pub write: Vec<String>,
+    pub read: Vec<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 pub struct AppConfig {
-    pub relay_servers: Vec<String>,
+    pub relay_servers: RelayConfig,
     pub bot: BotConfig,
     pub gpt: GptConfig,
 }

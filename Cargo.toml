@@ -6,7 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-nostr-sdk = { version="0.19", features = ["all-nips"] }
+nostr-sdk = { version="0.20.0", features = ["all-nips"] }
 tokio = { version = "1", features = ["full"] }
 serde = "1.0"
 serde_yaml = "0.8"
@@ -16,6 +16,9 @@ serde_json = "1.0.94"
 r2d2 = "0.8.10"
 rusqlite = "0.28.0"
 whatlang = "0.16.2"
-chat-gpt-rs = "1.2.0"
+chat-gpt-rs = "1.3.0"
 dotenv = "0.15.0"
 regex = "1.7.1"
+mysql = "23.0.1"
+r2d2_mysql = "23.0.0"
+thiserror = "1.0.39"
