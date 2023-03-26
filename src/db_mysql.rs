@@ -1,12 +1,9 @@
 use chrono::NaiveDateTime;
-use mysql::{params, prelude::*, Opts, OptsBuilder, Value};
-use nostr_sdk::secp256k1::schnorr::Signature;
-use nostr_sdk::secp256k1::XOnlyPublicKey;
-use nostr_sdk::{Event, EventId, Kind, Tag, Timestamp};
+use mysql::{params, prelude::*, Opts, OptsBuilder};
+use nostr_sdk::Kind;
 use r2d2_mysql::{mysql::Error as MysqlError, MySqlConnectionManager};
 use std::env;
 use std::primitive::str;
-use std::str::FromStr;
 
 const DATABASE_USER: &str = "MYSQL_USER";
 const DATABASE_PASS: &str = "MYSQL_PASSWORD";
@@ -59,16 +56,21 @@ pub fn to_unix_timestamp(datetime_str: &str) -> Option<i64> {
     Some(datetime.timestamp() as i64)
 }
 
+pub struct _Event {
+    pub pubkey: String,
+    pub content: String,
+}
+
 pub fn select_events(
     pool: &r2d2::Pool<MySqlConnectionManager>,
     kind: Kind,
     _from: &str,
     _to: &str,
-) -> Vec<Event> {
+) -> Vec<_Event> {
     let pool = pool.clone();
     let mut conn = pool.get().unwrap();
 
-    let mut events_result: Vec<Event> = vec![];
+    let mut events_result: Vec<_Event> = vec![];
 
     let mut rows = conn
         .exec_iter(
@@ -83,28 +85,12 @@ pub fn select_events(
 
     while let Some(row) = rows.next() {
         let row = row.unwrap();
-        let id: String = row.get("hex_event_id").unwrap();
         let pubkey: String = row.get("pubkey").unwrap();
 
-        let created_at: Option<String> = row.get("event_created_at").map(|value| match value {
-            Value::NULL => String::default(),
-            _ => value.as_sql(false),
-        });
-        let ca = created_at.unwrap().replace("'", "");
-        let timestamp = to_unix_timestamp(&ca.to_string()).unwrap();
-
-        let kind: u64 = row.get("kind").unwrap();
         let content: String = row.get("content").unwrap();
-        let sig: String = row.get("signature").unwrap();
-        let _tags = vec![Tag::Identifier("".to_string())]; //dummy
-        let event = Event {
-            id: EventId::from_str(&id).unwrap(),
-            pubkey: XOnlyPublicKey::from_str(&pubkey).unwrap(),
-            created_at: Timestamp::from(timestamp as u64),
-            kind: Kind::from(kind),
-            tags: _tags,
+        let event = _Event {
+            pubkey: pubkey,
             content: content,
-            sig: Signature::from_str(&sig).unwrap(),
         };
         events_result.push(event);
     }
