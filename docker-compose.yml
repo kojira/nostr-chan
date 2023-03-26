@@ -14,5 +14,5 @@ services:
 
 networks:
   default:
-    external:
-      name: nostify_default
+    name: nostify_default
+    external: true
