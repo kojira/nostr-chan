@@ -16,7 +16,29 @@ pub async fn get_reply<'a>(personality: &'a str, user_text: &'a str) -> Result<S
     let token = Token::new(&api_key);
     let api = Api::new(token);
 
-    let prompt = format!("これはあなたの人格です。'{personality}'\nこの人格を演じて次の文章に対して{answer_length}文字程度で返信してください。");
+    let start_delimiter = "<<";
+    let end_delimiter = ">>";
+    let mut extracted_prompt = "";
+    let mut modified_personality = String::new();
+
+    if let Some(start_index) = personality.find(start_delimiter) {
+        if let Some(end_index) = personality.find(end_delimiter) {
+            extracted_prompt = &personality[start_index + start_delimiter.len()..end_index];
+            modified_personality = personality.replacen(
+                &format!("{}{}{}", start_delimiter, extracted_prompt, end_delimiter),
+                "",
+                1,
+            );
+        }
+    }
+
+    let prompt;
+
+    if modified_personality.len() > 0 && extracted_prompt.len() > 0 {
+        prompt = format!("これはあなたの人格です。'{personality}'\n{extracted_prompt}");
+    } else {
+        prompt = format!("これはあなたの人格です。'{personality}'\nこの人格を演じて次の文章に対して{answer_length}文字程度で返信してください。");
+    }
 
     let request = Request {
         model: Model::Gpt35Turbo,
