@@ -232,7 +232,7 @@ async fn command_handler(
                         &config,
                         event.clone(),
                         person,
-                        &format!("リレーからkindo 0を取得してデータベース情報を更新しました"),
+                        &format!("リレーからkind 0を取得してデータベース情報を更新しました"),
                     )
                     .await?;
                 } else if lines[0].contains("update kind 0") {
