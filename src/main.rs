@@ -175,7 +175,7 @@ fn extract_mention(persons: Vec<db::Person>, event: &Event) -> Result<Option<db:
 
 async fn fortune(config: &config::AppConfig, person: &db::Person, event: &Event) -> Result<()> {
     let text = &format!("今日のわたしの運勢を占って。結果はランダムで決めて、その結果に従って占いの内容を運の良さは★マークを５段階でラッキーアイテム、ラッキーカラーとかも教えて。\n{}",event.content);
-    let reply = gpt::get_reply(&person.prompt, text).await.unwrap();
+    let reply = gpt::get_reply(&person.prompt, text, true).await.unwrap();
     if reply.len() > 0 {
         reply_to(config, event.clone(), person.clone(), &reply).await?;
     }
@@ -441,17 +441,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             post = true;
                         }
                         if post {
+                            let has_mention;
                             if person_op.is_none() {
                                 person = db::get_random_person(&conn).unwrap();
+                                has_mention = false;
                             } else {
                                 person = person_op.unwrap();
+                                has_mention = true;
                             }
                             let follower =
                                 is_follower(&event.pubkey.to_string(), &person.secretkey).await?;
                             println!("follower:{}", follower);
                             if follower {
                                 let reply =
-                                    match gpt::get_reply(&person.prompt, &event.content).await {
+                                    match gpt::get_reply(&person.prompt, &event.content, has_mention).await {
                                         Ok(reply) => reply,
                                         Err(e) => {
                                             eprintln!("Error: {}", e);

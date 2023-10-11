@@ -6,7 +6,7 @@ use std::time::Duration;
 use std::{env, thread};
 use tokio::time::timeout;
 
-pub async fn get_reply<'a>(personality: &'a str, user_text: &'a str) -> Result<String> {
+pub async fn get_reply<'a>(personality: &'a str, user_text: &'a str, has_mention: bool) -> Result<String> {
     dotenv().ok();
     let file = File::open("../config.yml").unwrap();
     let config: AppConfig = serde_yaml::from_reader(file).unwrap();
@@ -33,11 +33,17 @@ pub async fn get_reply<'a>(personality: &'a str, user_text: &'a str) -> Result<S
     }
 
     let prompt;
+    let prompt_temp;
 
     if modified_personality.len() > 0 && extracted_prompt.len() > 0 {
-        prompt = format!("これはあなたの人格です。'{personality}'\n{extracted_prompt}");
+        prompt_temp = format!("これはあなたの人格です。'{personality}'\n{extracted_prompt}");
     } else {
-        prompt = format!("これはあなたの人格です。'{personality}'\nこの人格を演じて次の文章に対して{answer_length}文字程度で返信してください。");
+        prompt_temp = format!("これはあなたの人格です。'{personality}'\nこの人格を演じて次の行の文章に対して{answer_length}文字程度で返信してください。");
+    }
+    if !has_mention {
+        prompt = format!("{prompt_temp}次の行の文章はSNSでの投稿です。あなたがたまたま見かけたものであなた宛の文章ではないのでその点に注意して解凍してください。")
+    } else {
+        prompt = prompt_temp
     }
 
     let request = Request {
