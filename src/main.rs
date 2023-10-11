@@ -22,17 +22,17 @@ async fn is_follower(user_pubkey: &str, bot_secret_key: &str) -> Result<bool> {
     let bot_pubkey = my_keys.public_key();
     let client = Client::new(&my_keys);
     for item in config.relay_servers.read.iter() {
-        client.add_relay(item, None).await?;
+        client.add_relay(item.clone(), None).await?;
     }
     client.connect().await;
     let pubkey = XOnlyPublicKey::from_str(user_pubkey).unwrap();
     let subscription = Filter::new()
-        .authors([pubkey].to_vec())
+        .authors([pubkey.to_string()].to_vec())
         .kinds([nostr_sdk::Kind::ContactList].to_vec())
         .limit(1);
 
     client.subscribe(vec![subscription]).await;
-    println!("subscribe");
+    println!("subscribe:{}",pubkey.to_string());
 
     let mut events = vec![];
     let mut count = 0;
@@ -40,13 +40,13 @@ async fn is_follower(user_pubkey: &str, bot_secret_key: &str) -> Result<bool> {
     while let Ok(notification) = notifications.recv().await {
         if let RelayPoolNotification::Event(_url, event) = notification {
             if event.kind == Kind::ContactList {
+                // println!("event {:?}", event);
                 events.push(event);
+                count += 1;
+                println!("count:{:?}", count);
                 break;
             }
-            println!("event {:?}", event);
         }
-        count += 1;
-        println!("count:{:?}", count);
         if count >= (config.relay_servers.read.len() / 2) {
             break;
         }
@@ -76,12 +76,12 @@ async fn get_kind0(target_pubkey: &str, bot_secret_key: &str) -> Result<Event> {
     let my_keys = Keys::from_sk_str(&bot_secret_key)?;
     let client = Client::new(&my_keys);
     for item in config.relay_servers.read.iter() {
-        client.add_relay(item, None).await?;
+        client.add_relay(item.clone(), None).await?;
     }
     client.connect().await;
     let pubkey = XOnlyPublicKey::from_str(target_pubkey).unwrap();
     let subscription = Filter::new()
-        .authors([pubkey].to_vec())
+        .authors([pubkey.to_string()].to_vec())
         .kinds([nostr_sdk::Kind::Metadata].to_vec())
         .limit(1);
 
@@ -94,13 +94,13 @@ async fn get_kind0(target_pubkey: &str, bot_secret_key: &str) -> Result<Event> {
     while let Ok(notification) = notifications.recv().await {
         if let RelayPoolNotification::Event(_url, event) = notification {
             if event.kind == Kind::Metadata {
+                println!("event {:?}", event);
                 events.push(event);
+                count += 1;
+                println!("count:{:?}", count);
                 break;
             }
-            println!("event {:?}", event);
         }
-        count += 1;
-        println!("count:{:?}", count);
         if count >= (config.relay_servers.read.len() / 2) {
             break;
         }
@@ -117,7 +117,7 @@ async fn send_kind0(bot_secret_key: &str, meta_json: &str) -> Result<()> {
     let my_keys = Keys::from_sk_str(&bot_secret_key)?;
     let client = Client::new(&my_keys);
     for item in config.relay_servers.write.iter() {
-        client.add_relay(item, None).await?;
+        client.add_relay(item.clone(), None).await?;
     }
     client.connect().await;
     let metadata = Metadata::from_json(meta_json).unwrap();
@@ -361,7 +361,7 @@ async fn reply_to(
     let bot_keys = Keys::from_sk_str(&person.secretkey)?;
     let client_temp = Client::new(&bot_keys);
     for item in config.relay_servers.write.iter() {
-        client_temp.add_relay(item, None).await?;
+        client_temp.add_relay(item.clone(), None).await.unwrap();
     }
     client_temp.connect().await;
     let mut tags: Vec<Tag> = vec![];
@@ -391,7 +391,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Create new client
     let client = Client::new(&my_keys);
     for item in config.relay_servers.read.iter() {
-        client.add_relay(item, None).await?;
+        client.add_relay(item.clone(), None).await?;
     }
     println!("add_relay");
 
