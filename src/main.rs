@@ -27,7 +27,7 @@ async fn is_follower(user_pubkey: &str, bot_secret_key: &str) -> Result<bool> {
     client.connect().await;
     let pubkey = XOnlyPublicKey::from_str(user_pubkey).unwrap();
     let subscription = Filter::new()
-        .authors([pubkey.to_string()].to_vec())
+        .authors([pubkey].to_vec())
         .kinds([nostr_sdk::Kind::ContactList].to_vec())
         .limit(1);
 
@@ -81,7 +81,7 @@ async fn get_kind0(target_pubkey: &str, bot_secret_key: &str) -> Result<Event> {
     client.connect().await;
     let pubkey = XOnlyPublicKey::from_str(target_pubkey).unwrap();
     let subscription = Filter::new()
-        .authors([pubkey.to_string()].to_vec())
+        .authors([pubkey].to_vec())
         .kinds([nostr_sdk::Kind::Metadata].to_vec())
         .limit(1);
 
