@@ -42,12 +42,14 @@ async fn is_follower(user_pubkey: &str, bot_secret_key: &str) -> Result<bool> {
             if event.kind == Kind::ContactList {
                 // println!("event {:?}", event);
                 events.push(event);
-                count += 1;
-                println!("count:{:?}", count);
                 break;
             }
         }
-        if count >= (config.relay_servers.read.len() / 2) {
+        count += 1;
+        println!("count:{:?}", count);
+        if events.len() >= (config.relay_servers.read.len() / 2) ||
+            count >= 10
+        {
             break;
         }
     }
@@ -96,12 +98,14 @@ async fn get_kind0(target_pubkey: &str, bot_secret_key: &str) -> Result<Event> {
             if event.kind == Kind::Metadata {
                 println!("event {:?}", event);
                 events.push(event);
-                count += 1;
-                println!("count:{:?}", count);
                 break;
             }
         }
-        if count >= (config.relay_servers.read.len() / 2) {
+        count += 1;
+        println!("count:{:?}", count);
+        if events.len() >= (config.relay_servers.read.len() / 2) ||
+            count >= 10
+        {
             break;
         }
     }
