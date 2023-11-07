@@ -441,18 +441,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         let (mut post, person_op) = judge_post(&config, persons, &event).unwrap();
                         println!("post:{}", post);
                         let person: db::Person;
-                        if event.created_at.as_i64() > (last_post_time + config.bot.reaction_freq) {
+                        let has_mention;
+                        if person_op.is_none() {
+                            person = db::get_random_person(&conn).unwrap();
+                            has_mention = false;
+                        } else {
+                            person = person_op.unwrap();
+                            has_mention = true;
+                        }
+                        if event.created_at.as_i64() > (last_post_time + config.bot.reaction_freq) || has_mention {
                             post = true;
                         }
                         if post {
-                            let has_mention;
-                            if person_op.is_none() {
-                                person = db::get_random_person(&conn).unwrap();
-                                has_mention = false;
-                            } else {
-                                person = person_op.unwrap();
-                                has_mention = true;
-                            }
                             let follower =
                                 is_follower(&event.pubkey.to_string(), &person.secretkey).await?;
                             println!("follower:{}", follower);
