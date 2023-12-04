@@ -433,7 +433,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         _ => ()
                     }
                 }
-                println!("detectNip36:{}", detectNip36);
                 if detectNip36 {
                     continue;
                 }
