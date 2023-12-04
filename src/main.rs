@@ -422,6 +422,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 continue;
             }
             if event.kind == Kind::TextNote {
+                let mut detectNip36 = false;
+                for tag in event.tags.clone().into_iter() {
+                    match tag {
+                        Tag::ContentWarning { reason: _ } => {
+                            // skip NIP-36
+                            detectNip36 = true;
+                            break;
+                        },
+                        _ => ()
+                    }
+                }
+                println!("detectNip36:{}", detectNip36);
+                if detectNip36 {
+                    continue;
+                }
                 let persons = db::get_all_persons(&conn).unwrap();
                 let handled = command_handler(&config, &conn, &persons, &event).await?;
                 let mut japanese: bool = false;
