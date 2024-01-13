@@ -356,6 +356,27 @@ fn judge_post(
     Ok((post, person))
 }
 
+async fn send_to(
+    config: &config::AppConfig,
+    person: db::Person,
+    text: &str,
+) -> Result<()> {
+    let bot_keys = Keys::from_sk_str(&person.secretkey)?;
+    let client_temp = Client::new(&bot_keys);
+    for item in config.relay_servers.write.iter() {
+        client_temp.add_relay(item.clone(), None).await.unwrap();
+    }
+    client_temp.connect().await;
+    let tags: Vec<Tag> = vec![];
+    let event_id = client_temp
+        .publish_text_note(format!("{}", text), &tags)
+        .await?;
+    println!("publish_text_note! eventId:{}", event_id);
+    thread::sleep(Duration::from_secs(10));
+    client_temp.shutdown().await?;
+    Ok(())
+}
+
 async fn reply_to(
     config: &config::AppConfig,
     event: Event,
@@ -482,7 +503,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                                 if reply.len() > 0 {
                                     println!("publish_text_note...{}", reply);
-                                    reply_to(&config, event, person, &reply).await?;
+                                    send_to(&config, person, &reply).await?;
                                     last_post_time = Utc::now().timestamp();
                                 }
                             }
