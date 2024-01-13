@@ -22,7 +22,7 @@ async fn is_follower(user_pubkey: &str, bot_secret_key: &str) -> Result<bool> {
     let bot_pubkey = my_keys.public_key();
     let client = Client::new(&my_keys);
     for item in config.relay_servers.read.iter() {
-        client.add_relay(item.clone(), None).await?;
+        client.add_relay(item.clone()).await?;
     }
     client.connect().await;
     let pubkey = XOnlyPublicKey::from_str(user_pubkey).unwrap();
@@ -38,7 +38,7 @@ async fn is_follower(user_pubkey: &str, bot_secret_key: &str) -> Result<bool> {
     let mut count = 0;
     let mut notifications = client.notifications();
     while let Ok(notification) = notifications.recv().await {
-        if let RelayPoolNotification::Event(_url, event) = notification {
+        if let RelayPoolNotification::Event{relay_url, event} = notification {
             if event.kind == Kind::ContactList {
                 // println!("event {:?}", event);
                 events.push(event);
@@ -78,7 +78,7 @@ async fn get_kind0(target_pubkey: &str, bot_secret_key: &str) -> Result<Event> {
     let my_keys = Keys::from_sk_str(&bot_secret_key)?;
     let client = Client::new(&my_keys);
     for item in config.relay_servers.read.iter() {
-        client.add_relay(item.clone(), None).await?;
+        client.add_relay(item.clone()).await?;
     }
     client.connect().await;
     let pubkey = XOnlyPublicKey::from_str(target_pubkey).unwrap();
@@ -94,7 +94,7 @@ async fn get_kind0(target_pubkey: &str, bot_secret_key: &str) -> Result<Event> {
     let mut count = 0;
     let mut notifications = client.notifications();
     while let Ok(notification) = notifications.recv().await {
-        if let RelayPoolNotification::Event(_url, event) = notification {
+        if let RelayPoolNotification::Event{relay_url, event} = notification {
             if event.kind == Kind::Metadata {
                 println!("event {:?}", event);
                 events.push(event);
@@ -121,11 +121,11 @@ async fn send_kind0(bot_secret_key: &str, meta_json: &str) -> Result<()> {
     let my_keys = Keys::from_sk_str(&bot_secret_key)?;
     let client = Client::new(&my_keys);
     for item in config.relay_servers.write.iter() {
-        client.add_relay(item.clone(), None).await?;
+        client.add_relay(item.clone()).await?;
     }
     client.connect().await;
     let metadata = Metadata::from_json(meta_json).unwrap();
-    client.set_metadata(metadata).await?;
+    client.set_metadata(&metadata).await?;
     thread::sleep(Duration::from_secs(10));
     client.shutdown().await?;
 
@@ -364,12 +364,12 @@ async fn send_to(
     let bot_keys = Keys::from_sk_str(&person.secretkey)?;
     let client_temp = Client::new(&bot_keys);
     for item in config.relay_servers.write.iter() {
-        client_temp.add_relay(item.clone(), None).await.unwrap();
+        client_temp.add_relay(item.clone()).await.unwrap();
     }
     client_temp.connect().await;
     let tags: Vec<Tag> = vec![];
     let event_id = client_temp
-        .publish_text_note(format!("{}", text), &tags)
+        .publish_text_note(format!("{}", text), tags)
         .await?;
     println!("publish_text_note! eventId:{}", event_id);
     thread::sleep(Duration::from_secs(10));
@@ -386,16 +386,19 @@ async fn reply_to(
     let bot_keys = Keys::from_sk_str(&person.secretkey)?;
     let client_temp = Client::new(&bot_keys);
     for item in config.relay_servers.write.iter() {
-        client_temp.add_relay(item.clone(), None).await.unwrap();
+        client_temp.add_relay(item.clone()).await.unwrap();
     }
     client_temp.connect().await;
-    let mut tags: Vec<Tag> = vec![];
-    tags.push(Tag::Event(event.id, None, Some(Marker::Reply)));
-    tags.push(Tag::PubKey(event.pubkey, None));
-    let event_id = client_temp
-        .publish_text_note(format!("{}", text), &tags)
-        .await?;
-    println!("publish_text_note! eventId:{}", event_id);
+
+    let event = EventBuilder::new_text_note(
+        text,
+        [Tag::event(event.id), Tag::public_key(event.pubkey)],
+    )
+    .to_event(&bot_keys)
+    .unwrap();
+    client_temp.send_event(event).await?;
+
+    println!("publish_text_note!");
     thread::sleep(Duration::from_secs(10));
     client_temp.shutdown().await?;
     Ok(())
@@ -416,7 +419,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Create new client
     let client = Client::new(&my_keys);
     for item in config.relay_servers.read.iter() {
-        client.add_relay(item.clone(), None).await?;
+        client.add_relay(item.clone()).await?;
     }
     println!("add_relay");
 
@@ -433,7 +436,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut last_post_time = Utc::now().timestamp() - config.bot.reaction_freq;
     let mut notifications = client.notifications();
     while let Ok(notification) = notifications.recv().await {
-        if let RelayPoolNotification::Event(_url, event) = notification {
+        if let RelayPoolNotification::Event{relay_url, event} = notification {
             let result = config
                 .bot
                 .blacklist
