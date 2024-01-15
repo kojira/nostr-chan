@@ -506,7 +506,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                                 if reply.len() > 0 {
                                     println!("publish_text_note...{}", reply);
-                                    send_to(&config, person, &reply).await?;
+                                    if has_mention {
+                                        reply_to(&config, event, person, &reply).await?;
+                                    } else {
+                                        send_to(&config, person, &reply).await?;
+                                    }
                                     last_post_time = Utc::now().timestamp();
                                 }
                             }
