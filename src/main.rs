@@ -471,52 +471,54 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 } else {
                     // println!("Language detection failed.");
                 }
-                if japanese {
-                    if !handled
-                        && event.content.len() > 0
-                        && (event.created_at.as_i64() > last_post_time)
-                    {
-                        let (mut post, person_op) = judge_post(&config, persons, &event).unwrap();
-                        println!("post:{}", post);
-                        let person: db::Person;
-                        let has_mention;
-                        if person_op.is_none() {
-                            person = db::get_random_person(&conn).unwrap();
-                            has_mention = false;
-                        } else {
-                            person = person_op.unwrap();
-                            has_mention = true;
-                        }
-                        if event.created_at.as_i64() > (last_post_time + config.bot.reaction_freq) || has_mention {
-                            post = true;
-                        }
-                        if post {
-                            let follower =
-                                is_follower(&event.pubkey.to_string(), &person.secretkey).await?;
-                            println!("follower:{}", follower);
-                            if follower {
-                                let reply =
-                                    match gpt::get_reply(&person.prompt, &event.content, has_mention).await {
-                                        Ok(reply) => reply,
-                                        Err(e) => {
-                                            eprintln!("Error: {}", e);
-                                            continue;
-                                        }
-                                    };
+                if !handled
+                    && event.content.len() > 0
+                    && (event.created_at.as_i64() > last_post_time)
+                {
+                    let (mut post, person_op) = judge_post(&config, persons, &event).unwrap();
+                    println!("post:{}", post);
+                    let person: db::Person;
+                    let has_mention;
+                    if person_op.is_none() {
+                        person = db::get_random_person(&conn).unwrap();
+                        has_mention = false;
+                    } else {
+                        person = person_op.unwrap();
+                        has_mention = true;
+                    }
+                    if !japanese && !has_mention {
+                        continue;
+                    }
 
-                                if reply.len() > 0 {
-                                    println!("publish_text_note...{}", reply);
-                                    if has_mention {
-                                        reply_to(&config, event, person, &reply).await?;
-                                    } else {
-                                        send_to(&config, person, &reply).await?;
+                    if event.created_at.as_i64() > (last_post_time + config.bot.reaction_freq) || has_mention {
+                        post = true;
+                    }
+                    if post {
+                        let follower =
+                            is_follower(&event.pubkey.to_string(), &person.secretkey).await?;
+                        println!("follower:{}", follower);
+                        if follower {
+                            let reply =
+                                match gpt::get_reply(&person.prompt, &event.content, has_mention).await {
+                                    Ok(reply) => reply,
+                                    Err(e) => {
+                                        eprintln!("Error: {}", e);
+                                        continue;
                                     }
-                                    last_post_time = Utc::now().timestamp();
+                                };
+
+                            if reply.len() > 0 {
+                                println!("publish_text_note...{}", reply);
+                                if has_mention {
+                                    reply_to(&config, event, person, &reply).await?;
+                                } else {
+                                    send_to(&config, person, &reply).await?;
                                 }
+                                last_post_time = Utc::now().timestamp();
                             }
-                        } else {
-                            println!("hazure!");
                         }
+                    } else {
+                        println!("hazure!");
                     }
                 }
             } else {
