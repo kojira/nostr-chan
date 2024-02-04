@@ -3,7 +3,7 @@ use dotenv::dotenv;
 use std::error::Error;
 use std::fs::File;
 use std::time::Duration;
-use std::{env, thread};
+use std::env;
 use tokio::time::timeout;
 use openai_api_rs::v1::api::Client;
 use openai_api_rs::v1::chat_completion::{self, ChatCompletionRequest};
