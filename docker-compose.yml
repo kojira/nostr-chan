@@ -11,8 +11,3 @@ services:
     working_dir: /var/bot/src
     command: bash -c "cargo run"
     restart: always
-
-networks:
-  default:
-    name: nostify_default
-    external: true

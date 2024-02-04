@@ -1,8 +1,7 @@
 mod config;
 mod db;
-mod db_mysql;
 mod gpt;
-use chrono::{DateTime, Utc};
+use chrono::Utc;
 use config::AppConfig;
 use dotenv::dotenv;
 use nostr_sdk::prelude::*;
@@ -48,7 +47,7 @@ async fn is_follower(user_pubkey: &str, bot_secret_key: &str) -> Result<bool> {
         count += 1;
         println!("count:{:?}", count);
         if events.len() >= (config.relay_servers.read.len() / 2) ||
-            count >= 10
+            count >= 3
         {
             break;
         }
@@ -104,7 +103,7 @@ async fn get_kind0(target_pubkey: &str, bot_secret_key: &str) -> Result<Event> {
         count += 1;
         println!("count:{:?}", count);
         if events.len() >= (config.relay_servers.read.len() / 2) ||
-            count >= 10
+            count >= 3
         {
             break;
         }
@@ -258,72 +257,6 @@ async fn command_handler(
                         event.clone(),
                         person,
                         &format!("データベースのkind 0の情報をブロードキャストしました"),
-                    )
-                    .await?;
-                } else if lines[0].contains("summary") {
-                    let from = &lines[1];
-                    let to = &lines[2];
-                    let pool = db_mysql::connect().unwrap();
-                    let from_timestamp = db_mysql::to_unix_timestamp(&from).unwrap() - 9 * 60 * 60;
-                    let from_datetime = DateTime::<Utc>::from_utc(
-                        chrono::NaiveDateTime::from_timestamp_opt(from_timestamp, 0).unwrap(),
-                        Utc,
-                    );
-                    let from_datetime_str = from_datetime.format("%Y-%m-%d %H:%M:%S").to_string();
-                    let to_timestamp = db_mysql::to_unix_timestamp(&to).unwrap() - 9 * 60 * 60;
-                    let to_datetime = DateTime::<Utc>::from_utc(
-                        chrono::NaiveDateTime::from_timestamp_opt(to_timestamp, 0).unwrap(),
-                        Utc,
-                    );
-                    let to_datetime_str = to_datetime.format("%Y-%m-%d %H:%M:%S").to_string();
-                    let events = db_mysql::select_events(
-                        &pool,
-                        Kind::TextNote,
-                        &from_datetime_str,
-                        &to_datetime_str,
-                    );
-
-                    if events.len() > 0 {
-                        let event_len = events.len();
-                        reply_to(
-                            &config,
-                            event.clone(),
-                            person.clone(),
-                            &format!("{from}〜{to}の{event_len}件の投稿のうち、日本語の投稿の要約を開始しますわ。しばらくお待ち遊ばせ。"),
-                        )
-                        .await?;
-                    }
-
-                    let mut summary = String::from("");
-                    let mut event_count = 0;
-                    for event in events {
-                        let mut japanese: bool = false;
-                        if let Some(lang) = detect(&event.content) {
-                            match lang.lang() {
-                                Lang::Jpn => japanese = true,
-                                _ => (),
-                            }
-                        }
-                        if japanese
-                            && !event.content.starts_with("lnbc")
-                            && !event.content.contains("#まとめ除外")
-                            && event.content.len() < 400
-                        {
-                            summary = format!("{}{}\n", summary, event.content);
-                            event_count += 1;
-                        }
-                    }
-                    while summary.len() > 1500 {
-                        summary = gpt::get_summary(&summary).await?;
-                    }
-                    print!("summary:{}", summary);
-                    reply_to(
-                        &config,
-                        event.clone(),
-                        person,
-                        &format!(
-                            "{from}〜{to}の日本語投稿{event_count}件の要約ですわ。\n{summary}\n#まとめ除外"
-                        ),
                     )
                     .await?;
                 }
