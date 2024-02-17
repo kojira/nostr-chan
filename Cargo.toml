@@ -6,16 +6,17 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-nostr-sdk = { version="0.26.1", features = ["all-nips"] }
+nostr-sdk = { version="0.28.0", features = ["all-nips"] }
 tokio = { version = "1", features = ["full"] }
 serde = "1.0"
 serde_yaml = "0.9.25"
 chrono = { version = "0.4.23", features = ["serde"] }
 time = "0.3.20"
 serde_json = "1.0.94"
-rusqlite = "0.30.0"
+rusqlite = "0.31.0"
 whatlang = "0.16.2"
 dotenv = "0.15.0"
 regex = "1.7.1"
 thiserror = "1.0.39"
 openai-api-rs = "4.0.5"
+nix = { version = "0.27.1", features = ["user"] }

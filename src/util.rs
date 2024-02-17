@@ -3,7 +3,6 @@ use crate::config::AppConfig;
 use crate::db;
 use nostr_sdk::prelude::*;
 use std::fs::File;
-use std::str::FromStr;
 use std::thread;
 use std::time::Duration;
 use rand::Rng;
@@ -12,21 +11,22 @@ use rand::Rng;
 pub async fn is_follower(user_pubkey: &str, bot_secret_key: &str) -> Result<bool> {
   let file = File::open("../config.yml")?;
   let config: config::AppConfig = serde_yaml::from_reader(file)?;
-  let my_keys = Keys::from_sk_str(&bot_secret_key)?;
+  let my_keys = Keys::parse(&bot_secret_key)?;
   let bot_pubkey = my_keys.public_key();
   let client = Client::new(&my_keys);
   for item in config.relay_servers.read.iter() {
       client.add_relay(item.clone()).await?;
   }
   client.connect().await;
-  let pubkey = XOnlyPublicKey::from_str(user_pubkey).unwrap();
+  let pubkey = Keys::from_pk_str(user_pubkey).unwrap();
+  let publickey = pubkey.public_key();
   let subscription = Filter::new()
-      .authors([pubkey].to_vec())
+      .authors([publickey].to_vec())
       .kinds([nostr_sdk::Kind::ContactList].to_vec())
       .limit(1);
 
   client.subscribe(vec![subscription]).await;
-  println!("subscribe:{}",pubkey.to_string());
+  println!("subscribe:{}", publickey);
 
   let mut events = vec![];
   let mut count = 0;
@@ -69,15 +69,15 @@ pub async fn is_follower(user_pubkey: &str, bot_secret_key: &str) -> Result<bool
 pub async fn get_kind0(target_pubkey: &str, bot_secret_key: &str) -> Result<Event> {
   let file = File::open("../config.yml")?;
   let config: config::AppConfig = serde_yaml::from_reader(file)?;
-  let my_keys = Keys::from_sk_str(&bot_secret_key)?;
+  let my_keys = Keys::parse(&bot_secret_key)?;
   let client = Client::new(&my_keys);
   for item in config.relay_servers.read.iter() {
       client.add_relay(item.clone()).await?;
   }
   client.connect().await;
-  let pubkey = XOnlyPublicKey::from_str(target_pubkey).unwrap();
+  let pubkey = Keys::from_pk_str(target_pubkey).unwrap();
   let subscription = Filter::new()
-      .authors([pubkey].to_vec())
+      .authors([pubkey.public_key()])
       .kinds([nostr_sdk::Kind::Metadata].to_vec())
       .limit(1);
 
@@ -112,7 +112,7 @@ pub async fn get_kind0(target_pubkey: &str, bot_secret_key: &str) -> Result<Even
 pub async fn send_kind0(bot_secret_key: &str, meta_json: &str) -> Result<()> {
   let file = File::open("../config.yml")?;
   let config: config::AppConfig = serde_yaml::from_reader(file)?;
-  let my_keys = Keys::from_sk_str(&bot_secret_key)?;
+  let my_keys = Keys::parse(&bot_secret_key)?;
   let client = Client::new(&my_keys);
   for item in config.relay_servers.write.iter() {
       client.add_relay(item.clone()).await?;
@@ -125,6 +125,29 @@ pub async fn send_kind0(bot_secret_key: &str, meta_json: &str) -> Result<()> {
 
   Ok(())
 }
+
+pub async fn get_zap_received(target_pubkey: &str) -> Result<Vec<Event>> {
+    let file = File::open("../config.yml")?;
+    let config: config::AppConfig = serde_yaml::from_reader(file)?;
+    let client = Client::default();
+    for item in config.relay_servers.read.iter() {
+        client.add_relay(item.clone()).await?;
+    }
+    client.connect().await;
+    let filter = Filter::new()
+        .custom_tag(SingleLetterTag::from_char('P')?, [target_pubkey].to_vec())
+        .kinds([nostr_sdk::Kind::ZapReceipt].to_vec())
+        .limit(100);
+
+    println!("filter {:?}", filter);
+
+    let events = client.get_events_of([filter].to_vec(), Some(Duration::from_secs(10))).await;
+
+    client.shutdown().await?;
+    println!("{events:#?}");
+  
+    Ok(events.unwrap())
+  }
 
 pub fn extract_mention(persons: Vec<db::Person>, event: &Event) -> Result<Option<db::Person>> {
   let mut person: Option<db::Person> = None;
@@ -199,7 +222,7 @@ pub async fn send_to(
   person: db::Person,
   text: &str,
 ) -> Result<()> {
-  let bot_keys = Keys::from_sk_str(&person.secretkey)?;
+  let bot_keys = Keys::parse(&person.secretkey)?;
   let client_temp = Client::new(&bot_keys);
   for item in config.relay_servers.write.iter() {
       client_temp.add_relay(item.clone()).await.unwrap();
@@ -221,14 +244,14 @@ pub async fn reply_to(
   person: db::Person,
   text: &str,
 ) -> Result<()> {
-  let bot_keys = Keys::from_sk_str(&person.secretkey)?;
+  let bot_keys = Keys::parse(&person.secretkey)?;
   let client_temp = Client::new(&bot_keys);
   for item in config.relay_servers.write.iter() {
       client_temp.add_relay(item.clone()).await.unwrap();
   }
   client_temp.connect().await;
 
-  let event = EventBuilder::new_text_note(
+  let event = EventBuilder::text_note(
       text,
       [Tag::event(event.id), Tag::public_key(event.pubkey)],
   )

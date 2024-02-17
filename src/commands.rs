@@ -22,6 +22,8 @@ pub async fn command_handler(
       fortune(config, &person, event).await?;
       handled = true;
     } else if event.content.contains("silent") {
+    } else if event.content.contains("test") {
+      zap_ranking(&event.pubkey.to_string()).await?;
     } else {
       let is_admin = admin_pubkeys.iter().any(|s| *s == event.pubkey.to_string());
       if is_admin {
@@ -52,6 +54,19 @@ async fn fortune(config: &config::AppConfig, person: &db::Person, event: &Event)
   if reply.len() > 0 {
       util::reply_to(config, event.clone(), person.clone(), &reply).await?;
   }
+  Ok(())
+}
+
+async fn zap_ranking(pubkey: &str) -> Result<()> {
+  println!("zap_ranking");
+  let receive_zap_events = util::get_zap_received(pubkey).await?;
+  // util::reply_to(
+  //     &config,
+  //     event.clone(),
+  //     person.clone(),
+  //     &format!("リレーからkind 0を取得してデータベース情報を更新しました"),
+  // )
+  // .await?;
   Ok(())
 }
 
