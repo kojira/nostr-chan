@@ -20,3 +20,5 @@ regex = "1.7.1"
 thiserror = "1.0.39"
 openai-api-rs = "4.0.5"
 nix = { version = "0.27.1", features = ["user"] }
+lightning-invoice = "0.29.0"
+csv = "1.3.0"
