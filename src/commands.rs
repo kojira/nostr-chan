@@ -120,7 +120,7 @@ async fn zap_ranking(config: &config::AppConfig, person: &db::Person, event: &Ev
     .take(10)
     .enumerate()
     .map(|(index, (pubkey, (zap, count)))| {
-        format!("{}: {} Zap: {}, Count: {}", index + 1, pubkey, util::format_with_commas(zap / 1000), count)
+        format!("{}: nostr:{} Zap: {}, Count: {}", index + 1, pubkey, util::format_with_commas(zap / 1000), count)
     })
     .collect::<Vec<_>>()
     .join("\n");
