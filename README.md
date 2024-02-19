@@ -13,7 +13,6 @@ cp .env.example .env
 Change the contents of `.env` according to the environment.
 ```
 OPEN_AI_API_KEY=replace your open ai key
-BOT_PUBLICKEY=replace bot public hex key
 BOT_SECRETKEY=replace bot secret hex key
 ```
 
