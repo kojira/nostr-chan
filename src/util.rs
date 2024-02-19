@@ -154,7 +154,7 @@ pub async fn get_zap_received(target_pubkey: &str) -> Result<Vec<Event>> {
       .since(since);
 
     match client
-      .get_events_of(vec![filter], Some(Duration::from_secs(10)))
+      .get_events_of(vec![filter], Some(Duration::from_secs(30)))
       .await
     {
       Ok(events) => {
