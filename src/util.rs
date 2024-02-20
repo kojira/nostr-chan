@@ -23,47 +23,37 @@ pub async fn is_follower(user_pubkey: &str, bot_secret_key: &str) -> Result<bool
   client.connect().await;
   let pubkey = Keys::from_pk_str(user_pubkey).unwrap();
   let publickey = pubkey.public_key();
-  let subscription = Filter::new()
-      .authors([publickey].to_vec())
-      .kinds([nostr_sdk::Kind::ContactList].to_vec())
-      .limit(1);
 
-  client.subscribe(vec![subscription]).await;
-  println!("subscribe:{}", publickey);
+  let filter = Filter::new()
+    .authors([publickey].to_vec())
+    .kinds([nostr_sdk::Kind::ContactList].to_vec())
+    .limit(1);
 
   let mut events = vec![];
-  let mut count = 0;
-  let mut notifications = client.notifications();
-  while let Ok(notification) = notifications.recv().await {
-    if let RelayPoolNotification::Event { relay_url, event } = notification {
-      if event.kind == Kind::ContactList {
-        // println!("event {:?}", event);
-        events.push(event);
-        break;
-      }
+
+  match client
+    .get_events_of(vec![filter], Some(Duration::from_secs(30)))
+    .await
+  {
+    Ok(_events) => {
+      println!("counts:{:?}", _events.len());
+      events.extend(_events);
     }
-    count += 1;
-    println!("count:{:?}", count);
-    if events.len() >= (config.relay_servers.read.len() / 2) || count >= 3 {
-      break;
+    Err(e) => {
+      println!("Error fetching events: {:?}", e);
     }
   }
-  let mut detect = false;
-  events.sort_by_key(|event| std::cmp::Reverse(event.created_at));
-  if let Some(first_event) = events.first() {
-      for _tag in first_event.tags.iter() {
-          if _tag.as_vec().len() > 1 {
-              if _tag.as_vec()[0].len() == 1 {
-                  if _tag.as_vec()[0].starts_with('p') {
-                      if _tag.as_vec()[1].to_string() == bot_pubkey.to_string() {
-                          detect = true;
-                      }
-                  }
-              }
-          }
+  let bot_pubkey_str = bot_pubkey.to_string();
+  let detect = events.first().map_or(false, |first_event: &Event| {
+    first_event.tags.iter().any(|tag| {
+      let tags_slice = tag.as_vec();
+      if tags_slice.len() >= 2 {
+        return tags_slice[0] == "p" && tags_slice[1] == bot_pubkey_str;
       }
-  }
-  client.shutdown().await?;
+      false
+    })
+  });
+
   Ok(detect)
 }
 
