@@ -6,7 +6,7 @@ mod util;
 use chrono::Utc;
 use dotenv::dotenv;
 use nostr_sdk::prelude::*;
-use std::fs::File;
+use std::{fs::File, str::FromStr};
 use std::env;
 use whatlang::{detect, Lang};
 
@@ -21,7 +21,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let secret_key = env::var("BOT_SECRETKEY").expect("BOT_SECRETKEY is not set");
 
-    let my_keys = Keys::from_sk_str(&secret_key)?;
+    let my_keys = Keys::from_str(&secret_key)?;
 
     // Create new client
     let client = Client::new(&my_keys);
@@ -38,12 +38,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .kinds([nostr_sdk::Kind::TextNote].to_vec())
         .since(Timestamp::now());
 
-    client.subscribe(vec![subscription]).await;
+    client.subscribe(vec![subscription], None).await;
     println!("subscribe");
     let mut last_post_time = Utc::now().timestamp() - config.bot.reaction_freq;
     let mut notifications = client.notifications();
     while let Ok(notification) = notifications.recv().await {
-        if let RelayPoolNotification::Event{relay_url, event} = notification {
+        if let RelayPoolNotification::Event{relay_url: _, subscription_id: _, event} = notification {
             let result = config
                 .bot
                 .blacklist
@@ -53,18 +53,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 continue;
             }
             if event.kind == Kind::TextNote {
-                let mut detectNip36 = false;
+                let mut detect_nip36 = false;
                 for tag in event.tags.clone().into_iter() {
                     match tag {
                         Tag::ContentWarning { reason: _ } => {
                             // skip NIP-36
-                            detectNip36 = true;
+                            detect_nip36 = true;
                             break;
                         },
                         _ => ()
                     }
                 }
-                if detectNip36 {
+                if detect_nip36 {
                     continue;
                 }
                 let persons = db::get_all_persons(&conn).unwrap();
@@ -117,7 +117,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             if reply.len() > 0 {
                                 println!("publish_text_note...{}", reply);
                                 if has_mention {
-                                    util::reply_to(&config, event, person, &reply).await?;
+                                    util::reply_to(&config, *event, person, &reply).await?;
                                 } else {
                                     util::send_to(&config, person, &reply).await?;
                                 }

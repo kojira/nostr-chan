@@ -21,28 +21,17 @@ pub async fn is_follower(user_pubkey: &str, bot_secret_key: &str) -> Result<bool
       client.add_relay(item.clone()).await?;
   }
   client.connect().await;
-  let pubkey = Keys::from_pk_str(user_pubkey).unwrap();
-  let publickey = pubkey.public_key();
+  let publickey = PublicKey::from_hex(user_pubkey).unwrap();
 
   let filter = Filter::new()
     .authors([publickey].to_vec())
     .kinds([nostr_sdk::Kind::ContactList].to_vec())
     .limit(1);
 
-  let mut events = vec![];
-
-  match client
+  let events = client
     .get_events_of(vec![filter], Some(Duration::from_secs(30)))
-    .await
-  {
-    Ok(_events) => {
-      println!("counts:{:?}", _events.len());
-      events.extend(_events);
-    }
-    Err(e) => {
-      println!("Error fetching events: {:?}", e);
-    }
-  }
+    .await?;
+
   let bot_pubkey_str = bot_pubkey.to_string();
   let detect = events.first().map_or(false, |first_event: &Event| {
     first_event.tags.iter().any(|tag| {
@@ -66,20 +55,20 @@ pub async fn get_kind0(target_pubkey: &str, bot_secret_key: &str) -> Result<Even
       client.add_relay(item.clone()).await?;
   }
   client.connect().await;
-  let pubkey = Keys::from_pk_str(target_pubkey).unwrap();
+  let public_key = PublicKey::from_hex(target_pubkey).unwrap();
   let subscription = Filter::new()
-      .authors([pubkey.public_key()])
+      .authors([public_key])
       .kinds([nostr_sdk::Kind::Metadata].to_vec())
       .limit(1);
 
-  client.subscribe(vec![subscription]).await;
+  client.subscribe(vec![subscription], None).await;
   println!("subscribe");
 
   let mut events = vec![];
   let mut count = 0;
   let mut notifications = client.notifications();
   while let Ok(notification) = notifications.recv().await {
-    if let RelayPoolNotification::Event { relay_url, event } = notification {
+    if let RelayPoolNotification::Event { relay_url: _, subscription_id: _, event } = notification {
       if event.kind == Kind::Metadata {
         println!("event {:?}", event);
         events.push(event);
@@ -95,7 +84,7 @@ pub async fn get_kind0(target_pubkey: &str, bot_secret_key: &str) -> Result<Even
   client.shutdown().await?;
   events.sort_by_key(|event| std::cmp::Reverse(event.created_at));
 
-  Ok(events.first().unwrap().clone())
+  Ok(*events.first().unwrap().clone())
 }
 
 pub async fn send_kind0(bot_secret_key: &str, meta_json: &str) -> Result<()> {
