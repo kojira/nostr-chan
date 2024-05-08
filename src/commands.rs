@@ -1,11 +1,9 @@
 use std::collections::HashMap;
-use std::str::FromStr;
 
 use crate::config;
 use crate::db;
 use crate::gpt;
 use crate::util;
-use crate::util::write_events_to_csv;
 use nostr_sdk::prelude::*;
 use rusqlite::Connection;
 
