@@ -221,7 +221,7 @@ pub fn judge_post(
   Ok((post, person))
 }
 
-pub async fn send_to(config: &config::AppConfig, person: db::Person, text: &str) -> Result<()> {
+pub async fn send_to(config: &config::AppConfig, event: Event, person: db::Person, text: &str) -> Result<()> {
   let bot_keys = Keys::parse(&person.secretkey)?;
   let client_temp = Client::new(&bot_keys);
   for item in config.relay_servers.write.iter() {
@@ -229,13 +229,33 @@ pub async fn send_to(config: &config::AppConfig, person: db::Person, text: &str)
   }
   client_temp.connect().await;
   let tags: Vec<Tag> = vec![];
-  let event_id = client_temp
-    .publish_text_note(format!("{}", text), tags)
-    .await?;
-  println!("publish_text_note! eventId:{}", event_id);
-  thread::sleep(Duration::from_secs(10));
+  let kind = event.kind;
+  if kind == Kind::TextNote {
+    let event_id = client_temp
+      .publish_text_note(format!("{}", text), tags)
+      .await?;
+    println!("publish_text_note! eventId:{}", event_id);
+  } else if kind == Kind::ChannelMessage {
+    if let Some((event_id, relay_url)) = extract_root_tag_info(&event.tags) {
+      let _id = event_id.clone();
+      let event = EventBuilder::channel_msg(EventId::parse(event_id).unwrap() , Url::parse(&relay_url).unwrap(), text)
+      .to_event(&bot_keys)
+      .unwrap();
+      client_temp.send_event(event).await?;
+      println!("eventId:{} relay_url:{} text:{}", _id, relay_url, text);
+    }
+  }
   client_temp.shutdown().await?;
   Ok(())
+}
+
+fn extract_root_tag_info(tags: &[Tag]) -> Option<(String, String)> {
+  tags.iter().find_map(|tag| {
+      if let Tag::Event { event_id, relay_url: Some(relay_url), marker: Some(Marker::Root) } = tag {
+          return Some((event_id.to_string(), relay_url.to_string()));
+      }
+      None
+  })
 }
 
 pub async fn reply_to(
@@ -250,17 +270,33 @@ pub async fn reply_to(
     client_temp.add_relay(item.clone()).await.unwrap();
   }
   client_temp.connect().await;
+  let kind = event.kind;
+  let mut event_copy: Option<Event> = None;
 
-  let event =
-    EventBuilder::text_note(text, [Tag::event(event.id), Tag::public_key(event.pubkey)])
+  if kind == Kind::TextNote {
+    let event =
+      EventBuilder::text_note(text, [Tag::event(event.id), Tag::public_key(event.pubkey)])
+        .to_event(&bot_keys)
+        .unwrap();
+    event_copy = Some(event.clone());
+    client_temp.send_event(event).await?;
+    println!("publish_text_note!");
+  } else if kind == Kind::ChannelMessage {
+    if let Some((event_id, relay_url)) = extract_root_tag_info(&event.tags) {
+      let _id = event_id.clone();
+      let event = EventBuilder::channel_msg(EventId::parse(event_id).unwrap() , Url::parse(&relay_url).unwrap(), text)
       .to_event(&bot_keys)
       .unwrap();
-  let event_copy = event.clone();
-  client_temp.send_event(event).await?;
+      event_copy = Some(event.clone());
+      client_temp.send_event(event).await?;
+      println!("eventId:{} relay_url:{} text:{}", _id, relay_url, text);
+      let result = event_copy.clone().unwrap();
+      println!("publish_public_message! eventId:{}, text:{}", result.id.to_hex(), result.content);
+    }
+  }
 
-  println!("publish_text_note!");
-  thread::sleep(Duration::from_secs(10));
   client_temp.shutdown().await?;
+  let event_copy = event_copy.ok_or("Failed to create event")?;
   Ok(event_copy)
 }
 
@@ -288,7 +324,6 @@ pub async fn reply_to_by_event_id_pubkey(
   client_temp.send_event(event).await?;
 
   println!("publish_text_note!");
-  thread::sleep(Duration::from_secs(10));
   client_temp.shutdown().await?;
   Ok(event_copy)
 }
@@ -308,50 +343,4 @@ pub fn format_with_commas(num: u64) -> String {
         result.push(*c);
     }
     result.chars().rev().collect()
-}
-
-pub fn write_to_csv(zap_vec: &[(String, (u64, u64))]) -> Result<(), Box<dyn Error>> {
-    let file_path = "zap_summary.csv";
-    let mut wtr = Writer::from_path(file_path)?;
-
-    wtr.write_record(&["Pubkey", "Zap Total", "Count"])?;
-
-    for (pubkey, (zap_total, count)) in zap_vec {
-        wtr.write_record(&[pubkey, &zap_total.to_string(), &count.to_string()])?;
-    }
-
-    wtr.flush()?;
-    Ok(())
-}
-
-pub async fn write_events_to_csv(events: Vec<Event>) -> Result<(), Box<dyn Error>> {
-    let file_path = "receive_zap_events.csv";
-    let file = File::create(file_path)?;
-    let mut wtr = Writer::from_writer(file);
-
-    // CSVヘッダーを書き込む
-    wtr.write_record(&["id", "pubkey", "created_at", "kind", "tags", "content"])?;
-
-    for event in events {
-        // `event.tags`やその他の複雑な型を適切な文字列形式に変換する必要があります
-        let tags_string = event
-            .tags
-            .iter()
-            .map(|tag| format!("{:?}", tag))
-            .collect::<Vec<_>>()
-            .join("; ");
-        // Eventデータを書き込む
-        wtr.write_record(&[
-            event.id.to_string(),
-            event.pubkey.to_string(),
-            event.created_at.to_string(),
-            format!("{:?}", event.kind), // Enumを適切に扱う
-            tags_string,
-            event.content.clone(),
-        ])?;
-    }
-
-    wtr.flush()?;
-
-    Ok(())
 }

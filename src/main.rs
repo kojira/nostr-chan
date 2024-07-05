@@ -35,7 +35,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("client.connect");
 
     let subscription = Filter::new()
-        .kinds([nostr_sdk::Kind::TextNote].to_vec())
+        .kinds([nostr_sdk::Kind::TextNote, nostr_sdk::Kind::ChannelMessage].to_vec())
         .since(Timestamp::now());
 
     client.subscribe(vec![subscription], None).await;
@@ -52,7 +52,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             if result {
                 continue;
             }
-            if event.kind == Kind::TextNote {
+            let kind = event.kind;
+            if kind == Kind::TextNote || kind == Kind::ChannelMessage {
                 let mut detect_nip36 = false;
                 for tag in event.tags.clone().into_iter() {
                     match tag {
@@ -118,10 +119,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 println!("publish_text_note...{}", reply);
                                 if has_mention {
                                     util::reply_to(&config, *event, person, &reply).await?;
-                                } else {
-                                    util::send_to(&config, person, &reply).await?;
+                                    last_post_time = Utc::now().timestamp();
+                                } else if kind == Kind::TextNote {
+                                    util::send_to(&config, *event, person, &reply).await?;
+                                    last_post_time = Utc::now().timestamp();
                                 }
-                                last_post_time = Utc::now().timestamp();
                             }
                         }
                     } else {
