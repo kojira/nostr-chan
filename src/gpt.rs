@@ -7,7 +7,6 @@ use std::env;
 use tokio::time::timeout;
 use openai_api_rs::v1::api::Client;
 use openai_api_rs::v1::chat_completion::{self, ChatCompletionRequest};
-use openai_api_rs::v1::common::GPT3_5_TURBO;
 
 
 pub async fn call_gpt(prompt: &str, user_text: &str) -> Result<String, Box<dyn Error>> {
@@ -15,7 +14,7 @@ pub async fn call_gpt(prompt: &str, user_text: &str) -> Result<String, Box<dyn E
     let api_key = env::var("OPEN_AI_API_KEY").expect("OPEN_AI_API_KEY is not set");
     let client = Client::new(api_key);
     let req = ChatCompletionRequest::new(
-        GPT3_5_TURBO.to_string(),
+        "gpt-4o-mini".to_string(),
         vec![
             chat_completion::ChatCompletionMessage {
                 role: chat_completion::MessageRole::system,
