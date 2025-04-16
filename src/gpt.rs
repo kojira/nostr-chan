@@ -14,7 +14,7 @@ pub async fn call_gpt(prompt: &str, user_text: &str) -> Result<String, Box<dyn E
     let api_key = env::var("OPEN_AI_API_KEY").expect("OPEN_AI_API_KEY is not set");
     let client = Client::new(api_key);
     let req = ChatCompletionRequest::new(
-        "gpt-4o-mini".to_string(),
+        "gpt-4.1-mini".to_string(),
         vec![
             chat_completion::ChatCompletionMessage {
                 role: chat_completion::MessageRole::system,
