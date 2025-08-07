@@ -5,35 +5,38 @@ use std::fs::File;
 use std::time::Duration;
 use std::env;
 use tokio::time::timeout;
-use openai_api_rs::v1::api::Client;
+use openai_api_rs::v1::api::OpenAIClient;
 use openai_api_rs::v1::chat_completion::{self, ChatCompletionRequest};
 
 
 pub async fn call_gpt(prompt: &str, user_text: &str) -> Result<String, Box<dyn Error>> {
     dotenv().ok();
     let api_key = env::var("OPEN_AI_API_KEY").expect("OPEN_AI_API_KEY is not set");
-    let client = Client::new(api_key);
+    let mut client = OpenAIClient::builder()
+        .with_api_key(api_key)
+        .build()?;
     let req = ChatCompletionRequest::new(
-        "gpt-4.1-mini".to_string(),
+        "gpt-5-mini".to_string(),
         vec![
             chat_completion::ChatCompletionMessage {
                 role: chat_completion::MessageRole::system,
                 content: chat_completion::Content::Text(String::from(prompt)),
                 name: None,
+                tool_calls: None,
+                tool_call_id: None,
             },
             chat_completion::ChatCompletionMessage {
                 role: chat_completion::MessageRole::user,
                 content: chat_completion::Content::Text(String::from(user_text)),
                 name: None,
+                tool_calls: None,
+                tool_call_id: None,
             },
         ],
-    )
-    .presence_penalty(-0.5)
-    .frequency_penalty(0.0)
-    .top_p(0.9);
+    );
 
     let chat_completion_future = async {
-        client.chat_completion(req)
+        client.chat_completion(req).await
     };
 
     // タイムアウトを設定
