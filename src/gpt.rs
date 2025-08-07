@@ -83,7 +83,7 @@ pub async fn get_reply<'a>(personality: &'a str, user_text: &'a str, has_mention
     if modified_personality.len() > 0 && extracted_prompt.len() > 0 {
         prompt_temp = format!("これはあなたの人格です。'{personality}'\n{extracted_prompt}");
     } else {
-        prompt_temp = format!("これはあなたの人格です。'{personality}'\nこの人格を演じて次の行の文章に対して{answer_length}文字程度で返信してください。");
+        prompt_temp = format!("これはあなたの人格です。'{personality}'\nこの人格を演じて次の行の文章に対して{answer_length}文字程度で返信してください。ユーザーから文字数指定があった場合はそちらを優先してください。");
     }
     if !has_mention {
         prompt = format!("{prompt_temp}次の行の文章はSNSでの投稿です。あなたがたまたま見かけたものであなた宛の文章ではないのでその点に注意して回答してください。")
