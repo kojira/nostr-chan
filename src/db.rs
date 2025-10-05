@@ -9,13 +9,17 @@ pub(crate) fn connect() -> Result<Connection> {
 
 #[derive(Debug, Clone)]
 pub struct Person {
+    #[allow(dead_code)]
     pub id: i32,
+    #[allow(dead_code)]
     pub status: i32,
     pub prompt: String,
     pub pubkey: String,
     pub secretkey: String,
     pub content: String,
+    #[allow(dead_code)]
     pub created_at: String,
+    #[allow(dead_code)]
     pub updated_at: String,
 }
 
@@ -66,7 +70,7 @@ pub(crate) fn insert_person(
     prompt: &str,
     content: &str,
 ) -> Result<()> {
-    let secretkey = keys.secret_key().unwrap().display_secret().to_string();
+    let secretkey = keys.secret_key().display_secret().to_string();
     let now = Utc::now();
     let created_at = now.timestamp();
     let mut stmt = conn.prepare(

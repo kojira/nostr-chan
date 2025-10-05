@@ -1,11 +1,9 @@
 use crate::config;
 use crate::config::AppConfig;
 use crate::db;
-use csv::Writer;
 use lightning_invoice::Bolt11Invoice;
 use nostr_sdk::prelude::*;
 use rand::Rng;
-use std::error::Error;
 use std::fs::File;
 use std::str::FromStr;
 use std::thread;
@@ -16,7 +14,7 @@ pub async fn is_follower(user_pubkey: &str, bot_secret_key: &str) -> Result<bool
   let config: config::AppConfig = serde_yaml::from_reader(file)?;
   let my_keys = Keys::parse(&bot_secret_key)?;
   let bot_pubkey = my_keys.public_key();
-  let client = Client::new(&my_keys);
+  let client = Client::new(my_keys);
   for item in config.relay_servers.read.iter() {
       client.add_relay(item.clone()).await?;
   }
@@ -29,13 +27,13 @@ pub async fn is_follower(user_pubkey: &str, bot_secret_key: &str) -> Result<bool
     .limit(1);
 
   let events = client
-    .get_events_of(vec![filter], Some(Duration::from_secs(30)))
+    .fetch_events(filter, Duration::from_secs(30))
     .await?;
 
   let bot_pubkey_str = bot_pubkey.to_string();
   let detect = events.first().map_or(false, |first_event: &Event| {
     first_event.tags.iter().any(|tag| {
-      let tags_slice = tag.as_vec();
+      let tags_slice = tag.clone().to_vec();
       if tags_slice.len() >= 2 {
         return tags_slice[0] == "p" && tags_slice[1] == bot_pubkey_str;
       }
@@ -50,7 +48,7 @@ pub async fn get_kind0(target_pubkey: &str, bot_secret_key: &str) -> Result<Even
   let file = File::open("../config.yml")?;
   let config: config::AppConfig = serde_yaml::from_reader(file)?;
   let my_keys = Keys::parse(&bot_secret_key)?;
-  let client = Client::new(&my_keys);
+  let client = Client::new(my_keys);
   for item in config.relay_servers.read.iter() {
       client.add_relay(item.clone()).await?;
   }
@@ -61,7 +59,7 @@ pub async fn get_kind0(target_pubkey: &str, bot_secret_key: &str) -> Result<Even
       .kinds([nostr_sdk::Kind::Metadata].to_vec())
       .limit(1);
 
-  client.subscribe(vec![subscription], None).await;
+  let _ = client.subscribe(subscription, None).await;
   println!("subscribe");
 
   let mut events = vec![];
@@ -81,7 +79,7 @@ pub async fn get_kind0(target_pubkey: &str, bot_secret_key: &str) -> Result<Even
       break;
     }
   }
-  client.shutdown().await?;
+  client.shutdown().await;
   events.sort_by_key(|event| std::cmp::Reverse(event.created_at));
 
   Ok(*events.first().unwrap().clone())
@@ -91,7 +89,7 @@ pub async fn send_kind0(bot_secret_key: &str, meta_json: &str) -> Result<()> {
   let file = File::open("../config.yml")?;
   let config: config::AppConfig = serde_yaml::from_reader(file)?;
   let my_keys = Keys::parse(&bot_secret_key)?;
-  let client = Client::new(&my_keys);
+  let client = Client::new(my_keys);
   for item in config.relay_servers.write.iter() {
     client.add_relay(item.clone()).await?;
   }
@@ -99,7 +97,7 @@ pub async fn send_kind0(bot_secret_key: &str, meta_json: &str) -> Result<()> {
   let metadata = Metadata::from_json(meta_json).unwrap();
   client.set_metadata(&metadata).await?;
   thread::sleep(Duration::from_secs(10));
-  client.shutdown().await?;
+  client.shutdown().await;
 
   Ok(())
 }
@@ -127,13 +125,13 @@ pub async fn get_zap_received(target_pubkey: &str) -> Result<Vec<Event>> {
 
     // Filterのインスタンスを生成
     let filter = Filter::new()
-      .custom_tag(SingleLetterTag::from_char('p')?, [target_pubkey].to_vec())
+      .custom_tag(SingleLetterTag::from_char('p')?, target_pubkey.to_string())
       .kinds([nostr_sdk::Kind::ZapReceipt].to_vec())
       .until(until)
       .since(since);
 
     match client
-      .get_events_of(vec![filter], Some(Duration::from_secs(30)))
+      .fetch_events(filter, Duration::from_secs(30))
       .await
     {
       Ok(events) => {
@@ -146,7 +144,7 @@ pub async fn get_zap_received(target_pubkey: &str) -> Result<Vec<Event>> {
     }
   }
 
-  client.shutdown().await?;
+  client.shutdown().await;
   println!("{all_events:#?}");
   let results = all_events;
 
@@ -178,11 +176,12 @@ pub fn extract_mention(persons: Vec<db::Person>, event: &Event) -> Result<Option
 
   if person.is_none() {
     for _tag in event.tags.iter() {
-      if _tag.as_vec().len() > 1 {
-        if _tag.as_vec()[0].len() == 1 {
-          if _tag.as_vec()[0].starts_with('p') {
+      let tag_vec = _tag.clone().to_vec();
+      if tag_vec.len() > 1 {
+        if tag_vec[0].len() == 1 {
+          if tag_vec[0].starts_with('p') {
             for _person in &persons {
-              if _tag.as_vec()[1].to_string() == _person.pubkey.to_string() {
+              if tag_vec[1].to_string() == _person.pubkey.to_string() {
                 person = Some(_person.clone());
                 break;
               }
@@ -223,38 +222,40 @@ pub fn judge_post(
 
 pub async fn send_to(config: &config::AppConfig, event: Event, person: db::Person, text: &str) -> Result<()> {
   let bot_keys = Keys::parse(&person.secretkey)?;
-  let client_temp = Client::new(&bot_keys);
+  let client_temp = Client::new(bot_keys.clone());
   for item in config.relay_servers.write.iter() {
     client_temp.add_relay(item.clone()).await.unwrap();
   }
   client_temp.connect().await;
-  let tags: Vec<Tag> = vec![];
   let kind = event.kind;
   if kind == Kind::TextNote {
-    let event_id = client_temp
-      .publish_text_note(format!("{}", text), tags)
-      .await?;
-    println!("publish_text_note! eventId:{}", event_id);
+    let event_builder = EventBuilder::text_note(text);
+    let event = event_builder.sign(&bot_keys).await?;
+    let event_id = client_temp.send_event(&event).await?;
+    println!("publish_text_note! eventId:{:?}", event_id);
   } else if kind == Kind::ChannelMessage {
-    if let Some((event_id, relay_url)) = extract_root_tag_info(&event.tags) {
+    let tags_vec: Vec<Tag> = event.tags.iter().cloned().collect();
+    if let Some((event_id, relay_url)) = extract_root_tag_info(&tags_vec) {
       let _id = event_id.clone();
-      let event = EventBuilder::channel_msg(EventId::parse(event_id).unwrap() , Url::parse(&relay_url).unwrap(), text)
-      .to_event(&bot_keys)
-      .unwrap();
-      client_temp.send_event(event).await?;
+      let relay_url_obj = RelayUrl::parse(&relay_url).unwrap();
+      let event_builder = EventBuilder::channel_msg(EventId::parse(&event_id).unwrap(), relay_url_obj, text);
+      let event = event_builder.sign(&bot_keys).await?;
+      client_temp.send_event(&event).await?;
       println!("eventId:{} relay_url:{} text:{}", _id, relay_url, text);
     }
   }
-  client_temp.shutdown().await?;
+  client_temp.shutdown().await;
   Ok(())
 }
 
 fn extract_root_tag_info(tags: &[Tag]) -> Option<(String, String)> {
   tags.iter().find_map(|tag| {
-      if let Tag::Event { event_id, relay_url: Some(relay_url), marker: Some(Marker::Root) } = tag {
-          return Some((event_id.to_string(), relay_url.to_string()));
+      match tag.as_standardized() {
+          Some(TagStandard::Event { event_id, relay_url: Some(relay_url), marker: Some(Marker::Root), .. }) => {
+              Some((event_id.to_string(), relay_url.to_string()))
+          }
+          _ => None
       }
-      None
   })
 }
 
@@ -265,7 +266,7 @@ pub async fn reply_to(
   text: &str,
 ) -> Result<Event> {
   let bot_keys = Keys::parse(&person.secretkey)?;
-  let client_temp = Client::new(&bot_keys);
+  let client_temp = Client::new(bot_keys.clone());
   for item in config.relay_servers.write.iter() {
     client_temp.add_relay(item.clone()).await.unwrap();
   }
@@ -274,28 +275,28 @@ pub async fn reply_to(
   let mut event_copy: Option<Event> = None;
 
   if kind == Kind::TextNote {
-    let event =
-      EventBuilder::text_note(text, [Tag::event(event.id), Tag::public_key(event.pubkey)])
-        .to_event(&bot_keys)
-        .unwrap();
+    let event_builder = EventBuilder::text_note(text)
+      .tags([Tag::event(event.id), Tag::public_key(event.pubkey)]);
+    let event = event_builder.sign(&bot_keys).await?;
     event_copy = Some(event.clone());
-    client_temp.send_event(event).await?;
+    client_temp.send_event(&event).await?;
     println!("publish_text_note!");
   } else if kind == Kind::ChannelMessage {
-    if let Some((event_id, relay_url)) = extract_root_tag_info(&event.tags) {
+    let tags_vec: Vec<Tag> = event.tags.iter().cloned().collect();
+    if let Some((event_id, relay_url)) = extract_root_tag_info(&tags_vec) {
       let _id = event_id.clone();
-      let event = EventBuilder::channel_msg(EventId::parse(event_id).unwrap() , Url::parse(&relay_url).unwrap(), text)
-      .to_event(&bot_keys)
-      .unwrap();
+      let relay_url_obj = RelayUrl::parse(&relay_url).unwrap();
+      let event_builder = EventBuilder::channel_msg(EventId::parse(&event_id).unwrap(), relay_url_obj, text);
+      let event = event_builder.sign(&bot_keys).await?;
       event_copy = Some(event.clone());
-      client_temp.send_event(event).await?;
+      client_temp.send_event(&event).await?;
       println!("eventId:{} relay_url:{} text:{}", _id, relay_url, text);
       let result = event_copy.clone().unwrap();
       println!("publish_public_message! eventId:{}, text:{}", result.id.to_hex(), result.content);
     }
   }
 
-  client_temp.shutdown().await?;
+  client_temp.shutdown().await;
   let event_copy = event_copy.ok_or("Failed to create event")?;
   Ok(event_copy)
 }
@@ -308,23 +309,20 @@ pub async fn reply_to_by_event_id_pubkey(
   text: &str,
 ) -> Result<Event> {
   let bot_keys = Keys::parse(&person.secretkey)?;
-  let client_temp = Client::new(&bot_keys);
+  let client_temp = Client::new(bot_keys.clone());
   for item in config.relay_servers.write.iter() {
     client_temp.add_relay(item.clone()).await.unwrap();
   }
   client_temp.connect().await;
 
-  let event = EventBuilder::text_note(
-    text,
-    [Tag::event(reply_event_id), Tag::public_key(reply_pubkey)],
-  )
-  .to_event(&bot_keys)
-  .unwrap();
+  let event_builder = EventBuilder::text_note(text)
+    .tags([Tag::event(reply_event_id), Tag::public_key(reply_pubkey)]);
+  let event = event_builder.sign(&bot_keys).await?;
   let event_copy = event.clone();
-  client_temp.send_event(event).await?;
+  client_temp.send_event(&event).await?;
 
   println!("publish_text_note!");
-  client_temp.shutdown().await?;
+  client_temp.shutdown().await;
   Ok(event_copy)
 }
 

@@ -24,7 +24,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let my_keys = Keys::from_str(&secret_key)?;
 
     // Create new client
-    let client = Client::new(&my_keys);
+    let client = Client::new(my_keys);
     for item in config.relay_servers.read.iter() {
         client.add_relay(item.clone()).await?;
     }
@@ -38,7 +38,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .kinds([nostr_sdk::Kind::TextNote, nostr_sdk::Kind::ChannelMessage].to_vec())
         .since(Timestamp::now());
 
-    client.subscribe(vec![subscription], None).await;
+    let _ = client.subscribe(subscription, None).await;
     println!("subscribe");
     let mut last_post_time = Utc::now().timestamp() - config.bot.reaction_freq;
     let mut notifications = client.notifications();
@@ -56,8 +56,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             if kind == Kind::TextNote || kind == Kind::ChannelMessage {
                 let mut detect_nip36 = false;
                 for tag in event.tags.clone().into_iter() {
-                    match tag {
-                        Tag::ContentWarning { reason: _ } => {
+                    match tag.as_standardized() {
+                        Some(TagStandard::ContentWarning { reason: _ }) => {
                             // skip NIP-36
                             detect_nip36 = true;
                             break;
@@ -81,7 +81,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
                 if !handled
                     && event.content.len() > 0
-                    && (event.created_at.as_i64() > last_post_time)
+                    && (event.created_at.as_u64() as i64 > last_post_time)
                 {
                     let (mut post, person_op) = util::judge_post(&config, persons, &event).unwrap();
                     println!("post:{}", post);
@@ -98,7 +98,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         continue;
                     }
 
-                    if event.created_at.as_i64() > (last_post_time + config.bot.reaction_freq) || has_mention {
+                    if event.created_at.as_u64() as i64 > (last_post_time + config.bot.reaction_freq) || has_mention {
                         post = true;
                     }
                     if post {

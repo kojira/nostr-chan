@@ -6,7 +6,7 @@ use std::time::Duration;
 use std::env;
 use tokio::time::timeout;
 use openai_api_rs::v1::api::OpenAIClient;
-use openai_api_rs::v1::chat_completion::{self, ChatCompletionRequest, Reasoning, ReasoningEffort};
+use openai_api_rs::v1::chat_completion::{self, ChatCompletionRequest};
 
 
 pub async fn call_gpt(prompt: &str, user_text: &str) -> Result<String, Box<dyn Error>> {
@@ -16,7 +16,7 @@ pub async fn call_gpt(prompt: &str, user_text: &str) -> Result<String, Box<dyn E
         .with_api_key(api_key)
         .build()?;
     let req = ChatCompletionRequest::new(
-        "gpt-5-nano".to_string(),
+        "gpt-4o-mini".to_string(),
         vec![
             chat_completion::ChatCompletionMessage {
                 role: chat_completion::MessageRole::system,
@@ -97,7 +97,8 @@ pub async fn get_reply<'a>(personality: &'a str, user_text: &'a str, has_mention
             Ok(reply)
         },
         Err(e) => {
-            println!("Error: {}", e);
+            eprintln!("Error calling GPT API: {:?}", e);
+            eprintln!("Error details: {}", e);
             Ok("".to_string())
         },
     }

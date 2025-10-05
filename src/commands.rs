@@ -77,22 +77,20 @@ async fn zap_ranking(config: &config::AppConfig, person: &db::Person, event: &Ev
   for zap_event in &receive_zap_events {
     let mut bolt11_string = "".to_string();
     let mut pubkey_str = "".to_string();
-    for tag in &zap_event.tags {
-      match tag {
-        Tag::Bolt11(_bolt11_string) => {
-          bolt11_string = _bolt11_string.to_string();
-        }
-        Tag::Description(description) => {
-          if let Ok(content_json) = serde_json::from_str::<Value>(description) {
-            if let Some(pubkey) = content_json.get("pubkey").and_then(|k| k.as_str()) {
-              // descriptionの中のhex pubkeyをnpub形式に変換
-              if let Ok(key) = PublicKey::parse(pubkey) {
-                pubkey_str = key.to_bech32().unwrap();
-              }
+    for tag in zap_event.tags.iter() {
+      let tag_vec = tag.clone().to_vec();
+      if tag_vec.len() >= 2 && tag_vec[0] == "bolt11" {
+        bolt11_string = tag_vec[1].to_string();
+      } else if tag_vec.len() >= 2 && tag_vec[0] == "description" {
+        let description = &tag_vec[1];
+        if let Ok(content_json) = serde_json::from_str::<Value>(description) {
+          if let Some(pubkey) = content_json.get("pubkey").and_then(|k| k.as_str()) {
+            // descriptionの中のhex pubkeyをnpub形式に変換
+            if let Ok(key) = PublicKey::parse(pubkey) {
+              pubkey_str = key.to_bech32().unwrap();
             }
           }
         }
-        _ => {} // 他のタグは無視
       }
     }
     let bolt11 = util::decode_bolt11_invoice(&bolt11_string);
