@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BotConfig {
     pub admin_pubkeys: Vec<String>,
     pub root_bot_pubkey: String,
@@ -12,19 +12,19 @@ pub struct BotConfig {
     pub blacklist: Vec<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GptConfig {
     pub answer_length: i32,
     pub timeout: i32,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RelayConfig {
     pub write: Vec<String>,
     pub read: Vec<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppConfig {
     pub relay_servers: RelayConfig,
     pub bot: BotConfig,

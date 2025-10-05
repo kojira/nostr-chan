@@ -6,7 +6,7 @@ use std::time::Duration;
 use std::env;
 use tokio::time::timeout;
 use openai_api_rs::v1::api::OpenAIClient;
-use openai_api_rs::v1::chat_completion::{self, ChatCompletionRequest};
+use openai_api_rs::v1::chat_completion::{self, ChatCompletionRequest, Reasoning, ReasoningEffort};
 
 
 pub async fn call_gpt(prompt: &str, user_text: &str) -> Result<String, Box<dyn Error>> {
@@ -16,7 +16,7 @@ pub async fn call_gpt(prompt: &str, user_text: &str) -> Result<String, Box<dyn E
         .with_api_key(api_key)
         .build()?;
     let req = ChatCompletionRequest::new(
-        "gpt-5-mini".to_string(),
+        "gpt-5-nano".to_string(),
         vec![
             chat_completion::ChatCompletionMessage {
                 role: chat_completion::MessageRole::system,
@@ -32,7 +32,7 @@ pub async fn call_gpt(prompt: &str, user_text: &str) -> Result<String, Box<dyn E
                 tool_calls: None,
                 tool_call_id: None,
             },
-        ],
+        ]
     );
 
     let chat_completion_future = async {

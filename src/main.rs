@@ -106,25 +106,38 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             util::is_follower(&event.pubkey.to_string(), &person.secretkey).await?;
                         println!("follower:{}", follower);
                         if follower {
-                            let reply =
-                                match gpt::get_reply(&person.prompt, &event.content, has_mention).await {
+                            // GPT処理を別タスクで非同期実行
+                            let config_clone = config.clone();
+                            let event_clone = *event;
+                            let person_clone = person.clone();
+                            let prompt_clone = person.prompt.clone();
+                            let content_clone = event_clone.content.clone();
+                            
+                            tokio::spawn(async move {
+                                let reply = match gpt::get_reply(&prompt_clone, &content_clone, has_mention).await {
                                     Ok(reply) => reply,
                                     Err(e) => {
                                         eprintln!("Error: {}", e);
-                                        continue;
+                                        return;
                                     }
                                 };
 
-                            if reply.len() > 0 {
-                                println!("publish_text_note...{}", reply);
-                                if has_mention {
-                                    util::reply_to(&config, *event, person, &reply).await?;
-                                    last_post_time = Utc::now().timestamp();
-                                } else if kind == Kind::TextNote {
-                                    util::send_to(&config, *event, person, &reply).await?;
-                                    last_post_time = Utc::now().timestamp();
+                                if reply.len() > 0 {
+                                    println!("publish_text_note...{}", reply);
+                                    if has_mention {
+                                        if let Err(e) = util::reply_to(&config_clone, event_clone, person_clone.clone(), &reply).await {
+                                            eprintln!("Failed to reply: {}", e);
+                                        }
+                                    } else if event_clone.kind == Kind::TextNote {
+                                        if let Err(e) = util::send_to(&config_clone, event_clone, person_clone, &reply).await {
+                                            eprintln!("Failed to send: {}", e);
+                                        }
+                                    }
                                 }
-                            }
+                            });
+                            
+                            // last_post_timeは即座に更新（連続投稿防止）
+                            last_post_time = Utc::now().timestamp();
                         }
                     } else {
                         println!("hazure!");
