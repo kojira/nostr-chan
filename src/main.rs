@@ -69,7 +69,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     continue;
                 }
                 let persons = db::get_all_persons(&conn).unwrap();
-                let handled = commands::command_handler(&config, &conn, &persons, &event).await?;
+                let _handled = commands::command_handler(&config, &conn, &persons, &event).await?;
                 let mut japanese: bool = false;
                 if let Some(lang) = detect(&event.content) {
                     match lang.lang() {
@@ -79,8 +79,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 } else {
                     // println!("Language detection failed.");
                 }
-                if !handled
-                    && event.content.len() > 0
+                if event.content.len() > 0
                     && (event.created_at.as_u64() as i64 > last_post_time)
                 {
                     let (mut post, person_op) = util::judge_post(&config, persons, &event).unwrap();

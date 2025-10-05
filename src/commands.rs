@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::future::Future;
 
 use crate::config;
 use crate::db;
@@ -7,9 +8,21 @@ use crate::util;
 use nostr_sdk::prelude::*;
 use rusqlite::Connection;
 
+// ヘルパー関数: コマンドを非同期実行
+fn spawn_command<F>(future: F, error_msg: &'static str)
+where
+  F: Future<Output = Result<()>> + Send + 'static,
+{
+  tokio::spawn(async move {
+    if let Err(e) = future.await {
+      eprintln!("{}: {}", error_msg, e);
+    }
+  });
+}
+
 pub async fn command_handler(
   config: &config::AppConfig,
-  conn: &Connection,
+  _conn: &Connection,
   persons: &Vec<db::Person>,
   event: &Event,
 ) -> Result<bool> {
@@ -20,35 +33,59 @@ pub async fn command_handler(
   if person_op.is_some() {
     let person = person_op.unwrap();
     if event.content.contains("占って") {
-      fortune(config, &person, event).await?;
       handled = true;
+      spawn_command(
+        fortune(config.clone(), person.clone(), event.clone()),
+        "Fortune error"
+      );
     } else if event.content.contains("silent") {
     } else if event.content.contains("zap ranking") {
-      zap_ranking(config, &person, event).await?;
       handled = true;
+      spawn_command(
+        zap_ranking(config.clone(), person.clone(), event.clone()),
+        "Zap ranking error"
+      );
     } else if event.content.contains("update follower") || event.content.contains("フォロワー更新") {
-      update_my_follower_cache(config, conn, &person, event).await?;
       handled = true;
+      spawn_command(
+        update_my_follower_cache(config.clone(), person.clone(), event.clone()),
+        "Update follower cache error"
+      );
     } else {
       let is_admin = admin_pubkeys.iter().any(|s| *s == event.pubkey.to_string());
       if is_admin {
         let lines: Vec<String> =
           event.content.lines().map(|line| line.to_string()).collect();
         if lines[0].contains("new") {
-          admin_new(config, conn, event, lines).await?;
           handled = true;
+          spawn_command(
+            admin_new(config.clone(), event.clone(), lines.clone()),
+            "Admin new error"
+          );
         } else if lines[0].contains("get kind 0") {
-          admin_get_kind0(config, conn, &person, event).await?;
           handled = true;
+          spawn_command(
+            admin_get_kind0(config.clone(), person.clone(), event.clone()),
+            "Admin get kind0 error"
+          );
         } else if lines[0].contains("update kind 0") {
-          admin_update_kind0(config, conn, &person, event, lines).await?;
           handled = true;
+          spawn_command(
+            admin_update_kind0(config.clone(), person.clone(), event.clone(), lines.clone()),
+            "Admin update kind0 error"
+          );
         } else if lines[0].contains("broadcast kind 0") {
-          admin_broadcast_kind0(config, &person, event).await?;
           handled = true;
+          spawn_command(
+            admin_broadcast_kind0(config.clone(), person.clone(), event.clone()),
+            "Admin broadcast kind0 error"
+          );
         } else if lines[0].contains("clear follower cache") {
-          admin_clear_follower_cache(config, conn, &person, event).await?;
           handled = true;
+          spawn_command(
+            admin_clear_follower_cache(config.clone(), person.clone(), event.clone()),
+            "Admin clear follower cache error"
+          );
         }
       }
     }
@@ -56,23 +93,23 @@ pub async fn command_handler(
   Ok(handled)
 }
 
-async fn fortune(config: &config::AppConfig, person: &db::Person, event: &Event) -> Result<()> {
+async fn fortune(config: config::AppConfig, person: db::Person, event: Event) -> Result<()> {
   let text = &format!("今日のわたしの運勢を占って。結果はランダムで決めて、その結果に従って占いの内容を運の良さは★マークを５段階でラッキーアイテム、ラッキーカラーとかも教えて。\n{}",event.content);
   let reply = gpt::get_reply(&person.prompt, text, true).await.unwrap();
   if reply.len() > 0 {
-      util::reply_to(config, event.clone(), person.clone(), &reply).await?;
+      util::reply_to(&config, event.clone(), person.clone(), &reply).await?;
   }
   Ok(())
 }
 
-async fn zap_ranking(config: &config::AppConfig, person: &db::Person, event: &Event) -> Result<()> {
+async fn zap_ranking(config: config::AppConfig, person: db::Person, event: Event) -> Result<()> {
   println!("zap_ranking");
   let pubkey = &event.pubkey.to_string();
   let text = &format!("「現在から過去1年分のzapを集計します。しばらくお待ち下さい。」をあなたらしく言い換えてください。元の文章に含まれる内容が欠落しないようにしてください。「」内に入る文字だけを返信してください。カギカッコは不要です。");
   let reply = gpt::get_reply(&person.prompt, text, true).await.unwrap();
   let root_event: Event;
   if reply.len() > 0 {
-    root_event = util::reply_to(config, event.clone(), person.clone(), &reply).await?;
+    root_event = util::reply_to(&config, event.clone(), person.clone(), &reply).await?;
   } else {
     return Ok(());
   }
@@ -145,16 +182,16 @@ async fn zap_ranking(config: &config::AppConfig, person: &db::Person, event: &Ev
 }
 
 async fn admin_new(
-  config: &config::AppConfig,
-  conn: &Connection,
-  event: &Event,
+  config: config::AppConfig,
+  event: Event,
   lines: Vec<String>,
 ) -> Result<()> {
+  let conn = db::connect()?;
   let keys = Keys::generate();
   let prompt = &lines[1];
   let content = &lines[2];
-  db::insert_person(conn, &keys, &prompt, &content)?;
-  let new_person = db::get_person(conn, &keys.public_key().to_string()).unwrap();
+  db::insert_person(&conn, &keys, &prompt, &content)?;
+  let new_person = db::get_person(&conn, &keys.public_key().to_string()).unwrap();
   util::send_kind0(&new_person.secretkey.to_string(), content).await?;
   let content: Value = serde_json::from_str(content)?;
   let display_name =
@@ -170,14 +207,14 @@ async fn admin_new(
 }
 
 async fn admin_get_kind0(
-  config: &config::AppConfig,
-  conn: &Connection,
-  person: &db::Person,
-  event: &Event,
+  config: config::AppConfig,
+  person: db::Person,
+  event: Event,
 ) -> Result<()> {
   println!("get kind 0");
   let _meta_event = util::get_kind0(&person.pubkey, &person.secretkey).await?;
-  db::update_person_content(conn, &person.pubkey, &_meta_event.content.to_string())?;
+  let conn = db::connect()?;
+  db::update_person_content(&conn, &person.pubkey, &_meta_event.content.to_string())?;
   util::reply_to(
     &config,
     event.clone(),
@@ -189,14 +226,14 @@ async fn admin_get_kind0(
 }
 
 async fn admin_update_kind0(
-  config: &config::AppConfig,
-  conn: &Connection,
-  person: &db::Person,
-  event: &Event,
+  config: config::AppConfig,
+  person: db::Person,
+  event: Event,
   lines: Vec<String>,
 ) -> Result<()> {
   println!("update kind 0");
-  db::update_person_content(conn, &person.pubkey, &lines[1])?;
+  let conn = db::connect()?;
+  db::update_person_content(&conn, &person.pubkey, &lines[1])?;
   util::send_kind0(&person.secretkey.to_string(), &lines[1]).await?;
   util::reply_to(
       &config,
@@ -209,9 +246,9 @@ async fn admin_update_kind0(
 }
 
 async fn admin_broadcast_kind0(
-  config: &config::AppConfig,
-  person: &db::Person,
-  event: &Event,
+  config: config::AppConfig,
+  person: db::Person,
+  event: Event,
 ) -> Result<()> {
   println!("broadcast kind 0");
   util::send_kind0(&person.secretkey.to_string(), &person.content.to_string()).await?;
@@ -226,13 +263,13 @@ async fn admin_broadcast_kind0(
 }
 
 async fn admin_clear_follower_cache(
-  config: &config::AppConfig,
-  conn: &Connection,
-  person: &db::Person,
-  event: &Event,
+  config: config::AppConfig,
+  person: db::Person,
+  event: Event,
 ) -> Result<()> {
   println!("clear follower cache");
-  let deleted_count = db::clear_follower_cache(conn)?;
+  let conn = db::connect()?;
+  let deleted_count = db::clear_follower_cache(&conn)?;
   util::reply_to(
       &config,
       event.clone(),
@@ -244,23 +281,26 @@ async fn admin_clear_follower_cache(
 }
 
 async fn update_my_follower_cache(
-  config: &config::AppConfig,
-  conn: &Connection,
-  person: &db::Person,
-  event: &Event,
+  config: config::AppConfig,
+  person: db::Person,
+  event: Event,
 ) -> Result<()> {
   println!("update my follower cache for user: {}", event.pubkey);
   let user_pubkey = event.pubkey.to_string();
   let bot_pubkey = person.pubkey.clone();
+  let secret_key = person.secretkey.clone();
   
   // Delete user's cache
-  let _deleted = db::delete_user_follower_cache(conn, &user_pubkey, &bot_pubkey)?;
+  let conn = db::connect()?;
+  let _deleted = db::delete_user_follower_cache(&conn, &user_pubkey, &bot_pubkey)?;
+  drop(conn); // Release connection before async operation
   
   // Fetch fresh data from relay
-  let is_follower = util::fetch_follower_status(&user_pubkey, &person.secretkey).await?;
+  let is_follower = util::fetch_follower_status(&user_pubkey, &secret_key).await?;
   
   // Save new cache
-  db::set_follower_cache(conn, &user_pubkey, &bot_pubkey, is_follower)?;
+  let conn = db::connect()?;
+  db::set_follower_cache(&conn, &user_pubkey, &bot_pubkey, is_follower)?;
   
   let status_text = if is_follower { "フォロー中" } else { "未フォロー" };
   util::reply_to(
