@@ -30,17 +30,18 @@ pub async fn is_follower(user_pubkey: &str, bot_secret_key: &str) -> Result<bool
     .fetch_events(filter, Duration::from_secs(30))
     .await?;
 
-  let bot_pubkey_str = bot_pubkey.to_string();
   let detect = events.first().map_or(false, |first_event: &Event| {
     first_event.tags.iter().any(|tag| {
-      let tags_slice = tag.clone().to_vec();
-      if tags_slice.len() >= 2 {
-        return tags_slice[0] == "p" && tags_slice[1] == bot_pubkey_str;
+      match tag.as_standardized() {
+        Some(TagStandard::PublicKey { public_key, .. }) => {
+          public_key == &bot_pubkey
+        }
+        _ => false
       }
-      false
     })
   });
 
+  client.shutdown().await;
   Ok(detect)
 }
 
