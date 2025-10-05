@@ -9,6 +9,7 @@ pub struct BotConfig {
     pub about: String,
     pub reaction_percent: i64,
     pub reaction_freq: i64,
+    pub follower_cache_ttl: i64,
     pub blacklist: Vec<String>,
 }
 

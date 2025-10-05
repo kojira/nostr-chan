@@ -14,6 +14,19 @@ pub async fn is_follower(user_pubkey: &str, bot_secret_key: &str) -> Result<bool
   let config: config::AppConfig = serde_yaml::from_reader(file)?;
   let my_keys = Keys::parse(&bot_secret_key)?;
   let bot_pubkey = my_keys.public_key();
+  let bot_pubkey_str = bot_pubkey.to_string();
+  
+  // Check cache first
+  let conn = db::connect()?;
+  let ttl = config.bot.follower_cache_ttl;
+  if let Some(cached_result) = db::get_follower_cache(&conn, user_pubkey, &bot_pubkey_str, ttl)? {
+    println!("follower cache hit: {}", cached_result);
+    return Ok(cached_result);
+  }
+  
+  println!("follower cache miss, fetching from relay...");
+  
+  // Cache miss, fetch from relay
   let client = Client::new(my_keys);
   for item in config.relay_servers.read.iter() {
       client.add_relay(item.clone()).await?;
@@ -42,6 +55,10 @@ pub async fn is_follower(user_pubkey: &str, bot_secret_key: &str) -> Result<bool
   });
 
   client.shutdown().await;
+  
+  // Save to cache
+  db::set_follower_cache(&conn, user_pubkey, &bot_pubkey_str, detect)?;
+  
   Ok(detect)
 }
 

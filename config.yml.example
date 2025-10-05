@@ -21,6 +21,7 @@ bot:
   about: kojira(npub1k0jrarx8um0lyw3nmysn50539ky4k8p7gfgzgrsvn8d7lccx3d0s38dczd) が管理するNostrアイドルだよ！フォロワーにだけたまにお返事するよ！
   reaction_percent: 5
   reaction_freq: 600
+  follower_cache_ttl: 86400
   blacklist:
     - blacklist hex pubkey
 
