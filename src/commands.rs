@@ -9,7 +9,7 @@ use nostr_sdk::prelude::*;
 use rusqlite::Connection;
 
 // ヘルパー関数: コマンドを非同期実行
-fn spawn_command<F>(future: F, error_msg: &'static str)
+fn spawn_command<F>(future: F, error_msg: String)
 where
   F: Future<Output = Result<()>> + Send + 'static,
 {
@@ -22,40 +22,52 @@ where
 
 // コマンド定義
 struct UserCommand {
+  name: &'static str,
   patterns: Vec<&'static str>,
+  description: &'static str,
   handler: fn(config::AppConfig, db::Person, Event) -> std::pin::Pin<Box<dyn Future<Output = Result<()>> + Send>>,
-  error_msg: &'static str,
 }
 
 struct AdminCommand {
+  name: &'static str,
   pattern: &'static str,
+  description: &'static str,
   handler: fn(config::AppConfig, db::Person, Event, Vec<String>) -> std::pin::Pin<Box<dyn Future<Output = Result<()>> + Send>>,
-  error_msg: &'static str,
 }
 
 struct AdminCommandSimple {
+  name: &'static str,
   pattern: &'static str,
+  description: &'static str,
   handler: fn(config::AppConfig, Event, Vec<String>) -> std::pin::Pin<Box<dyn Future<Output = Result<()>> + Send>>,
-  error_msg: &'static str,
 }
 
 // ユーザーコマンドテーブル
 fn get_user_commands() -> Vec<UserCommand> {
   vec![
     UserCommand {
+      name: "fortune",
       patterns: vec!["占って"],
+      description: "今日の運勢を占います",
       handler: |c, p, e| Box::pin(fortune(c, p, e)),
-      error_msg: "Fortune error",
     },
     UserCommand {
+      name: "zap_ranking",
       patterns: vec!["zap ranking"],
+      description: "過去1年分のzapランキングを表示します",
       handler: |c, p, e| Box::pin(zap_ranking(c, p, e)),
-      error_msg: "Zap ranking error",
     },
     UserCommand {
+      name: "update_follower",
       patterns: vec!["update follower", "フォロワー更新"],
+      description: "自分のフォロワーキャッシュを更新します",
       handler: |c, p, e| Box::pin(update_my_follower_cache(c, p, e)),
-      error_msg: "Update follower cache error",
+    },
+    UserCommand {
+      name: "help",
+      patterns: vec!["help", "ヘルプ"],
+      description: "利用可能なコマンド一覧を表示します",
+      handler: |c, p, e| Box::pin(show_help(c, p, e)),
     },
   ]
 }
@@ -64,24 +76,28 @@ fn get_user_commands() -> Vec<UserCommand> {
 fn get_admin_commands() -> Vec<AdminCommand> {
   vec![
     AdminCommand {
+      name: "get_kind0",
       pattern: "get kind 0",
+      description: "リレーからkind 0を取得してDBを更新",
       handler: |c, p, e, _| Box::pin(admin_get_kind0(c, p, e)),
-      error_msg: "Admin get kind0 error",
     },
     AdminCommand {
+      name: "update_kind0",
       pattern: "update kind 0",
+      description: "DBのkind 0を更新してブロードキャスト",
       handler: |c, p, e, l| Box::pin(admin_update_kind0(c, p, e, l)),
-      error_msg: "Admin update kind0 error",
     },
     AdminCommand {
+      name: "broadcast_kind0",
       pattern: "broadcast kind 0",
+      description: "DBのkind 0をブロードキャスト",
       handler: |c, p, e, _| Box::pin(admin_broadcast_kind0(c, p, e)),
-      error_msg: "Admin broadcast kind0 error",
     },
     AdminCommand {
+      name: "clear_follower_cache",
       pattern: "clear follower cache",
+      description: "全フォロワーキャッシュをクリア",
       handler: |c, p, e, _| Box::pin(admin_clear_follower_cache(c, p, e)),
-      error_msg: "Admin clear follower cache error",
     },
   ]
 }
@@ -90,9 +106,10 @@ fn get_admin_commands() -> Vec<AdminCommand> {
 fn get_admin_commands_simple() -> Vec<AdminCommandSimple> {
   vec![
     AdminCommandSimple {
+      name: "new",
       pattern: "new",
+      description: "新しいボットを作成",
       handler: |c, e, l| Box::pin(admin_new(c, e, l)),
-      error_msg: "Admin new error",
     },
   ]
 }
@@ -123,7 +140,7 @@ pub async fn command_handler(
     if cmd.patterns.iter().any(|p| event.content.contains(p)) {
       spawn_command(
         (cmd.handler)(config.clone(), person.clone(), event.clone()),
-        cmd.error_msg
+        format!("{} error", cmd.name)
       );
       return Ok(true);
     }
@@ -145,7 +162,7 @@ pub async fn command_handler(
     if lines[0].contains(cmd.pattern) {
       spawn_command(
         (cmd.handler)(config.clone(), event.clone(), lines.clone()),
-        cmd.error_msg
+        format!("{} error", cmd.name)
       );
       return Ok(true);
     }
@@ -156,13 +173,43 @@ pub async fn command_handler(
     if lines[0].contains(cmd.pattern) {
       spawn_command(
         (cmd.handler)(config.clone(), person.clone(), event.clone(), lines.clone()),
-        cmd.error_msg
+        format!("{} error", cmd.name)
       );
       return Ok(true);
     }
   }
   
   Ok(false)
+}
+
+async fn show_help(config: config::AppConfig, person: db::Person, event: Event) -> Result<()> {
+  let mut help_text = String::from("【利用可能なコマンド】\n\n");
+  
+  // ユーザーコマンド
+  help_text.push_str("■ ユーザーコマンド\n");
+  for cmd in get_user_commands() {
+    let patterns = cmd.patterns.join(" / ");
+    help_text.push_str(&format!("・{}\n  {}\n\n", patterns, cmd.description));
+  }
+  
+  // 管理者コマンド（管理者のみ表示）
+  let admin_pubkeys = &config.bot.admin_pubkeys;
+  let is_admin = admin_pubkeys.iter().any(|s| *s == event.pubkey.to_string());
+  
+  if is_admin {
+    help_text.push_str("\n■ 管理者コマンド\n");
+    
+    for cmd in get_admin_commands_simple() {
+      help_text.push_str(&format!("・{}\n  {}\n\n", cmd.pattern, cmd.description));
+    }
+    
+    for cmd in get_admin_commands() {
+      help_text.push_str(&format!("・{}\n  {}\n\n", cmd.pattern, cmd.description));
+    }
+  }
+  
+  util::reply_to(&config, event, person, &help_text).await?;
+  Ok(())
 }
 
 async fn fortune(config: config::AppConfig, person: db::Person, event: Event) -> Result<()> {
