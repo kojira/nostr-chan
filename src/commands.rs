@@ -20,6 +20,83 @@ where
   });
 }
 
+// コマンド定義
+struct UserCommand {
+  patterns: Vec<&'static str>,
+  handler: fn(config::AppConfig, db::Person, Event) -> std::pin::Pin<Box<dyn Future<Output = Result<()>> + Send>>,
+  error_msg: &'static str,
+}
+
+struct AdminCommand {
+  pattern: &'static str,
+  handler: fn(config::AppConfig, db::Person, Event, Vec<String>) -> std::pin::Pin<Box<dyn Future<Output = Result<()>> + Send>>,
+  error_msg: &'static str,
+}
+
+struct AdminCommandSimple {
+  pattern: &'static str,
+  handler: fn(config::AppConfig, Event, Vec<String>) -> std::pin::Pin<Box<dyn Future<Output = Result<()>> + Send>>,
+  error_msg: &'static str,
+}
+
+// ユーザーコマンドテーブル
+fn get_user_commands() -> Vec<UserCommand> {
+  vec![
+    UserCommand {
+      patterns: vec!["占って"],
+      handler: |c, p, e| Box::pin(fortune(c, p, e)),
+      error_msg: "Fortune error",
+    },
+    UserCommand {
+      patterns: vec!["zap ranking"],
+      handler: |c, p, e| Box::pin(zap_ranking(c, p, e)),
+      error_msg: "Zap ranking error",
+    },
+    UserCommand {
+      patterns: vec!["update follower", "フォロワー更新"],
+      handler: |c, p, e| Box::pin(update_my_follower_cache(c, p, e)),
+      error_msg: "Update follower cache error",
+    },
+  ]
+}
+
+// 管理者コマンドテーブル（person必要）
+fn get_admin_commands() -> Vec<AdminCommand> {
+  vec![
+    AdminCommand {
+      pattern: "get kind 0",
+      handler: |c, p, e, _| Box::pin(admin_get_kind0(c, p, e)),
+      error_msg: "Admin get kind0 error",
+    },
+    AdminCommand {
+      pattern: "update kind 0",
+      handler: |c, p, e, l| Box::pin(admin_update_kind0(c, p, e, l)),
+      error_msg: "Admin update kind0 error",
+    },
+    AdminCommand {
+      pattern: "broadcast kind 0",
+      handler: |c, p, e, _| Box::pin(admin_broadcast_kind0(c, p, e)),
+      error_msg: "Admin broadcast kind0 error",
+    },
+    AdminCommand {
+      pattern: "clear follower cache",
+      handler: |c, p, e, _| Box::pin(admin_clear_follower_cache(c, p, e)),
+      error_msg: "Admin clear follower cache error",
+    },
+  ]
+}
+
+// 管理者コマンドテーブル（person不要）
+fn get_admin_commands_simple() -> Vec<AdminCommandSimple> {
+  vec![
+    AdminCommandSimple {
+      pattern: "new",
+      handler: |c, e, l| Box::pin(admin_new(c, e, l)),
+      error_msg: "Admin new error",
+    },
+  ]
+}
+
 pub async fn command_handler(
   config: &config::AppConfig,
   _conn: &Connection,
@@ -27,70 +104,65 @@ pub async fn command_handler(
   event: &Event,
 ) -> Result<bool> {
   let admin_pubkeys = &config.bot.admin_pubkeys;
-  let mut handled: bool = false;
   let persons_ = persons.clone();
   let person_op = util::extract_mention(persons_, &event).unwrap();
-  if person_op.is_some() {
-    let person = person_op.unwrap();
-    if event.content.contains("占って") {
-      handled = true;
+  
+  if person_op.is_none() {
+    return Ok(false);
+  }
+  
+  let person = person_op.unwrap();
+  
+  // silent コマンドは何もしない
+  if event.content.contains("silent") {
+    return Ok(false);
+  }
+  
+  // ユーザーコマンドをチェック
+  for cmd in get_user_commands() {
+    if cmd.patterns.iter().any(|p| event.content.contains(p)) {
       spawn_command(
-        fortune(config.clone(), person.clone(), event.clone()),
-        "Fortune error"
+        (cmd.handler)(config.clone(), person.clone(), event.clone()),
+        cmd.error_msg
       );
-    } else if event.content.contains("silent") {
-    } else if event.content.contains("zap ranking") {
-      handled = true;
-      spawn_command(
-        zap_ranking(config.clone(), person.clone(), event.clone()),
-        "Zap ranking error"
-      );
-    } else if event.content.contains("update follower") || event.content.contains("フォロワー更新") {
-      handled = true;
-      spawn_command(
-        update_my_follower_cache(config.clone(), person.clone(), event.clone()),
-        "Update follower cache error"
-      );
-    } else {
-      let is_admin = admin_pubkeys.iter().any(|s| *s == event.pubkey.to_string());
-      if is_admin {
-        let lines: Vec<String> =
-          event.content.lines().map(|line| line.to_string()).collect();
-        if lines[0].contains("new") {
-          handled = true;
-          spawn_command(
-            admin_new(config.clone(), event.clone(), lines.clone()),
-            "Admin new error"
-          );
-        } else if lines[0].contains("get kind 0") {
-          handled = true;
-          spawn_command(
-            admin_get_kind0(config.clone(), person.clone(), event.clone()),
-            "Admin get kind0 error"
-          );
-        } else if lines[0].contains("update kind 0") {
-          handled = true;
-          spawn_command(
-            admin_update_kind0(config.clone(), person.clone(), event.clone(), lines.clone()),
-            "Admin update kind0 error"
-          );
-        } else if lines[0].contains("broadcast kind 0") {
-          handled = true;
-          spawn_command(
-            admin_broadcast_kind0(config.clone(), person.clone(), event.clone()),
-            "Admin broadcast kind0 error"
-          );
-        } else if lines[0].contains("clear follower cache") {
-          handled = true;
-          spawn_command(
-            admin_clear_follower_cache(config.clone(), person.clone(), event.clone()),
-            "Admin clear follower cache error"
-          );
-        }
-      }
+      return Ok(true);
     }
   }
-  Ok(handled)
+  
+  // 管理者コマンドをチェック
+  let is_admin = admin_pubkeys.iter().any(|s| *s == event.pubkey.to_string());
+  if !is_admin {
+    return Ok(false);
+  }
+  
+  let lines: Vec<String> = event.content.lines().map(|line| line.to_string()).collect();
+  if lines.is_empty() {
+    return Ok(false);
+  }
+  
+  // 管理者コマンド（person不要）
+  for cmd in get_admin_commands_simple() {
+    if lines[0].contains(cmd.pattern) {
+      spawn_command(
+        (cmd.handler)(config.clone(), event.clone(), lines.clone()),
+        cmd.error_msg
+      );
+      return Ok(true);
+    }
+  }
+  
+  // 管理者コマンド（person必要）
+  for cmd in get_admin_commands() {
+    if lines[0].contains(cmd.pattern) {
+      spawn_command(
+        (cmd.handler)(config.clone(), person.clone(), event.clone(), lines.clone()),
+        cmd.error_msg
+      );
+      return Ok(true);
+    }
+  }
+  
+  Ok(false)
 }
 
 async fn fortune(config: config::AppConfig, person: db::Person, event: Event) -> Result<()> {
