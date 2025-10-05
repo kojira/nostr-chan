@@ -26,6 +26,9 @@ pub async fn command_handler(
     } else if event.content.contains("zap ranking") {
       zap_ranking(config, &person, event).await?;
       handled = true;
+    } else if event.content.contains("update follower") || event.content.contains("フォロワー更新") {
+      update_my_follower_cache(config, conn, &person, event).await?;
+      handled = true;
     } else {
       let is_admin = admin_pubkeys.iter().any(|s| *s == event.pubkey.to_string());
       if is_admin {
@@ -42,6 +45,9 @@ pub async fn command_handler(
           handled = true;
         } else if lines[0].contains("broadcast kind 0") {
           admin_broadcast_kind0(config, &person, event).await?;
+          handled = true;
+        } else if lines[0].contains("clear follower cache") {
+          admin_clear_follower_cache(config, conn, &person, event).await?;
           handled = true;
         }
       }
@@ -214,6 +220,54 @@ async fn admin_broadcast_kind0(
       event.clone(),
       person.clone(),
       &format!("データベースのkind 0の情報をブロードキャストしました"),
+  )
+  .await?;
+  Ok(())
+}
+
+async fn admin_clear_follower_cache(
+  config: &config::AppConfig,
+  conn: &Connection,
+  person: &db::Person,
+  event: &Event,
+) -> Result<()> {
+  println!("clear follower cache");
+  let deleted_count = db::clear_follower_cache(conn)?;
+  util::reply_to(
+      &config,
+      event.clone(),
+      person.clone(),
+      &format!("フォロワーキャッシュをクリアしました（{}件削除）", deleted_count),
+  )
+  .await?;
+  Ok(())
+}
+
+async fn update_my_follower_cache(
+  config: &config::AppConfig,
+  conn: &Connection,
+  person: &db::Person,
+  event: &Event,
+) -> Result<()> {
+  println!("update my follower cache for user: {}", event.pubkey);
+  let user_pubkey = event.pubkey.to_string();
+  let bot_pubkey = person.pubkey.clone();
+  
+  // Delete user's cache
+  let _deleted = db::delete_user_follower_cache(conn, &user_pubkey, &bot_pubkey)?;
+  
+  // Fetch fresh data from relay
+  let is_follower = util::fetch_follower_status(&user_pubkey, &person.secretkey).await?;
+  
+  // Save new cache
+  db::set_follower_cache(conn, &user_pubkey, &bot_pubkey, is_follower)?;
+  
+  let status_text = if is_follower { "フォロー中" } else { "未フォロー" };
+  util::reply_to(
+      &config,
+      event.clone(),
+      person.clone(),
+      &format!("フォロワー情報を更新しました！現在のステータス: {}", status_text),
   )
   .await?;
   Ok(())

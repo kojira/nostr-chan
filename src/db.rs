@@ -159,3 +159,16 @@ pub fn set_follower_cache(conn: &Connection, user_pubkey: &str, bot_pubkey: &str
     )?;
     Ok(())
 }
+
+pub fn clear_follower_cache(conn: &Connection) -> Result<usize> {
+    let deleted = conn.execute("DELETE FROM follower_cache", [])?;
+    Ok(deleted)
+}
+
+pub fn delete_user_follower_cache(conn: &Connection, user_pubkey: &str, bot_pubkey: &str) -> Result<usize> {
+    let deleted = conn.execute(
+        "DELETE FROM follower_cache WHERE user_pubkey = ? AND bot_pubkey = ?",
+        params![user_pubkey, bot_pubkey],
+    )?;
+    Ok(deleted)
+}
