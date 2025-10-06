@@ -60,7 +60,7 @@ pub async fn get_reply<'a>(
     personality: &'a str, 
     user_text: &'a str, 
     _has_mention: bool,
-    timeline: Option<Vec<TimelinePost>>
+    timeline: Option<Vec<TimelinePost>>,
 ) -> Result<String, Box<dyn Error>> {
     dotenv().ok();
     let file = File::open("../config.yml").unwrap();

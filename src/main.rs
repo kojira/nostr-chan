@@ -167,8 +167,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             let config_clone = config.clone();
                             let event_clone = *event;
                             let person_clone = person.clone();
-                            let prompt_clone = person.prompt.clone();
+                            let mut prompt_clone = person.prompt.clone();
                             let content_clone = event_clone.content.clone();
+                            
+                            // メンション時はユーザー名を取得してプロンプトに追加
+                            if has_mention {
+                                let user_pubkey = event_clone.pubkey.to_string();
+                                if let Ok(user_name) = util::get_user_name(&user_pubkey).await {
+                                    // pubkeyの短縮形でない場合のみ追加
+                                    if !user_name.ends_with("...") {
+                                        prompt_clone = format!("{}。話しかけてきた相手の名前は「{}」です。", prompt_clone, user_name);
+                                    }
+                                }
+                            }
                             
                             // エアリプの場合はDBからタイムラインを読み込む
                             let timeline_clone = if !has_mention {
