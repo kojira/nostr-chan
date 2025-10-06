@@ -18,7 +18,7 @@ pub async fn call_gpt(prompt: &str, user_text: &str) -> Result<String, Box<dyn E
         .with_api_key(api_key)
         .build()?;
     let req = ChatCompletionRequest::new(
-        "gpt-4o-mini".to_string(),
+        "gpt-5-nano".to_string(),
         vec![
             chat_completion::ChatCompletionMessage {
                 role: chat_completion::MessageRole::system,
@@ -117,16 +117,18 @@ pub async fn get_reply<'a>(
                 .collect::<Vec<String>>()
                 .join("\n");
             
-            prompt = format!("{prompt_temp}\n\n以下は最近のタイムラインです。この流れを見て、自然に反応してください。あなた宛ではないので、独り言のように自然に反応してください。\n\n【タイムライン】\n{timeline_text}");
+            prompt = format!("{prompt_temp}\n\n以下は最近のタイムラインです。この流れ全体を見て、自然に反応してください。あなた宛ではないので、独り言のように自然に反応してください。");
+            
+            // タイムラインと最新投稿をuser_inputに含める
+            let user_input_text = format!("【タイムライン】\n{}\n\n最新の投稿: {}", timeline_text, user_text);
             
             // デバッグ: エアリプ時のLLM入力内容をログ出力
             println!("=== Air-reply LLM Input ===");
             println!("Prompt:\n{}", prompt);
-            println!("User input: {}", user_text);
+            println!("User input:\n{}", user_input_text);
             println!("===========================");
             
-            // 最新の投稿を強調
-            format!("最新の投稿: {}", user_text)
+            user_input_text
         } else {
             prompt = format!("{prompt_temp}次の行の文章はSNSでの投稿です。あなたがたまたま見かけたものであなた宛の文章ではないのでその点に注意して回答してください。");
             user_text.to_string()
