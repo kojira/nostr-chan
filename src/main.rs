@@ -188,7 +188,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                         .to_string();
                                     
                                     // LLMで検索ワードを生成
-                                    let extract_prompt = "以下の文章から検索キーワードを抽出してください。検索キーワードのみを返してください。説明や前置きは不要です。";
+                                    let extract_prompt = "以下の文章から検索キーワードを抽出してください。簡潔に、3〜5単語程度で返してください。キーワードのみを返し、説明や前置きは不要です。";
                                     let search_keyword = match gpt::get_reply(extract_prompt, &cleaned_content, true, None).await {
                                         Ok(keyword) => keyword.trim().to_string(),
                                         Err(e) => {
