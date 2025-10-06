@@ -3,7 +3,6 @@ use crate::db;
 use crate::util;
 use nostr_sdk::prelude::*;
 use serde_json::Value;
-use std::collections::HashMap;
 use std::future::Future;
 
 // 管理者コマンド定義

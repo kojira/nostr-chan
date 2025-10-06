@@ -133,55 +133,6 @@ pub async fn send_kind0(bot_secret_key: &str, meta_json: &str) -> Result<()> {
   Ok(())
 }
 
-pub async fn get_zap_received(target_pubkey: &str) -> Result<Vec<Event>> {
-  let file = File::open("../config.yml")?;
-  let config: config::AppConfig = serde_yaml::from_reader(file)?;
-  let client = Client::default();
-  // 日本リレーだけだと少ないのでwriteのリレーから取得する
-  for item in config.relay_servers.write.iter() {
-    client.add_relay(item.clone()).await?;
-  }
-  client.connect().await;
-  let now = Timestamp::now();
-
-  let one_year_ago = now.as_u64() - 60 * 60 * 24 * 30 * 12; // 約1年前
-
-  let mut all_events: Vec<Event> = Vec::new();
-  for month_offset in 0..12 {
-    println!("month_offset:{:?}", month_offset);
-    // sinceは1年前からスタートし、毎回30日分進める
-    let since = Timestamp::from(one_year_ago + 60 * 60 * 24 * 30 * month_offset);
-    // untilはsinceから30日後
-    let until = Timestamp::from(since.as_u64() + 60 * 60 * 24 * 30);
-
-    // Filterのインスタンスを生成
-    let filter = Filter::new()
-      .custom_tag(SingleLetterTag::from_char('p')?, target_pubkey.to_string())
-      .kinds([nostr_sdk::Kind::ZapReceipt].to_vec())
-      .until(until)
-      .since(since);
-
-    match client
-      .fetch_events(filter, Duration::from_secs(30))
-      .await
-    {
-      Ok(events) => {
-        println!("counts:{:?}", events.len());
-        all_events.extend(events);
-      }
-      Err(e) => {
-        println!("Error fetching events: {:?}", e);
-      }
-    }
-  }
-
-  client.shutdown().await;
-  println!("{all_events:#?}");
-  let results = all_events;
-
-  Ok(results)
-}
-
 pub fn extract_mention(persons: Vec<db::Person>, event: &Event) -> Result<Option<db::Person>> {
   let mut person: Option<db::Person> = None;
   for _person in &persons {

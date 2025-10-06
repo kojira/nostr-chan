@@ -4,6 +4,7 @@ use crate::gpt;
 use crate::util;
 use nostr_sdk::prelude::*;
 use std::future::Future;
+use std::time::Duration;
 
 // ユーザーコマンド定義
 pub struct UserCommand {
@@ -33,6 +34,12 @@ pub fn get_user_commands() -> Vec<UserCommand> {
             patterns: vec!["update follower", "フォロワー更新"],
             description: "自分のフォロワーキャッシュを更新します",
             handler: |c, p, e| Box::pin(update_my_follower_cache(c, p, e)),
+        },
+        UserCommand {
+            name: "search",
+            patterns: vec!["search", "検索"],
+            description: "投稿を検索します（例: search キーワード）",
+            handler: |c, p, e| Box::pin(search_posts(c, p, e)),
         },
         UserCommand {
             name: "help",
@@ -76,6 +83,76 @@ async fn update_my_follower_cache(config: config::AppConfig, person: db::Person,
         if is_follower { "フォロワー" } else { "非フォロワー" }
     );
     
+    util::reply_to(&config, event, person, &reply).await?;
+    Ok(())
+}
+
+async fn search_posts(config: config::AppConfig, person: db::Person, event: Event) -> Result<()> {
+    // コマンドからキーワードを抽出
+    let content = event.content.clone();
+    let keyword = if content.contains("search ") {
+        content.split("search ").nth(1).unwrap_or("").trim()
+    } else if content.contains("検索 ") {
+        content.split("検索 ").nth(1).unwrap_or("").trim()
+    } else {
+        ""
+    };
+    
+    println!("=== Search Command ===");
+    println!("Original content: {}", content);
+    println!("Extracted keyword: '{}'", keyword);
+    
+    if keyword.is_empty() {
+        util::reply_to(&config, event, person, "検索キーワードを指定してください。\n例: search Nostr").await?;
+        return Ok(());
+    }
+    
+    // 検索リレーに接続
+    let keys = Keys::generate();
+    let client = Client::new(keys);
+    
+    println!("Connecting to search relays:");
+    for relay in config.relay_servers.search.iter() {
+        println!("  - {}", relay);
+        client.add_relay(relay.clone()).await?;
+    }
+    client.connect().await;
+    
+    // 検索クエリ（最新10件）
+    let filter = Filter::new()
+        .kind(Kind::TextNote)
+        .search(keyword)
+        .limit(10);
+    
+    println!("Filter: {:?}", filter);
+    println!("Fetching events...");
+    
+    let events = client.fetch_events(filter, Duration::from_secs(10)).await?;
+    println!("Found {} events", events.len());
+    
+    client.shutdown().await;
+    
+    if events.is_empty() {
+        println!("No results found for keyword: {}", keyword);
+        util::reply_to(&config, event, person, &format!("「{}」の検索結果が見つかりませんでした。", keyword)).await?;
+        return Ok(());
+    }
+    
+    // 結果を整形
+    let mut reply = format!("【検索結果: {}】（最新{}件）\n\n", keyword, events.len());
+    for (i, search_event) in events.iter().take(5).enumerate() {
+        let author = &search_event.pubkey.to_string()[..8];
+        let content = if search_event.content.len() > 50 {
+            format!("{}...", &search_event.content[..50])
+        } else {
+            search_event.content.clone()
+        };
+        println!("Result {}: {} - {}", i + 1, author, content);
+        reply.push_str(&format!("{}. {}...: {}\n", i + 1, author, content));
+        reply.push_str(&format!("   nostr:nevent1{}\n\n", search_event.id.to_bech32().unwrap()));
+    }
+    
+    println!("======================");
     util::reply_to(&config, event, person, &reply).await?;
     Ok(())
 }

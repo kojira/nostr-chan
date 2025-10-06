@@ -11,6 +11,9 @@ relay_servers:
   read:
     - "wss://yabu.me"
     - "wss://r.kojira.io"
+  search:
+    - "wss://relay.nostr.band"
+    - "wss://nostr.wine"
 
 bot:
   admin_pubkeys:

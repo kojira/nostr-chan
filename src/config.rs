@@ -24,6 +24,7 @@ pub struct GptConfig {
 pub struct RelayConfig {
     pub write: Vec<String>,
     pub read: Vec<String>,
+    pub search: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
