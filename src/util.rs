@@ -283,6 +283,7 @@ pub async fn reply_to(
   Ok(event_copy)
 }
 
+#[allow(dead_code)]
 pub async fn reply_to_by_event_id_pubkey(
   config: &config::AppConfig,
   reply_event_id: EventId,
@@ -308,10 +309,12 @@ pub async fn reply_to_by_event_id_pubkey(
   Ok(event_copy)
 }
 
+#[allow(dead_code)]
 pub fn decode_bolt11_invoice(invoice_str: &str) -> Result<Bolt11Invoice, String> {
   Bolt11Invoice::from_str(invoice_str).map_err(|e| e.to_string())
 }
 
+#[allow(dead_code)]
 pub fn format_with_commas(num: u64) -> String {
     let num_str = num.to_string();
     let mut result = String::new();
