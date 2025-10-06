@@ -160,16 +160,8 @@ async fn search_posts(config: config::AppConfig, person: db::Person, event: Even
         // note1形式に変換（イベントID）
         let note = search_event.id.to_bech32().unwrap();
         
-        // UTF-8文字境界を考慮した切り出し
-        let content = if search_event.content.chars().count() > 50 {
-            let truncated: String = search_event.content.chars().take(50).collect();
-            format!("{}...", truncated)
-        } else {
-            search_event.content.clone()
-        };
-        
-        println!("Result: [{}] nostr:{} - {}", time_str, note, content);
-        reply.push_str(&format!("[{}] nostr:{}\n{}\n\n", time_str, note, content));
+        println!("Result: [{}] nostr:{}", time_str, note);
+        reply.push_str(&format!("[{}] nostr:{}\n", time_str, note));
     }
     
     println!("======================");
