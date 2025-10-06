@@ -140,7 +140,8 @@ pub fn get_random_person(conn: &Connection) -> Result<Person> {
 }
 
 // Follower cache functions
-pub fn get_follower_cache(conn: &Connection, user_pubkey: &str, bot_pubkey: &str, ttl: i64) -> Result<Option<bool>> {
+// Returns (is_follower, remaining_seconds) if cache is valid, None if expired or not found
+pub fn get_follower_cache(conn: &Connection, user_pubkey: &str, bot_pubkey: &str, ttl: i64) -> Result<Option<(bool, i64)>> {
     let now = Utc::now().timestamp();
     let mut stmt = conn.prepare(
         "SELECT is_follower, cached_at FROM follower_cache WHERE user_pubkey = ? AND bot_pubkey = ?"
@@ -157,11 +158,7 @@ pub fn get_follower_cache(conn: &Connection, user_pubkey: &str, bot_pubkey: &str
         
         // Check if cache is still valid
         if age < ttl {
-            println!("Follower cache hit: remaining {}s ({}h {}m)", 
-                remaining, remaining / 3600, (remaining % 3600) / 60);
-            return Ok(Some(is_follower != 0));
-        } else {
-            println!("Follower cache expired: over by {}s", -remaining);
+            return Ok(Some((is_follower != 0, remaining)));
         }
     }
     
