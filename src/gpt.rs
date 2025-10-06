@@ -7,7 +7,7 @@ use std::time::Duration;
 use std::env;
 use tokio::time::timeout;
 use openai_api_rs::v1::api::OpenAIClient;
-use openai_api_rs::v1::chat_completion::{self, ChatCompletionRequest};
+use openai_api_rs::v1::chat_completion::{self, ChatCompletionRequest, Reasoning};
 use chrono::{Local, TimeZone};
 
 
@@ -96,7 +96,8 @@ pub async fn get_reply<'a>(
     // タイムラインがある場合（エアリプ）
     let user_input = if let Some(timeline_posts) = timeline {
         if !timeline_posts.is_empty() {
-            let timeline_text = timeline_posts.iter()
+            // 既存のタイムラインをフォーマット
+            let mut timeline_lines: Vec<String> = timeline_posts.iter()
                 .enumerate()
                 .map(|(i, post)| {
                     // 日本時間に変換
@@ -114,13 +115,20 @@ pub async fn get_reply<'a>(
                     
                     format!("{}. [{}] {}: {}", i + 1, time_str, display_name, post.content)
                 })
-                .collect::<Vec<String>>()
-                .join("\n");
+                .collect();
             
-            prompt = format!("{prompt_temp}\n\n以下は最近のタイムラインです。この流れ全体を見て、自然に反応してください。あなた宛ではないので、独り言のように自然に反応してください。");
+            // 現在の投稿をタイムラインの最後に追加（番号を続ける）
+            let current_number = timeline_lines.len() + 1;
+            let now = Local::now();
+            let time_str = now.format("%m/%d %H:%M").to_string();
+            timeline_lines.push(format!("{}. [{}] {}", current_number, time_str, user_text));
             
-            // タイムラインと最新投稿をuser_inputに含める
-            let user_input_text = format!("【タイムライン】\n{}\n\n最新の投稿: {}", timeline_text, user_text);
+            let timeline_text = timeline_lines.join("\n");
+            
+            prompt = format!("{prompt_temp}\n\n以下は最近のタイムラインです。この流れを見て、あなたが気になった投稿に自然に反応してください。あなた宛ではないので、独り言のように自然に反応してください。");
+            
+            // タイムラインのみをuser_inputに含める
+            let user_input_text = format!("【タイムライン】\n{}", timeline_text);
             
             // デバッグ: エアリプ時のLLM入力内容をログ出力
             println!("=== Air-reply LLM Input ===");

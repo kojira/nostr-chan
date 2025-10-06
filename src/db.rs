@@ -27,6 +27,24 @@ pub(crate) fn connect() -> Result<Connection> {
         [],
     )?;
     
+    // Create timeline table if not exists
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS timeline (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            pubkey TEXT NOT NULL,
+            name TEXT,
+            content TEXT NOT NULL,
+            timestamp INTEGER NOT NULL
+        )",
+        [],
+    )?;
+    
+    // Create index on timestamp for efficient ordering
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_timeline_timestamp ON timeline(timestamp DESC)",
+        [],
+    )?;
+    
     Ok(conn)
 }
 
@@ -216,4 +234,43 @@ pub fn set_kind0_cache(conn: &Connection, pubkey: &str, name: &str) -> Result<()
         params![pubkey, name, now],
     )?;
     Ok(())
+}
+
+// Timeline functions
+pub fn add_timeline_post(conn: &Connection, pubkey: &str, name: Option<&str>, content: &str, timestamp: i64) -> Result<()> {
+    conn.execute(
+        "INSERT INTO timeline (pubkey, name, content, timestamp) VALUES (?, ?, ?, ?)",
+        params![pubkey, name, content, timestamp],
+    )?;
+    Ok(())
+}
+
+pub fn get_latest_timeline_posts(conn: &Connection, limit: usize) -> Result<Vec<crate::TimelinePost>> {
+    let mut stmt = conn.prepare(
+        "SELECT pubkey, name, content, timestamp FROM timeline ORDER BY timestamp DESC LIMIT ?"
+    )?;
+    
+    let posts = stmt.query_map(params![limit], |row| {
+        Ok(crate::TimelinePost {
+            pubkey: row.get(0)?,
+            name: row.get(1)?,
+            content: row.get(2)?,
+            timestamp: row.get(3)?,
+        })
+    })?
+    .collect::<Result<Vec<_>>>()?;
+    
+    // Reverse to get chronological order (oldest first)
+    Ok(posts.into_iter().rev().collect())
+}
+
+pub fn cleanup_old_timeline_posts(conn: &Connection, keep_count: usize) -> Result<usize> {
+    // Keep only the latest N posts
+    let deleted = conn.execute(
+        "DELETE FROM timeline WHERE id NOT IN (
+            SELECT id FROM timeline ORDER BY timestamp DESC LIMIT ?
+        )",
+        params![keep_count],
+    )?;
+    Ok(deleted)
 }

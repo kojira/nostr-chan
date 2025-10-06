@@ -8,7 +8,6 @@ use dotenv::dotenv;
 use nostr_sdk::prelude::*;
 use std::{fs::File, str::FromStr};
 use std::env;
-use std::collections::VecDeque;
 use whatlang::{detect, Lang};
 
 // タイムライン投稿の構造体
@@ -52,8 +51,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("subscribe");
     let mut last_post_time = Utc::now().timestamp() - config.bot.reaction_freq;
     
-    // 日本語投稿バッファ（最新30件）
-    let mut japanese_posts: VecDeque<TimelinePost> = VecDeque::with_capacity(30);
+    // DBから既存のタイムラインを読み込み（起動時のみ）
+    println!("Loading timeline from DB...");
+    let timeline_posts = db::get_latest_timeline_posts(&conn, 30).unwrap_or_else(|e| {
+        eprintln!("Failed to load timeline: {}", e);
+        Vec::new()
+    });
+    println!("Loaded {} timeline posts", timeline_posts.len());
     
     let mut notifications = client.notifications();
     while let Ok(notification) = notifications.recv().await {
@@ -89,20 +93,29 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     match lang.lang() {
                         Lang::Jpn => {
                             japanese = true;
-                            // 日本語投稿をバッファに追加
-                            if japanese_posts.len() >= 30 {
-                                japanese_posts.pop_front();
-                            }
-                            
                             // 名前を非同期で取得（エラーは無視）
                             let name = util::get_user_name(&event.pubkey.to_string()).await.ok();
                             
-                            japanese_posts.push_back(TimelinePost {
+                            // 日本語投稿をDBに保存
+                            let timeline_post = TimelinePost {
                                 pubkey: event.pubkey.to_string(),
-                                name,
+                                name: name.clone(),
                                 content: event.content.clone(),
                                 timestamp: event.created_at.as_u64() as i64,
-                            });
+                            };
+                            
+                            if let Err(e) = db::add_timeline_post(
+                                &conn,
+                                &timeline_post.pubkey,
+                                timeline_post.name.as_deref(),
+                                &timeline_post.content,
+                                timeline_post.timestamp
+                            ) {
+                                eprintln!("Failed to save timeline post: {}", e);
+                            }
+                            
+                            // 古い投稿を削除（最新100件のみ保持）
+                            let _ = db::cleanup_old_timeline_posts(&conn, 100);
                         },
                         _ => (),
                     }
@@ -113,20 +126,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     && event.content.len() > 0
                     && (event.created_at.as_u64() as i64 > last_post_time)
                 {
-                    let (mut post, person_op) = util::judge_post(&config, persons, &event).unwrap();
-                    println!("post:{}", post);
-                    let person: db::Person;
-                    let has_mention;
-                    if person_op.is_none() {
-                        person = db::get_random_person(&conn).unwrap();
-                        has_mention = false;
-                    } else {
-                        person = person_op.unwrap();
-                        has_mention = true;
-                    }
+                    // メンション判定のみ先に行う
+                    let person_op = util::extract_mention(persons.clone(), &event).unwrap();
+                    let has_mention = person_op.is_some();
+                    
                     // エアリプは日本語のみ、メンションは言語不問
                     if !has_mention && !japanese {
                         continue;
+                    }
+                    
+                    // 日本語チェック後に確率判定
+                    let (mut post, _) = util::judge_post(&config, persons, &event).unwrap();
+                    println!("post:{}", post);
+                    
+                    let person: db::Person;
+                    if person_op.is_none() {
+                        person = db::get_random_person(&conn).unwrap();
+                    } else {
+                        person = person_op.unwrap();
                     }
 
                     if event.created_at.as_u64() as i64 > (last_post_time + config.bot.reaction_freq) || has_mention {
@@ -150,9 +167,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             let prompt_clone = person.prompt.clone();
                             let content_clone = event_clone.content.clone();
                             
-                            // エアリプの場合はタイムラインも渡す
+                            // エアリプの場合はDBからタイムラインを読み込む
                             let timeline_clone = if !has_mention {
-                                Some(japanese_posts.iter().cloned().collect::<Vec<TimelinePost>>())
+                                db::get_latest_timeline_posts(&conn, 30).ok()
                             } else {
                                 None
                             };
@@ -192,12 +209,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 }
                             });
                             
-                            // bot発言を受信してバッファに追加
+                            // bot発言を受信してDBに保存
                             if let Ok(bot_post) = rx.try_recv() {
-                                if japanese_posts.len() >= 30 {
-                                    japanese_posts.pop_front();
+                                if let Err(e) = db::add_timeline_post(
+                                    &conn,
+                                    &bot_post.pubkey,
+                                    bot_post.name.as_deref(),
+                                    &bot_post.content,
+                                    bot_post.timestamp
+                                ) {
+                                    eprintln!("Failed to save bot timeline post: {}", e);
                                 }
-                                japanese_posts.push_back(bot_post);
+                                
+                                // 古い投稿を削除（最新100件のみ保持）
+                                let _ = db::cleanup_old_timeline_posts(&conn, 100);
                             }
                             
                             // last_post_timeは即座に更新（連続投稿防止）
