@@ -120,10 +120,9 @@ pub async fn search_web(config: config::AppConfig, person: db::Person, event: Ev
             
             // 最終回答を一次回答へのリプライとして投稿
             if let Some(initial_evt) = initial_event {
-                util::reply_to_by_event_id_pubkey(
+                util::reply_to(
                     &config,
-                    initial_evt.id,
-                    event.pubkey,
+                    initial_evt,
                     person.clone(),
                     &final_reply,
                 ).await?;
