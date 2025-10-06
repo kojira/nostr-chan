@@ -1,4 +1,5 @@
 use crate::config::AppConfig;
+use crate::TimelinePost;
 use dotenv::dotenv;
 use std::error::Error;
 use std::fs::File;
@@ -7,6 +8,7 @@ use std::env;
 use tokio::time::timeout;
 use openai_api_rs::v1::api::OpenAIClient;
 use openai_api_rs::v1::chat_completion::{self, ChatCompletionRequest};
+use chrono::{Local, TimeZone};
 
 
 pub async fn call_gpt(prompt: &str, user_text: &str) -> Result<String, Box<dyn Error>> {
@@ -59,7 +61,7 @@ pub async fn get_reply<'a>(
     personality: &'a str, 
     user_text: &'a str, 
     _has_mention: bool,
-    timeline: Option<Vec<String>>
+    timeline: Option<Vec<TimelinePost>>
 ) -> Result<String, Box<dyn Error>> {
     dotenv().ok();
     let file = File::open("../config.yml").unwrap();
@@ -96,7 +98,22 @@ pub async fn get_reply<'a>(
         if !timeline_posts.is_empty() {
             let timeline_text = timeline_posts.iter()
                 .enumerate()
-                .map(|(i, post)| format!("{}. {}", i + 1, post))
+                .map(|(i, post)| {
+                    // 日本時間に変換
+                    let dt = Local.timestamp_opt(post.timestamp, 0).unwrap();
+                    let time_str = dt.format("%m/%d %H:%M").to_string();
+                    
+                    // 名前を取得（なければpubkeyの先頭8文字）
+                    let display_name = post.name.clone().unwrap_or_else(|| {
+                        if post.pubkey.len() > 8 {
+                            format!("{}...", &post.pubkey[..8])
+                        } else {
+                            post.pubkey.clone()
+                        }
+                    });
+                    
+                    format!("{}. [{}] {}: {}", i + 1, time_str, display_name, post.content)
+                })
                 .collect::<Vec<String>>()
                 .join("\n");
             

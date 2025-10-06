@@ -8,6 +8,7 @@ use std::fs::File;
 use std::str::FromStr;
 use std::thread;
 use std::time::Duration;
+use serde_json::Value;
 
 pub async fn is_follower(user_pubkey: &str, bot_secret_key: &str) -> Result<bool> {
   let file = File::open("../config.yml")?;
@@ -370,4 +371,57 @@ pub fn format_with_commas(num: u64) -> String {
         result.push(*c);
     }
     result.chars().rev().collect()
+}
+
+// 名前取得関数（キャッシュ優先、なければリレーから取得）
+pub async fn get_user_name(pubkey: &str) -> Result<String> {
+    let file = File::open("../config.yml")?;
+    let config: config::AppConfig = serde_yaml::from_reader(file)?;
+    let conn = db::connect()?;
+    
+    // キャッシュをチェック（24時間有効）
+    let ttl = 86400; // 24 hours
+    if let Some(cached_name) = db::get_kind0_cache(&conn, pubkey, ttl)? {
+        return Ok(cached_name);
+    }
+    
+    // キャッシュになければリレーから取得
+    let public_key = PublicKey::from_hex(pubkey)?;
+    let keys = Keys::generate();
+    let client = Client::new(keys);
+    
+    for relay in config.relay_servers.read.iter() {
+        client.add_relay(relay.clone()).await?;
+    }
+    client.connect().await;
+    
+    let filter = Filter::new()
+        .author(public_key)
+        .kind(Kind::Metadata)
+        .limit(1);
+    
+    let events = client.fetch_events(filter, Duration::from_secs(10)).await?;
+    client.shutdown().await;
+    
+    if let Some(event) = events.first() {
+        if let Ok(metadata) = serde_json::from_str::<Value>(&event.content) {
+            let name = metadata["display_name"]
+                .as_str()
+                .or_else(|| metadata["name"].as_str())
+                .unwrap_or(pubkey)
+                .to_string();
+            
+            // キャッシュに保存
+            db::set_kind0_cache(&conn, pubkey, &name)?;
+            return Ok(name);
+        }
+    }
+    
+    // 取得できなかった場合はpubkeyの先頭8文字
+    let short_pubkey = if pubkey.len() > 8 {
+        &pubkey[..8]
+    } else {
+        pubkey
+    };
+    Ok(format!("{}...", short_pubkey))
 }

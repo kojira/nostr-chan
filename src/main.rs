@@ -11,6 +11,15 @@ use std::env;
 use std::collections::VecDeque;
 use whatlang::{detect, Lang};
 
+// タイムライン投稿の構造体
+#[derive(Clone, Debug)]
+pub struct TimelinePost {
+    pub pubkey: String,
+    pub name: Option<String>,
+    pub content: String,
+    pub timestamp: i64,
+}
+
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -44,7 +53,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut last_post_time = Utc::now().timestamp() - config.bot.reaction_freq;
     
     // 日本語投稿バッファ（最新30件）
-    let mut japanese_posts: VecDeque<String> = VecDeque::with_capacity(30);
+    let mut japanese_posts: VecDeque<TimelinePost> = VecDeque::with_capacity(30);
     
     let mut notifications = client.notifications();
     while let Ok(notification) = notifications.recv().await {
@@ -84,7 +93,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             if japanese_posts.len() >= 30 {
                                 japanese_posts.pop_front();
                             }
-                            japanese_posts.push_back(event.content.clone());
+                            
+                            // 名前を非同期で取得（エラーは無視）
+                            let name = util::get_user_name(&event.pubkey.to_string()).await.ok();
+                            
+                            japanese_posts.push_back(TimelinePost {
+                                pubkey: event.pubkey.to_string(),
+                                name,
+                                content: event.content.clone(),
+                                timestamp: event.created_at.as_u64() as i64,
+                            });
                         },
                         _ => (),
                     }
@@ -127,10 +145,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             
                             // エアリプの場合はタイムラインも渡す
                             let timeline_clone = if !has_mention {
-                                Some(japanese_posts.iter().cloned().collect::<Vec<String>>())
+                                Some(japanese_posts.iter().cloned().collect::<Vec<TimelinePost>>())
                             } else {
                                 None
                             };
+                            
+                            // bot自身の発言をバッファに追加するためのチャネル
+                            let (tx, mut rx) = tokio::sync::mpsc::channel::<TimelinePost>(1);
                             
                             tokio::spawn(async move {
                                 let reply = match gpt::get_reply(&prompt_clone, &content_clone, has_mention, timeline_clone).await {
@@ -148,12 +169,29 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                             eprintln!("Failed to reply: {}", e);
                                         }
                                     } else if event_clone.kind == Kind::TextNote {
-                                        if let Err(e) = util::send_to(&config_clone, event_clone, person_clone, &reply).await {
+                                        if let Err(e) = util::send_to(&config_clone, event_clone, person_clone.clone(), &reply).await {
                                             eprintln!("Failed to send: {}", e);
                                         }
                                     }
+                                    
+                                    // bot自身の発言をタイムラインに追加
+                                    let bot_post = TimelinePost {
+                                        pubkey: person_clone.pubkey.clone(),
+                                        name: Some("Bot".to_string()), // または person_clone から取得
+                                        content: reply,
+                                        timestamp: Utc::now().timestamp(),
+                                    };
+                                    let _ = tx.send(bot_post).await;
                                 }
                             });
+                            
+                            // bot発言を受信してバッファに追加
+                            if let Ok(bot_post) = rx.try_recv() {
+                                if japanese_posts.len() >= 30 {
+                                    japanese_posts.pop_front();
+                                }
+                                japanese_posts.push_back(bot_post);
+                            }
                             
                             // last_post_timeは即座に更新（連続投稿防止）
                             last_post_time = Utc::now().timestamp();

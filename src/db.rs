@@ -17,6 +17,16 @@ pub(crate) fn connect() -> Result<Connection> {
         [],
     )?;
     
+    // Create kind0_cache table if not exists
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS kind0_cache (
+            pubkey TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            cached_at INTEGER NOT NULL
+        )",
+        [],
+    )?;
+    
     Ok(conn)
 }
 
@@ -171,4 +181,35 @@ pub fn delete_user_follower_cache(conn: &Connection, user_pubkey: &str, bot_pubk
         params![user_pubkey, bot_pubkey],
     )?;
     Ok(deleted)
+}
+
+// Kind 0 cache functions
+pub fn get_kind0_cache(conn: &Connection, pubkey: &str, ttl: i64) -> Result<Option<String>> {
+    let now = Utc::now().timestamp();
+    let mut stmt = conn.prepare(
+        "SELECT name, cached_at FROM kind0_cache WHERE pubkey = ?"
+    )?;
+    
+    let result = stmt.query_map(params![pubkey], |row| {
+        Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?))
+    })?
+    .next();
+    
+    if let Some(Ok((name, cached_at))) = result {
+        // Check if cache is still valid
+        if now - cached_at < ttl {
+            return Ok(Some(name));
+        }
+    }
+    
+    Ok(None)
+}
+
+pub fn set_kind0_cache(conn: &Connection, pubkey: &str, name: &str) -> Result<()> {
+    let now = Utc::now().timestamp();
+    conn.execute(
+        "INSERT OR REPLACE INTO kind0_cache (pubkey, name, cached_at) VALUES (?, ?, ?)",
+        params![pubkey, name, now],
+    )?;
+    Ok(())
 }
