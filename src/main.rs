@@ -93,29 +93,32 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     match lang.lang() {
                         Lang::Jpn => {
                             japanese = true;
-                            // 名前を非同期で取得（エラーは無視）
-                            let name = util::get_user_name(&event.pubkey.to_string()).await.ok();
-                            
-                            // 日本語投稿をDBに保存
-                            let timeline_post = TimelinePost {
-                                pubkey: event.pubkey.to_string(),
-                                name: name.clone(),
-                                content: event.content.clone(),
-                                timestamp: event.created_at.as_u64() as i64,
-                            };
-                            
-                            if let Err(e) = db::add_timeline_post(
-                                &conn,
-                                &timeline_post.pubkey,
-                                timeline_post.name.as_deref(),
-                                &timeline_post.content,
-                                timeline_post.timestamp
-                            ) {
-                                eprintln!("Failed to save timeline post: {}", e);
+                            // kind 1（TextNote）のみタイムラインに保存
+                            if kind == Kind::TextNote {
+                                // 名前を非同期で取得（エラーは無視）
+                                let name = util::get_user_name(&event.pubkey.to_string()).await.ok();
+                                
+                                // 日本語投稿をDBに保存
+                                let timeline_post = TimelinePost {
+                                    pubkey: event.pubkey.to_string(),
+                                    name: name.clone(),
+                                    content: event.content.clone(),
+                                    timestamp: event.created_at.as_u64() as i64,
+                                };
+                                
+                                if let Err(e) = db::add_timeline_post(
+                                    &conn,
+                                    &timeline_post.pubkey,
+                                    timeline_post.name.as_deref(),
+                                    &timeline_post.content,
+                                    timeline_post.timestamp
+                                ) {
+                                    eprintln!("Failed to save timeline post: {}", e);
+                                }
+                                
+                                // 古い投稿を削除（timeline_sizeと同じ数だけ保持）
+                                let _ = db::cleanup_old_timeline_posts(&conn, config.bot.timeline_size);
                             }
-                            
-                            // 古い投稿を削除（timeline_sizeと同じ数だけ保持）
-                            let _ = db::cleanup_old_timeline_posts(&conn, config.bot.timeline_size);
                         },
                         _ => (),
                     }
