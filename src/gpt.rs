@@ -119,6 +119,12 @@ pub async fn get_reply<'a>(
             
             prompt = format!("{prompt_temp}\n\n以下は最近のタイムラインです。この流れを見て、自然に反応してください。あなた宛ではないので、独り言のように自然に反応してください。\n\n【タイムライン】\n{timeline_text}");
             
+            // デバッグ: エアリプ時のLLM入力内容をログ出力
+            println!("=== Air-reply LLM Input ===");
+            println!("Prompt:\n{}", prompt);
+            println!("User input: {}", user_text);
+            println!("===========================");
+            
             // 最新の投稿を強調
             format!("最新の投稿: {}", user_text)
         } else {
