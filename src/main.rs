@@ -173,11 +173,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             // メンション時はユーザー名を取得してプロンプトに追加
                             if has_mention {
                                 let user_pubkey = event_clone.pubkey.to_string();
+                                println!("Fetching user name for pubkey: {}", user_pubkey);
                                 if let Ok(user_name) = util::get_user_name(&user_pubkey).await {
+                                    println!("Got user name: {}", user_name);
                                     // pubkeyの短縮形でない場合のみ追加
                                     if !user_name.ends_with("...") {
                                         prompt_clone = format!("{}。話しかけてきた相手の名前は「{}」です。", prompt_clone, user_name);
+                                        println!("Updated prompt with user name: {}", user_name);
+                                    } else {
+                                        println!("User name is shortened, not adding to prompt");
                                     }
+                                } else {
+                                    println!("Failed to get user name");
                                 }
                             }
                             
