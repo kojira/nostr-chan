@@ -152,10 +152,16 @@ pub fn get_follower_cache(conn: &Connection, user_pubkey: &str, bot_pubkey: &str
     .next();
     
     if let Some(Ok((is_follower, cached_at))) = result {
+        let age = now - cached_at;
+        println!("Cache found: age={}s, ttl={}s, valid={}", age, ttl, age < ttl);
         // Check if cache is still valid
-        if now - cached_at < ttl {
+        if age < ttl {
             return Ok(Some(is_follower != 0));
+        } else {
+            println!("Cache expired: age {} >= ttl {}", age, ttl);
         }
+    } else {
+        println!("No cache entry found for user_pubkey={}", user_pubkey);
     }
     
     Ok(None)
