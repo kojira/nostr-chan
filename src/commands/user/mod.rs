@@ -148,8 +148,10 @@ async fn search_posts(config: config::AppConfig, person: db::Person, event: Even
     let mut reply = format!("【検索結果: {}】（最新{}件）\n\n", keyword, events.len());
     for (i, search_event) in events.iter().take(5).enumerate() {
         let author = &search_event.pubkey.to_string()[..8];
-        let content = if search_event.content.len() > 50 {
-            format!("{}...", &search_event.content[..50])
+        // UTF-8文字境界を考慮した切り出し
+        let content = if search_event.content.chars().count() > 50 {
+            let truncated: String = search_event.content.chars().take(50).collect();
+            format!("{}...", truncated)
         } else {
             search_event.content.clone()
         };
