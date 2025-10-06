@@ -214,7 +214,7 @@ async fn show_help(config: config::AppConfig, person: db::Person, event: Event) 
 
 async fn fortune(config: config::AppConfig, person: db::Person, event: Event) -> Result<()> {
   let text = &format!("今日のわたしの運勢を占って。結果はランダムで決めて、その結果に従って占いの内容を運の良さは★マークを５段階でラッキーアイテム、ラッキーカラーとかも教えて。\n{}",event.content);
-  let reply = gpt::get_reply(&person.prompt, text, true).await.unwrap();
+  let reply = gpt::get_reply(&person.prompt, text, true, None).await.unwrap();
   if reply.len() > 0 {
       util::reply_to(&config, event.clone(), person.clone(), &reply).await?;
   }
@@ -225,7 +225,7 @@ async fn zap_ranking(config: config::AppConfig, person: db::Person, event: Event
   println!("zap_ranking");
   let pubkey = &event.pubkey.to_string();
   let text = &format!("「現在から過去1年分のzapを集計します。しばらくお待ち下さい。」をあなたらしく言い換えてください。元の文章に含まれる内容が欠落しないようにしてください。「」内に入る文字だけを返信してください。カギカッコは不要です。");
-  let reply = gpt::get_reply(&person.prompt, text, true).await.unwrap();
+  let reply = gpt::get_reply(&person.prompt, text, true, None).await.unwrap();
   let root_event: Event;
   if reply.len() > 0 {
     root_event = util::reply_to(&config, event.clone(), person.clone(), &reply).await?;

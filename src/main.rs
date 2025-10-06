@@ -8,6 +8,7 @@ use dotenv::dotenv;
 use nostr_sdk::prelude::*;
 use std::{fs::File, str::FromStr};
 use std::env;
+use std::collections::VecDeque;
 use whatlang::{detect, Lang};
 
 
@@ -41,6 +42,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let _ = client.subscribe(subscription, None).await;
     println!("subscribe");
     let mut last_post_time = Utc::now().timestamp() - config.bot.reaction_freq;
+    
+    // 日本語投稿バッファ（最新30件）
+    let mut japanese_posts: VecDeque<String> = VecDeque::with_capacity(30);
+    
     let mut notifications = client.notifications();
     while let Ok(notification) = notifications.recv().await {
         if let RelayPoolNotification::Event{relay_url: _, subscription_id: _, event} = notification {
@@ -69,17 +74,25 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     continue;
                 }
                 let persons = db::get_all_persons(&conn).unwrap();
-                let _handled = commands::command_handler(&config, &conn, &persons, &event).await?;
+                let handled = commands::command_handler(&config, &conn, &persons, &event).await?;
                 let mut japanese: bool = false;
                 if let Some(lang) = detect(&event.content) {
                     match lang.lang() {
-                        Lang::Jpn => japanese = true,
+                        Lang::Jpn => {
+                            japanese = true;
+                            // 日本語投稿をバッファに追加
+                            if japanese_posts.len() >= 30 {
+                                japanese_posts.pop_front();
+                            }
+                            japanese_posts.push_back(event.content.clone());
+                        },
                         _ => (),
                     }
                 } else {
                     // println!("Language detection failed.");
                 }
-                if event.content.len() > 0
+                if !handled
+                    && event.content.len() > 0
                     && (event.created_at.as_u64() as i64 > last_post_time)
                 {
                     let (mut post, person_op) = util::judge_post(&config, persons, &event).unwrap();
@@ -112,8 +125,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             let prompt_clone = person.prompt.clone();
                             let content_clone = event_clone.content.clone();
                             
+                            // エアリプの場合はタイムラインも渡す
+                            let timeline_clone = if !has_mention {
+                                Some(japanese_posts.iter().cloned().collect::<Vec<String>>())
+                            } else {
+                                None
+                            };
+                            
                             tokio::spawn(async move {
-                                let reply = match gpt::get_reply(&prompt_clone, &content_clone, has_mention).await {
+                                let reply = match gpt::get_reply(&prompt_clone, &content_clone, has_mention, timeline_clone).await {
                                     Ok(reply) => reply,
                                     Err(e) => {
                                         eprintln!("Error: {}", e);

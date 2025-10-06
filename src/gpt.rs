@@ -55,7 +55,12 @@ pub async fn call_gpt(prompt: &str, user_text: &str) -> Result<String, Box<dyn E
     }
 }
 
-pub async fn get_reply<'a>(personality: &'a str, user_text: &'a str, has_mention: bool) -> Result<String, Box<dyn Error>> {
+pub async fn get_reply<'a>(
+    personality: &'a str, 
+    user_text: &'a str, 
+    _has_mention: bool,
+    timeline: Option<Vec<String>>
+) -> Result<String, Box<dyn Error>> {
     dotenv().ok();
     let file = File::open("../config.yml").unwrap();
     let config: AppConfig = serde_yaml::from_reader(file).unwrap();
@@ -85,13 +90,31 @@ pub async fn get_reply<'a>(personality: &'a str, user_text: &'a str, has_mention
     } else {
         prompt_temp = format!("これはあなたの人格です。'{personality}'\nこの人格を演じて次の行の文章に対して{answer_length}文字程度で返信してください。ユーザーから文字数指定があった場合はそちらを優先してください。");
     }
-    if !has_mention {
-        prompt = format!("{prompt_temp}次の行の文章はSNSでの投稿です。あなたがたまたま見かけたものであなた宛の文章ではないのでその点に注意して回答してください。")
+    
+    // タイムラインがある場合（エアリプ）
+    let user_input = if let Some(timeline_posts) = timeline {
+        if !timeline_posts.is_empty() {
+            let timeline_text = timeline_posts.iter()
+                .enumerate()
+                .map(|(i, post)| format!("{}. {}", i + 1, post))
+                .collect::<Vec<String>>()
+                .join("\n");
+            
+            prompt = format!("{prompt_temp}\n\n以下は最近のタイムラインです。この流れを見て、自然に反応してください。あなた宛ではないので、独り言のように自然に反応してください。\n\n【タイムライン】\n{timeline_text}");
+            
+            // 最新の投稿を強調
+            format!("最新の投稿: {}", user_text)
+        } else {
+            prompt = format!("{prompt_temp}次の行の文章はSNSでの投稿です。あなたがたまたま見かけたものであなた宛の文章ではないのでその点に注意して回答してください。");
+            user_text.to_string()
+        }
     } else {
-        prompt = prompt_temp
-    }
+        // メンションの場合
+        prompt = prompt_temp;
+        user_text.to_string()
+    };
 
-    match call_gpt(&prompt, &user_text.to_string()).await {
+    match call_gpt(&prompt, &user_input).await {
         Ok(reply) => {
             println!("Reply: {}", reply);
             Ok(reply)
