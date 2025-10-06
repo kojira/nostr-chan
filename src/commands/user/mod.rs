@@ -103,7 +103,7 @@ async fn search_posts(config: config::AppConfig, person: db::Person, event: Even
     println!("Extracted keyword: '{}'", keyword);
     
     if keyword.is_empty() {
-        util::reply_to(&config, event, person, "検索キーワードを指定してください。\n例: search Nostr").await?;
+        util::reply_to(&config, event, person, "検索キーワードを指定してください。\n例: 検索 Nostr").await?;
         return Ok(());
     }
     
