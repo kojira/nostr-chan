@@ -51,9 +51,35 @@ pub async fn command_handler(
     for cmd in user::get_user_commands() {
         for pattern in &cmd.patterns {
             let matched = if cmd.require_start {
-                // 文頭チェック（メンション後の文頭も考慮）
-                event.content.starts_with(pattern) || 
-                event.content.contains(&format!("\n{}", pattern))
+                // 文頭チェック（メンション後も考慮）
+                // 1. 完全な文頭
+                // 2. 改行後の文頭
+                // 3. nostr:npub1... または nostr:note1... の後
+                let content = &event.content;
+                content.starts_with(pattern) || 
+                content.contains(&format!("\n{}", pattern)) ||
+                {
+                    // nostr:npub1... または nostr:note1... の後にスペース+コマンドがあるかチェック
+                    if let Some(nostr_end) = content.find("nostr:npub1") {
+                        // nostr:npub1... の後の部分を取得
+                        if let Some(space_pos) = content[nostr_end..].find(' ') {
+                            let after_mention = &content[nostr_end + space_pos..].trim_start();
+                            after_mention.starts_with(pattern)
+                        } else {
+                            false
+                        }
+                    } else if let Some(nostr_end) = content.find("nostr:note1") {
+                        // nostr:note1... の後の部分を取得
+                        if let Some(space_pos) = content[nostr_end..].find(' ') {
+                            let after_mention = &content[nostr_end + space_pos..].trim_start();
+                            after_mention.starts_with(pattern)
+                        } else {
+                            false
+                        }
+                    } else {
+                        false
+                    }
+                }
             } else {
                 event.content.contains(pattern)
             };
