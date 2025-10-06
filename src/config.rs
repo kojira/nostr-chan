@@ -18,6 +18,7 @@ pub struct BotConfig {
 pub struct GptConfig {
     pub answer_length: i32,
     pub timeout: i32,
+    pub search_answer_length: i32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

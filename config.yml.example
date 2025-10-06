@@ -32,3 +32,4 @@ bot:
 gpt:
   answer_length: 100
   timeout: 30
+  search_answer_length: 500

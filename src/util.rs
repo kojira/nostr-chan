@@ -430,3 +430,25 @@ pub async fn get_user_name(pubkey: &str) -> Result<String> {
     };
     Ok(format!("{}...", short_pubkey))
 }
+
+// Gemini CLIでWeb検索を実行
+pub async fn gemini_search(query: &str) -> Result<String, String> {
+    use std::process::Command;
+    
+    println!("Executing gemini search: {}", query);
+    
+    let output = Command::new("gemini")
+        .arg("search")
+        .arg(query)
+        .output()
+        .map_err(|e| format!("Failed to execute gemini command: {}", e))?;
+    
+    if !output.status.success() {
+        let error = String::from_utf8_lossy(&output.stderr);
+        eprintln!("Gemini search failed: {}", error);
+        return Err(format!("Gemini search failed: {}", error));
+    }
+    
+    let result = String::from_utf8_lossy(&output.stdout).to_string();
+    Ok(result)
+}
