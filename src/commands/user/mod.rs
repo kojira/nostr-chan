@@ -11,6 +11,7 @@ pub struct UserCommand {
     pub name: &'static str,
     pub patterns: Vec<&'static str>,
     pub description: &'static str,
+    pub detailed_help: Option<&'static str>,  // 詳細ヘルプ
     pub require_start: bool,  // コマンドが文頭にあることを要求
     pub handler: fn(config::AppConfig, db::Person, Event) -> std::pin::Pin<Box<dyn Future<Output = Result<()>> + Send>>,
 }
@@ -22,6 +23,7 @@ pub fn get_user_commands() -> Vec<UserCommand> {
             name: "fortune",
             patterns: vec!["占って"],
             description: "今日の運勢を占います",
+            detailed_help: Some("占い師があなたの今日の運勢を占います。\n運の良さ、ラッキーアイテム、ラッキーカラーなどを教えてくれます。"),
             require_start: false,
             handler: |c, p, e| Box::pin(fortune(c, p, e)),
         },
@@ -29,6 +31,7 @@ pub fn get_user_commands() -> Vec<UserCommand> {
             name: "zap_ranking",
             patterns: vec!["zap ranking"],
             description: "過去1年分のzapランキングを表示します",
+            detailed_help: Some("過去1年間に受け取ったzapの合計金額ランキングを表示します。\n（現在準備中）"),
             require_start: false,
             handler: |c, p, e| Box::pin(zap_ranking(c, p, e)),
         },
@@ -36,13 +39,33 @@ pub fn get_user_commands() -> Vec<UserCommand> {
             name: "update_follower",
             patterns: vec!["update follower", "フォロワー更新"],
             description: "自分のフォロワーキャッシュを更新します",
+            detailed_help: Some("あなたのフォロワー状態のキャッシュを強制的に更新します。\nフォローしたばかりなのに反応がない場合などに使用してください。"),
             require_start: false,
             handler: |c, p, e| Box::pin(update_my_follower_cache(c, p, e)),
         },
         UserCommand {
             name: "search",
             patterns: vec!["search", "検索"],
-            description: "投稿を検索します（例: search キーワード）",
+            description: "投稿を検索します",
+            detailed_help: Some(
+"投稿を検索します。期間指定も可能です。
+
+【使い方】
+検索 キーワード [期間]
+
+【期間指定】
+・指定なし: 全期間から検索
+・7d: 過去7日間
+・30d: 過去30日間
+・1h: 過去1時間
+・24h: 過去24時間
+・2024-10-01: 指定日以降
+
+【例】
+検索 Nostr
+検索 Nostr 7d
+検索 Nostr 2024-10-01"
+            ),
             require_start: true,  // 文頭必須
             handler: |c, p, e| Box::pin(search_posts(c, p, e)),
         },
@@ -50,6 +73,7 @@ pub fn get_user_commands() -> Vec<UserCommand> {
             name: "help",
             patterns: vec!["help", "ヘルプ"],
             description: "利用可能なコマンド一覧を表示します",
+            detailed_help: Some("利用可能なコマンドの一覧を表示します。\n\n【使い方】\nhelp: 全コマンド一覧\nhelp コマンド名: 特定コマンドの詳細ヘルプ\n\n【例】\nhelp\nhelp search"),
             require_start: false,
             handler: |c, p, e| Box::pin(show_help(c, p, e)),
         },
@@ -232,7 +256,60 @@ async fn show_help(config: config::AppConfig, person: db::Person, event: Event) 
     let admin_pubkeys = &config.bot.admin_pubkeys;
     let is_admin = admin_pubkeys.iter().any(|s| *s == event.pubkey.to_string());
     
+    // コマンド引数を抽出（help の後に特定コマンド名があるか）
+    let content = event.content.clone();
+    let help_arg = if content.contains("help ") {
+        content.split("help ").nth(1).map(|s| s.trim())
+    } else if content.contains("ヘルプ ") {
+        content.split("ヘルプ ").nth(1).map(|s| s.trim())
+    } else {
+        None
+    };
+    
+    // 特定コマンドの詳細ヘルプを表示
+    if let Some(cmd_name) = help_arg {
+        if !cmd_name.is_empty() {
+            // ユーザーコマンドから検索
+            for cmd in get_user_commands() {
+                if cmd.name == cmd_name || cmd.patterns.iter().any(|p| *p == cmd_name) {
+                    let mut reply = format!("【{}】\n\n", cmd.patterns.join(" / "));
+                    if let Some(detailed) = cmd.detailed_help {
+                        reply.push_str(detailed);
+                    } else {
+                        reply.push_str(cmd.description);
+                    }
+                    util::reply_to(&config, event, person, &reply).await?;
+                    return Ok(());
+                }
+            }
+            
+            // 管理者コマンドから検索（管理者のみ）
+            if is_admin {
+                for cmd in super::admin::get_admin_commands() {
+                    if cmd.name == cmd_name || cmd.pattern == cmd_name {
+                        let reply = format!("【{}】\n\n{}", cmd.pattern, cmd.description);
+                        util::reply_to(&config, event, person, &reply).await?;
+                        return Ok(());
+                    }
+                }
+                for cmd in super::admin::get_admin_commands_simple() {
+                    if cmd.name == cmd_name || cmd.pattern == cmd_name {
+                        let reply = format!("【{}】\n\n{}", cmd.pattern, cmd.description);
+                        util::reply_to(&config, event, person, &reply).await?;
+                        return Ok(());
+                    }
+                }
+            }
+            
+            // コマンドが見つからない場合
+            util::reply_to(&config, event, person, &format!("コマンド「{}」が見つかりません。\n「help」で全コマンド一覧を表示します。", cmd_name)).await?;
+            return Ok(());
+        }
+    }
+    
+    // 全コマンド一覧を表示
     let mut reply = "【利用可能なコマンド】\n\n".to_string();
+    reply.push_str("詳細は「help コマンド名」で確認できます。\n\n");
     
     // ユーザーコマンド
     reply.push_str("■ ユーザーコマンド\n");
