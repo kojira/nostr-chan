@@ -247,22 +247,27 @@ async fn search_posts(config: config::AppConfig, person: db::Person, event: Even
     let mut time_parts: Vec<&str> = Vec::new();
     
     for part in parts.iter().skip(1) {
-        if part.starts_with('@') {
-            // @npub1... または @hex形式のpubkey
-            let pubkey_str = part.trim_start_matches('@');
+        // pubkey判定: @で始まる、またはnpub1/nostr:で始まる
+        let is_pubkey = part.starts_with('@') || part.starts_with("npub1") || part.starts_with("nostr:");
+        
+        if is_pubkey {
+            // @, nostr: プレフィックスを除去
+            let mut pubkey_str = part.trim_start_matches('@');
+            pubkey_str = pubkey_str.trim_start_matches("nostr:");
+            
             if pubkey_str.starts_with("npub1") {
                 // npub形式をhexに変換
                 if let Ok(pk) = PublicKey::from_bech32(pubkey_str) {
                     author_pubkey = Some(pk.to_hex());
                 } else {
-                    util::reply_to(&config, event, person, "npub形式が不正です。\n例: @npub1...").await?;
+                    util::reply_to(&config, event, person, "npub形式が不正です。\n例: npub1..., @npub1..., nostr:npub1...").await?;
                     return Ok(());
                 }
-            } else if pubkey_str.len() == 64 {
-                // hex形式
+            } else if pubkey_str.len() == 64 && part.starts_with('@') {
+                // hex形式（@付きの場合のみ）
                 author_pubkey = Some(pubkey_str.to_string());
             } else {
-                util::reply_to(&config, event, person, "pubkey形式が不正です。\n例: @npub1... または @hex").await?;
+                util::reply_to(&config, event, person, "pubkey形式が不正です。\n例: npub1..., @npub1..., nostr:npub1..., @hex").await?;
                 return Ok(());
             }
         } else {
