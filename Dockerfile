@@ -8,8 +8,10 @@ RUN apt-get update && \
     cargo install cargo-edit cargo-watch
 
 # Install Node.js and npm for gemini-cli
-RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
+RUN curl -fsSL https://deb.nodesource.com/setup_20.x -o nodesource_setup.sh && \
+    bash nodesource_setup.sh && \
     apt-get install -y nodejs && \
-    npm install -g @google/gemini-cli
+    npm install -g @google/gemini-cli && \
+    rm nodesource_setup.sh
 
 # RUN apt-get install -y mecab libmecab-dev mecab-ipadic-utf8
