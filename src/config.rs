@@ -11,7 +11,6 @@ pub struct BotConfig {
     pub reaction_freq: i64,
     pub follower_cache_ttl: i64,
     pub timeline_size: usize,
-    pub timeline_max_storage: usize,
     pub blacklist: Vec<String>,
 }
 

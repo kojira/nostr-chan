@@ -114,8 +114,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 eprintln!("Failed to save timeline post: {}", e);
                             }
                             
-                            // 古い投稿を削除
-                            let _ = db::cleanup_old_timeline_posts(&conn, config.bot.timeline_max_storage);
+                            // 古い投稿を削除（timeline_sizeと同じ数だけ保持）
+                            let _ = db::cleanup_old_timeline_posts(&conn, config.bot.timeline_size);
                         },
                         _ => (),
                     }
@@ -221,8 +221,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                     eprintln!("Failed to save bot timeline post: {}", e);
                                 }
                                 
-                                // 古い投稿を削除
-                                let _ = db::cleanup_old_timeline_posts(&conn, config.bot.timeline_max_storage);
+                                // 古い投稿を削除（timeline_sizeと同じ数だけ保持）
+                                let _ = db::cleanup_old_timeline_posts(&conn, config.bot.timeline_size);
                             }
                             
                             // last_post_timeは即座に更新（連続投稿防止）
