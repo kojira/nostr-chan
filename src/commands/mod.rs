@@ -39,6 +39,12 @@ pub async fn command_handler(
         return Ok(false);
     }
     
+    // bot自身の投稿にはコマンド反応しない
+    let event_pubkey = event.pubkey.to_string();
+    if persons.iter().any(|p| p.pubkey == event_pubkey) {
+        return Ok(false);
+    }
+    
     let person = person_op.unwrap();
     
     // ユーザーコマンドをチェック
