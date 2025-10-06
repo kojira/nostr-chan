@@ -178,71 +178,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             let (tx, mut rx) = tokio::sync::mpsc::channel::<TimelinePost>(1);
                             
                             tokio::spawn(async move {
-                                // 「調べて」が含まれている場合はGemini検索を使用
-                                let reply = if has_mention && content_clone.contains("調べて") {
-                                    // メンション部分を除去（nostr:npub1..., nostr:note1..., @npub1... など）
-                                    let cleaned_content = regex::Regex::new(r"(nostr:npub1\w+|nostr:note1\w+|@npub1\w+|npub1\w+)")
-                                        .unwrap()
-                                        .replace_all(&content_clone, "")
-                                        .trim()
-                                        .to_string();
-                                    
-                                    // LLMで検索ワードを生成
-                                    let extract_prompt = "以下の文章から検索キーワードを抽出してください。簡潔に、3〜5単語程度で返してください。キーワードのみを返し、説明や前置きは不要です。";
-                                    let search_keyword = match gpt::get_reply(extract_prompt, &cleaned_content, true, None).await {
-                                        Ok(keyword) => keyword.trim().to_string(),
-                                        Err(e) => {
-                                            eprintln!("Failed to extract search keyword: {}", e);
-                                            // フォールバック: 「調べて」以降のテキストを使用（メンション除去済み）
-                                            if let Some(pos) = cleaned_content.find("調べて") {
-                                                let after = &cleaned_content[pos + "調べて".len()..];
-                                                after.trim().to_string()
-                                            } else {
-                                                "".to_string()
-                                            }
-                                        }
-                                    };
-                                    
-                                    if !search_keyword.is_empty() {
-                                        println!("Gemini search query: {}", search_keyword);
-                                        match util::gemini_search(&search_keyword).await {
-                                            Ok(search_result) => {
-                                                // 検索結果をキャラクターの性格で要約
-                                                let summary_prompt = format!(
-                                                    "{}\n\n以下の検索結果を読んで、{}文字程度であなたらしく要約して返答してください。返答のみを出力してください。説明や前置きは不要です。",
-                                                    prompt_clone,
-                                                    config_clone.gpt.search_answer_length
-                                                );
-                                                match gpt::get_reply(&summary_prompt, &search_result, true, None).await {
-                                                    Ok(summary) => summary,
-                                                    Err(e) => {
-                                                        eprintln!("Failed to summarize search result: {}", e);
-                                                        // フォールバック: 検索結果をそのまま返す（文字数制限）
-                                                        let max_len = config_clone.gpt.search_answer_length as usize;
-                                                        if search_result.len() > max_len {
-                                                            format!("{}...", &search_result[..max_len])
-                                                        } else {
-                                                            search_result
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                            Err(e) => {
-                                                eprintln!("Gemini search error: {}", e);
-                                                format!("検索に失敗しました: {}", e)
-                                            }
-                                        }
-                                    } else {
-                                        "調べる内容を教えてください。".to_string()
-                                    }
-                                } else {
-                                    // 通常のGPT応答
-                                    match gpt::get_reply(&prompt_clone, &content_clone, has_mention, timeline_clone).await {
-                                        Ok(reply) => reply,
-                                        Err(e) => {
-                                            eprintln!("Error: {}", e);
-                                            return;
-                                        }
+                                // 通常のGPT応答
+                                let reply = match gpt::get_reply(&prompt_clone, &content_clone, has_mention, timeline_clone).await {
+                                    Ok(reply) => reply,
+                                    Err(e) => {
+                                        eprintln!("Error: {}", e);
+                                        return;
                                     }
                                 };
 

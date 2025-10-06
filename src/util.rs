@@ -261,8 +261,9 @@ pub async fn reply_to(
       .tags([Tag::event(event.id), Tag::public_key(event.pubkey)]);
     let event = event_builder.sign(&bot_keys).await?;
     event_copy = Some(event.clone());
-    client_temp.send_event(&event).await?;
-    println!("publish_text_note!");
+    let send_result = client_temp.send_event(&event).await?;
+    println!("publish_text_note! relay responses: {:?}", send_result);
+    println!("Event ID: {}", event.id);
   } else if kind == Kind::ChannelMessage {
     let tags_vec: Vec<Tag> = event.tags.iter().cloned().collect();
     if let Some((event_id, relay_url)) = extract_root_tag_info(&tags_vec) {

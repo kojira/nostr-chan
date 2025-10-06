@@ -6,6 +6,8 @@ use nostr_sdk::prelude::*;
 use std::future::Future;
 use std::time::Duration;
 
+mod search_web;
+
 // ユーザーコマンド定義
 pub struct UserCommand {
     pub name: &'static str,
@@ -85,6 +87,14 @@ pub fn get_user_commands() -> Vec<UserCommand> {
             ),
             require_start: true,  // 文頭必須
             handler: |c, p, e| Box::pin(search_posts(c, p, e)),
+        },
+        UserCommand {
+            name: "search_web",
+            patterns: vec!["調べて"],
+            description: "Web検索を行います（Gemini CLI使用）",
+            detailed_help: Some("Gemini CLIを使ってWeb検索を行い、結果を要約して返答します。\n\n【使い方】\n調べて [検索したい内容]\n\n【例】\n調べて Rustの最新バージョン\n調べて 今日の天気"),
+            require_start: false,
+            handler: |c, p, e| Box::pin(search_web::search_web(c, p, e)),
         },
         UserCommand {
             name: "help",

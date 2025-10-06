@@ -10,7 +10,6 @@ use openai_api_rs::v1::api::OpenAIClient;
 use openai_api_rs::v1::chat_completion::{self, ChatCompletionRequest};
 use chrono::{Local, TimeZone};
 
-
 pub async fn call_gpt(prompt: &str, user_text: &str) -> Result<String, Box<dyn Error>> {
     dotenv().ok();
     let api_key = env::var("OPEN_AI_API_KEY").expect("OPEN_AI_API_KEY is not set");
