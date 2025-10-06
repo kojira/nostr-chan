@@ -138,14 +138,19 @@ async fn search_posts(config: config::AppConfig, person: db::Person, event: Even
     
     client.shutdown().await;
     
-    if events.is_empty() {
+    // 検索コマンドを実行した投稿自体を除外
+    let filtered_events: Vec<_> = events.into_iter()
+        .filter(|e| e.id != event.id)
+        .collect();
+    
+    if filtered_events.is_empty() {
         println!("No results found for keyword: {}", keyword);
         util::reply_to(&config, event, person, &format!("「{}」の検索結果が見つかりませんでした。", keyword)).await?;
         return Ok(());
     }
     
     // 最新5件に絞る
-    let mut sorted_events: Vec<_> = events.into_iter().collect();
+    let mut sorted_events = filtered_events;
     sorted_events.sort_by(|a, b| b.created_at.cmp(&a.created_at));
     let top_events: Vec<_> = sorted_events.into_iter().take(5).collect();
     
