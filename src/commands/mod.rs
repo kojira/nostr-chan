@@ -43,12 +43,22 @@ pub async fn command_handler(
     
     // ユーザーコマンドをチェック
     for cmd in user::get_user_commands() {
-        if cmd.patterns.iter().any(|p| event.content.contains(p)) {
-            spawn_command(
-                (cmd.handler)(config.clone(), person.clone(), event.clone()),
-                format!("{} error", cmd.name)
-            );
-            return Ok(true);
+        for pattern in &cmd.patterns {
+            let matched = if cmd.require_start {
+                // 文頭チェック（メンション後の文頭も考慮）
+                event.content.starts_with(pattern) || 
+                event.content.contains(&format!("\n{}", pattern))
+            } else {
+                event.content.contains(pattern)
+            };
+            
+            if matched {
+                spawn_command(
+                    (cmd.handler)(config.clone(), person.clone(), event.clone()),
+                    format!("{} error", cmd.name)
+                );
+                return Ok(true);
+            }
         }
     }
     

@@ -11,6 +11,7 @@ pub struct UserCommand {
     pub name: &'static str,
     pub patterns: Vec<&'static str>,
     pub description: &'static str,
+    pub require_start: bool,  // コマンドが文頭にあることを要求
     pub handler: fn(config::AppConfig, db::Person, Event) -> std::pin::Pin<Box<dyn Future<Output = Result<()>> + Send>>,
 }
 
@@ -21,30 +22,35 @@ pub fn get_user_commands() -> Vec<UserCommand> {
             name: "fortune",
             patterns: vec!["占って"],
             description: "今日の運勢を占います",
+            require_start: false,
             handler: |c, p, e| Box::pin(fortune(c, p, e)),
         },
         UserCommand {
             name: "zap_ranking",
             patterns: vec!["zap ranking"],
             description: "過去1年分のzapランキングを表示します",
+            require_start: false,
             handler: |c, p, e| Box::pin(zap_ranking(c, p, e)),
         },
         UserCommand {
             name: "update_follower",
             patterns: vec!["update follower", "フォロワー更新"],
             description: "自分のフォロワーキャッシュを更新します",
+            require_start: false,
             handler: |c, p, e| Box::pin(update_my_follower_cache(c, p, e)),
         },
         UserCommand {
             name: "search",
             patterns: vec!["search", "検索"],
             description: "投稿を検索します（例: search キーワード）",
+            require_start: true,  // 文頭必須
             handler: |c, p, e| Box::pin(search_posts(c, p, e)),
         },
         UserCommand {
             name: "help",
             patterns: vec!["help", "ヘルプ"],
             description: "利用可能なコマンド一覧を表示します",
+            require_start: false,
             handler: |c, p, e| Box::pin(show_help(c, p, e)),
         },
     ]
@@ -103,7 +109,7 @@ async fn search_posts(config: config::AppConfig, person: db::Person, event: Even
     println!("Extracted keyword: '{}'", keyword);
     
     if keyword.is_empty() {
-        util::reply_to(&config, event, person, "検索キーワードを指定してください。\n例: 検索 Nostr").await?;
+        util::reply_to(&config, event, person, "検索キーワードを指定してください。\n例: search Nostr").await?;
         return Ok(());
     }
     
