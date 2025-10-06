@@ -144,10 +144,22 @@ async fn search_posts(config: config::AppConfig, person: db::Person, event: Even
         return Ok(());
     }
     
+    // 最新5件に絞る
+    let mut sorted_events: Vec<_> = events.into_iter().collect();
+    sorted_events.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+    let top_events: Vec<_> = sorted_events.into_iter().take(5).collect();
+    
     // 結果を整形
-    let mut reply = format!("【検索結果: {}】（最新{}件）\n\n", keyword, events.len());
-    for (i, search_event) in events.iter().take(5).enumerate() {
-        let author = &search_event.pubkey.to_string()[..8];
+    let mut reply = format!("【検索結果: {}】（最新{}件）\n\n", keyword, top_events.len());
+    for search_event in &top_events {
+        // 日時をフォーマット（日本時間）
+        use chrono::{Local, TimeZone};
+        let dt = Local.timestamp_opt(search_event.created_at.as_u64() as i64, 0).unwrap();
+        let time_str = dt.format("%m/%d %H:%M").to_string();
+        
+        // npub形式に変換
+        let npub = search_event.pubkey.to_bech32().unwrap();
+        
         // UTF-8文字境界を考慮した切り出し
         let content = if search_event.content.chars().count() > 50 {
             let truncated: String = search_event.content.chars().take(50).collect();
@@ -155,9 +167,9 @@ async fn search_posts(config: config::AppConfig, person: db::Person, event: Even
         } else {
             search_event.content.clone()
         };
-        println!("Result {}: {} - {}", i + 1, author, content);
-        reply.push_str(&format!("{}. {}...: {}\n", i + 1, author, content));
-        reply.push_str(&format!("   nostr:nevent1{}\n\n", search_event.id.to_bech32().unwrap()));
+        
+        println!("Result: [{}] nostr:{} - {}", time_str, npub, content);
+        reply.push_str(&format!("[{}] nostr:{}\n{}\n\n", time_str, npub, content));
     }
     
     println!("======================");
