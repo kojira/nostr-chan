@@ -286,19 +286,25 @@ async fn search_posts(config: config::AppConfig, person: db::Person, event: Even
     
     println!("Keyword: '{}', Time option: {:?}, Author: {:?}", keyword, time_option, author_pubkey);
     
-    // 日時パース用のヘルパー関数
+    // 日本時間のNaiveDateTimeをUTCタイムスタンプに変換
+    let jst_to_utc_timestamp = |dt: NaiveDateTime| -> Timestamp {
+        let utc_timestamp = dt.and_utc().timestamp() - 9 * 3600;
+        Timestamp::from(utc_timestamp as u64)
+    };
+    
+    // 日時パース用のヘルパー関数（日本時間として扱う）
     let parse_datetime = |s: &str| -> Option<Timestamp> {
         // 日時形式 (2024-10-01T14:30 または 2024-10-01 14:30)
         if let Ok(dt) = NaiveDateTime::parse_from_str(s, "%Y-%m-%dT%H:%M") {
-            return Some(Timestamp::from(dt.and_utc().timestamp() as u64));
+            return Some(jst_to_utc_timestamp(dt));
         }
         if let Ok(dt) = NaiveDateTime::parse_from_str(s, "%Y-%m-%d %H:%M") {
-            return Some(Timestamp::from(dt.and_utc().timestamp() as u64));
+            return Some(jst_to_utc_timestamp(dt));
         }
         // 日付形式 (2024-10-01)
         if let Ok(date) = NaiveDate::parse_from_str(s, "%Y-%m-%d") {
             let datetime = date.and_hms_opt(0, 0, 0).unwrap();
-            return Some(Timestamp::from(datetime.and_utc().timestamp() as u64));
+            return Some(jst_to_utc_timestamp(datetime));
         }
         None
     };
@@ -323,13 +329,13 @@ async fn search_posts(config: config::AppConfig, person: db::Person, event: Even
             let until = if parts.len() > 1 && !parts[1].is_empty() {
                 // 日時形式の場合はそのまま、日付形式の場合は23:59:59を追加
                 if let Ok(dt) = NaiveDateTime::parse_from_str(parts[1], "%Y-%m-%dT%H:%M") {
-                    Some(Timestamp::from(dt.and_utc().timestamp() as u64))
+                    Some(jst_to_utc_timestamp(dt))
                 } else if let Ok(dt) = NaiveDateTime::parse_from_str(parts[1], "%Y-%m-%d %H:%M") {
-                    Some(Timestamp::from(dt.and_utc().timestamp() as u64))
+                    Some(jst_to_utc_timestamp(dt))
                 } else if let Ok(date) = NaiveDate::parse_from_str(parts[1], "%Y-%m-%d") {
                     // 終了日は23:59:59まで含める
                     let datetime = date.and_hms_opt(23, 59, 59).unwrap();
-                    Some(Timestamp::from(datetime.and_utc().timestamp() as u64))
+                    Some(jst_to_utc_timestamp(datetime))
                 } else {
                     util::reply_to(&config, event, person, "終了日時の形式が不正です。\n例: 2024-10-31, 2024-10-31 18:00, 2024-10-31T18:00").await?;
                     return Ok(());
