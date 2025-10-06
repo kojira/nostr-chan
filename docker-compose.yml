@@ -7,6 +7,7 @@ services:
       dockerfile: "./Dockerfile"
     volumes:
       - "./:/var/bot/"
+      - "${HOME}/.gemini:/root/.gemini:ro"
     tty: true
     working_dir: /var/bot/src
     command: bash -c "cargo run"
