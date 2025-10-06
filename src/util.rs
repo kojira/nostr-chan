@@ -20,6 +20,8 @@ pub async fn is_follower(user_pubkey: &str, bot_secret_key: &str) -> Result<bool
   // Check cache first
   let conn = db::connect()?;
   let ttl = config.bot.follower_cache_ttl;
+  println!("Checking cache: user={}, bot={}", 
+    &user_pubkey[..8], &bot_pubkey_str[..8]);
   if let Some((cached_result, remaining)) = db::get_follower_cache(&conn, user_pubkey, &bot_pubkey_str, ttl)? {
     println!("Follower cache hit: remaining {}s ({}h {}m)", 
       remaining, remaining / 3600, (remaining % 3600) / 60);
