@@ -96,7 +96,7 @@ pub async fn get_reply<'a>(
     let user_input = if let Some(timeline_posts) = timeline {
         if !timeline_posts.is_empty() {
             // 既存のタイムラインをフォーマット
-            let mut timeline_lines: Vec<String> = timeline_posts.iter()
+            let timeline_lines: Vec<String> = timeline_posts.iter()
                 .enumerate()
                 .map(|(i, post)| {
                     // 日本時間に変換
@@ -115,12 +115,6 @@ pub async fn get_reply<'a>(
                     format!("{}. [{}] {}: {}", i + 1, time_str, display_name, post.content)
                 })
                 .collect();
-            
-            // 現在の投稿をタイムラインの最後に追加（番号を続ける）
-            let current_number = timeline_lines.len() + 1;
-            let now = Local::now();
-            let time_str = now.format("%m/%d %H:%M").to_string();
-            timeline_lines.push(format!("{}. [{}] {}", current_number, time_str, user_text));
             
             let timeline_text = timeline_lines.join("\n");
             
