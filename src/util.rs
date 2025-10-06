@@ -285,32 +285,6 @@ pub async fn reply_to(
 }
 
 #[allow(dead_code)]
-pub async fn reply_to_by_event_id_pubkey(
-  config: &config::AppConfig,
-  reply_event_id: EventId,
-  reply_pubkey: PublicKey,
-  person: db::Person,
-  text: &str,
-) -> Result<Event> {
-  let bot_keys = Keys::parse(&person.secretkey)?;
-  let client_temp = Client::new(bot_keys.clone());
-  for item in config.relay_servers.write.iter() {
-    client_temp.add_relay(item.clone()).await.unwrap();
-  }
-  client_temp.connect().await;
-
-  let event_builder = EventBuilder::text_note(text)
-    .tags([Tag::event(reply_event_id), Tag::public_key(reply_pubkey)]);
-  let event = event_builder.sign(&bot_keys).await?;
-  let event_copy = event.clone();
-  client_temp.send_event(&event).await?;
-
-  println!("publish_text_note!");
-  client_temp.shutdown().await;
-  Ok(event_copy)
-}
-
-#[allow(dead_code)]
 pub async fn get_zap_received(target_pubkey: &str) -> Result<Vec<Event>> {
   let file = File::open("../config.yml")?;
   let config: config::AppConfig = serde_yaml::from_reader(file)?;

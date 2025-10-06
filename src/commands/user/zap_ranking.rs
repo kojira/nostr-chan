@@ -76,12 +76,10 @@ pub async fn zap_ranking(config: config::AppConfig, person: db::Person, event: E
         .join("\n");
     
     println!("Top 10 pubkeys by zap:");
-    let root_event2 = root_event.clone();
 
-    util::reply_to_by_event_id_pubkey(
+    util::reply_to(
         &config,
-        root_event2.id,
-        event.pubkey,
+        root_event,
         person.clone(),
         &format!(
             "受取りzap総額:{} satoshi\n投げてくれた人Top10:\n{}",
