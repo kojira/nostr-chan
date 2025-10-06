@@ -124,13 +124,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         person = person_op.unwrap();
                         has_mention = true;
                     }
-                    if !japanese && !has_mention {
+                    // エアリプは日本語のみ、メンションは言語不問
+                    if !has_mention && !japanese {
                         continue;
                     }
 
                     if event.created_at.as_u64() as i64 > (last_post_time + config.bot.reaction_freq) || has_mention {
                         post = true;
                     }
+                    
+                    // エアリプの場合は日本語チェックを再確認
+                    if post && !has_mention && !japanese {
+                        continue;
+                    }
+                    
                     if post {
                         let follower =
                             util::is_follower(&event.pubkey.to_string(), &person.secretkey).await?;
