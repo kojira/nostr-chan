@@ -94,9 +94,11 @@ async fn update_my_follower_cache(config: config::AppConfig, person: db::Person,
 }
 
 async fn search_posts(config: config::AppConfig, person: db::Person, event: Event) -> Result<()> {
-    // コマンドからキーワードを抽出
+    use chrono::{Duration as ChronoDuration, NaiveDate, Utc};
+    
+    // コマンドからキーワードと日時オプションを抽出
     let content = event.content.clone();
-    let keyword = if content.contains("search ") {
+    let args = if content.contains("search ") {
         content.split("search ").nth(1).unwrap_or("").trim()
     } else if content.contains("検索 ") {
         content.split("検索 ").nth(1).unwrap_or("").trim()
@@ -106,10 +108,52 @@ async fn search_posts(config: config::AppConfig, person: db::Person, event: Even
     
     println!("=== Search Command ===");
     println!("Original content: {}", content);
-    println!("Extracted keyword: '{}'", keyword);
+    println!("Extracted args: '{}'", args);
     
-    if keyword.is_empty() {
-        util::reply_to(&config, event, person, "検索キーワードを指定してください。\n例: search Nostr").await?;
+    if args.is_empty() {
+        util::reply_to(&config, event, person, "検索キーワードを指定してください。\n例: 検索 Nostr\n例: 検索 Nostr 7d (過去7日間)\n例: 検索 Nostr 2024-10-01 (指定日以降)").await?;
+        return Ok(());
+    }
+    
+    // キーワードと日時オプションを分離
+    let parts: Vec<&str> = args.split_whitespace().collect();
+    let keyword = parts[0];
+    let time_option = parts.get(1).copied();
+    
+    println!("Keyword: '{}', Time option: {:?}", keyword, time_option);
+    
+    // 日時オプションをパース
+    let since_timestamp = if let Some(opt) = time_option {
+        if opt.ends_with('d') {
+            // 日数指定 (例: 7d, 30d)
+            if let Ok(days) = opt.trim_end_matches('d').parse::<i64>() {
+                let since = Utc::now() - ChronoDuration::days(days);
+                Some(Timestamp::from(since.timestamp() as u64))
+            } else {
+                None
+            }
+        } else if opt.ends_with('h') {
+            // 時間指定 (例: 1h, 24h)
+            if let Ok(hours) = opt.trim_end_matches('h').parse::<i64>() {
+                let since = Utc::now() - ChronoDuration::hours(hours);
+                Some(Timestamp::from(since.timestamp() as u64))
+            } else {
+                None
+            }
+        } else if let Ok(date) = NaiveDate::parse_from_str(opt, "%Y-%m-%d") {
+            // 日付指定 (例: 2024-10-01)
+            let datetime = date.and_hms_opt(0, 0, 0).unwrap();
+            let timestamp = datetime.and_utc().timestamp();
+            Some(Timestamp::from(timestamp as u64))
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+    
+    if time_option.is_some() && since_timestamp.is_none() {
+        util::reply_to(&config, event, person, "日時指定の形式が不正です。\n例: 7d (過去7日間)\n例: 1h (過去1時間)\n例: 2024-10-01 (指定日以降)").await?;
         return Ok(());
     }
     
@@ -125,10 +169,15 @@ async fn search_posts(config: config::AppConfig, person: db::Person, event: Even
     client.connect().await;
     
     // 検索クエリ（最新10件）
-    let filter = Filter::new()
+    let mut filter = Filter::new()
         .kind(Kind::TextNote)
         .search(keyword)
         .limit(10);
+    
+    if let Some(since) = since_timestamp {
+        filter = filter.since(since);
+        println!("Searching since: {}", since);
+    }
     
     println!("Filter: {:?}", filter);
     println!("Fetching events...");
@@ -155,7 +204,12 @@ async fn search_posts(config: config::AppConfig, person: db::Person, event: Even
     let top_events: Vec<_> = sorted_events.into_iter().take(5).collect();
     
     // 結果を整形
-    let mut reply = format!("【検索結果: {}】（最新{}件）\n\n", keyword, top_events.len());
+    let time_range_text = if let Some(opt) = time_option {
+        format!("（{}）", opt)
+    } else {
+        "（全期間）".to_string()
+    };
+    let mut reply = format!("【検索結果: {}】{} 最新{}件\n\n", keyword, time_range_text, top_events.len());
     for search_event in &top_events {
         // 日時をフォーマット（日本時間）
         use chrono::{Local, TimeZone};
