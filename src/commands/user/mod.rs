@@ -157,8 +157,8 @@ async fn search_posts(config: config::AppConfig, person: db::Person, event: Even
         let dt = Local.timestamp_opt(search_event.created_at.as_u64() as i64, 0).unwrap();
         let time_str = dt.format("%m/%d %H:%M").to_string();
         
-        // npub形式に変換
-        let npub = search_event.pubkey.to_bech32().unwrap();
+        // note1形式に変換（イベントID）
+        let note = search_event.id.to_bech32().unwrap();
         
         // UTF-8文字境界を考慮した切り出し
         let content = if search_event.content.chars().count() > 50 {
@@ -168,8 +168,8 @@ async fn search_posts(config: config::AppConfig, person: db::Person, event: Even
             search_event.content.clone()
         };
         
-        println!("Result: [{}] nostr:{} - {}", time_str, npub, content);
-        reply.push_str(&format!("[{}] nostr:{}\n{}\n\n", time_str, npub, content));
+        println!("Result: [{}] nostr:{} - {}", time_str, note, content);
+        reply.push_str(&format!("[{}] nostr:{}\n{}\n\n", time_str, note, content));
     }
     
     println!("======================");
