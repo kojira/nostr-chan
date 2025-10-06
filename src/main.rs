@@ -53,7 +53,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     
     // DBから既存のタイムラインを読み込み（起動時のみ）
     println!("Loading timeline from DB...");
-    let timeline_posts = db::get_latest_timeline_posts(&conn, 30).unwrap_or_else(|e| {
+    let timeline_posts = db::get_latest_timeline_posts(&conn, config.bot.timeline_size).unwrap_or_else(|e| {
         eprintln!("Failed to load timeline: {}", e);
         Vec::new()
     });
@@ -114,8 +114,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 eprintln!("Failed to save timeline post: {}", e);
                             }
                             
-                            // 古い投稿を削除（最新100件のみ保持）
-                            let _ = db::cleanup_old_timeline_posts(&conn, 100);
+                            // 古い投稿を削除
+                            let _ = db::cleanup_old_timeline_posts(&conn, config.bot.timeline_max_storage);
                         },
                         _ => (),
                     }
@@ -169,7 +169,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             
                             // エアリプの場合はDBからタイムラインを読み込む
                             let timeline_clone = if !has_mention {
-                                db::get_latest_timeline_posts(&conn, 30).ok()
+                                db::get_latest_timeline_posts(&conn, config.bot.timeline_size).ok()
                             } else {
                                 None
                             };
@@ -221,8 +221,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                     eprintln!("Failed to save bot timeline post: {}", e);
                                 }
                                 
-                                // 古い投稿を削除（最新100件のみ保持）
-                                let _ = db::cleanup_old_timeline_posts(&conn, 100);
+                                // 古い投稿を削除
+                                let _ = db::cleanup_old_timeline_posts(&conn, config.bot.timeline_max_storage);
                             }
                             
                             // last_post_timeは即座に更新（連続投稿防止）

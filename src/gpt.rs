@@ -7,7 +7,7 @@ use std::time::Duration;
 use std::env;
 use tokio::time::timeout;
 use openai_api_rs::v1::api::OpenAIClient;
-use openai_api_rs::v1::chat_completion::{self, ChatCompletionRequest, Reasoning};
+use openai_api_rs::v1::chat_completion::{self, ChatCompletionRequest};
 use chrono::{Local, TimeZone};
 
 
