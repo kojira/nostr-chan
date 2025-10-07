@@ -47,6 +47,12 @@ pub fn get_admin_commands() -> Vec<AdminCommand> {
             description: "全フォロワーキャッシュをクリア",
             handler: |c, p, e, _| Box::pin(admin_clear_follower_cache(c, p, e)),
         },
+        AdminCommand {
+            name: "clear_follower_cache_space",
+            pattern: "clear follower cache",
+            description: "全フォロワーキャッシュをクリア",
+            handler: |c, p, e, _| Box::pin(admin_clear_follower_cache(c, p, e)),
+        },
     ]
 }
 
