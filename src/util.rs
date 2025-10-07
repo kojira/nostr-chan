@@ -409,14 +409,27 @@ pub async fn get_user_name(pubkey: &str) -> Result<String> {
 // Gemini CLIでWeb検索を実行
 pub async fn gemini_search(query: &str) -> Result<String, String> {
     use std::process::Command;
+    use tokio::time::{timeout, Duration};
     
     println!("Executing gemini search: {}", query);
     
-    let output = Command::new("gemini")
-        .arg("search")
-        .arg(query)
-        .output()
-        .map_err(|e| format!("Failed to execute gemini command: {}", e))?;
+    // 30秒のタイムアウトを設定
+    let search_future = tokio::task::spawn_blocking({
+        let query = query.to_string();
+        move || {
+            Command::new("gemini")
+                .arg("search")
+                .arg(&query)
+                .output()
+        }
+    });
+    
+    let output = match timeout(Duration::from_secs(30), search_future).await {
+        Ok(Ok(Ok(output))) => output,
+        Ok(Ok(Err(e))) => return Err(format!("Failed to execute gemini command: {}", e)),
+        Ok(Err(e)) => return Err(format!("Task join error: {}", e)),
+        Err(_) => return Err("Gemini search timed out after 30 seconds".to_string()),
+    };
     
     if !output.status.success() {
         let error = String::from_utf8_lossy(&output.stderr);

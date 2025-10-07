@@ -131,7 +131,12 @@ pub async fn search_web(config: config::AppConfig, person: db::Person, event: Ev
         Err(e) => {
             eprintln!("Gemini search error: {}", e);
             let error_reply = format!("検索に失敗しました: {}", e);
-            util::reply_to(&config, event, person, &error_reply).await?;
+            // エラーも一次回答へのリプライとして投稿
+            if let Some(initial_evt) = initial_event {
+                util::reply_to(&config, initial_evt, person, &error_reply).await?;
+            } else {
+                util::reply_to(&config, event, person, &error_reply).await?;
+            }
         }
     }
     
