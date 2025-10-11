@@ -113,19 +113,19 @@ pub async fn rag_search(config: AppConfig, person: db::Person, event: Event) -> 
         };
         
         // event_idをbech32形式（note1...）に変換
-        let event_id_bech32 = match EventId::from_hex(&event_record.event_id) {
-            Ok(eid) => format!("nostr:{}", eid.to_bech32().unwrap_or_else(|_| event_record.event_id.clone())),
+        let note_id = match EventId::from_hex(&event_record.event_id) {
+            Ok(eid) => eid.to_bech32().unwrap(),
             Err(_) => event_record.event_id.clone(),
         };
         
         result_lines.push(format!(
-            "{}. [{:.3}] {} ({})\n{}\n{}",
+            "{}. [{:.3}] {} ({})\n{}\nnostr:{}",
             i + 1,
             similarity,
             author,
             time_str,
             content_preview,
-            event_id_bech32
+            note_id
         ));
         result_lines.push(String::new());
     }
