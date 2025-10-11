@@ -56,6 +56,78 @@ pub async fn call_gpt(prompt: &str, user_text: &str) -> Result<String, Box<dyn E
     }
 }
 
+/// 新しいインターフェース: 会話コンテキスト文字列を受け取る
+pub async fn get_reply_with_context<'a>(
+    personality: &'a str,
+    user_text: &'a str,
+    has_mention: bool,
+    context: Option<String>,
+) -> Result<String, Box<dyn Error>> {
+    dotenv().ok();
+    let file = File::open("../config.yml").unwrap();
+    let config: AppConfig = serde_yaml::from_reader(file).unwrap();
+    let answer_length = config.gpt.answer_length;
+
+    let start_delimiter = "<<";
+    let end_delimiter = ">>";
+    let mut extracted_prompt = "";
+    let mut modified_personality = String::new();
+
+    if let Some(start_index) = personality.find(start_delimiter) {
+        if let Some(end_index) = personality.find(end_delimiter) {
+            extracted_prompt = &personality[start_index + start_delimiter.len()..end_index];
+            modified_personality = personality.replacen(
+                &format!("{}{}{}", start_delimiter, extracted_prompt, end_delimiter),
+                "",
+                1,
+            );
+        }
+    }
+
+    let prompt;
+    let prompt_temp;
+
+    if modified_personality.len() > 0 && extracted_prompt.len() > 0 {
+        prompt_temp = format!("これはあなたの人格です。'{personality}'\n{extracted_prompt}");
+    } else {
+        prompt_temp = format!("これはあなたの人格です。'{personality}'\nこの人格を演じて次の行の文章に対して{answer_length}文字程度で返信してください。ユーザーから文字数指定があった場合はそちらを優先してください。");
+    }
+    
+    // コンテキストがある場合
+    let user_input = if let Some(ctx) = context {
+        if has_mention {
+            // メンション: 会話履歴付き
+            prompt = prompt_temp;
+            ctx
+        } else {
+            // エアリプ: タイムライン付き
+            prompt = format!("{prompt_temp}\n\n以下は最近のタイムラインです。この流れを見て、あなたが気になった投稿に自然に反応してください。あなた宛ではないので、独り言のように自然に反応してください。");
+            ctx
+        }
+    } else {
+        // コンテキストなし
+        prompt = if has_mention {
+            prompt_temp
+        } else {
+            format!("{prompt_temp}次の行の文章はSNSでの投稿です。あなたがたまたま見かけたものであなた宛の文章ではないのでその点に注意して回答してください。")
+        };
+        user_text.to_string()
+    };
+
+    match call_gpt(&prompt, &user_input).await {
+        Ok(reply) => {
+            println!("Reply: {}", reply);
+            Ok(reply)
+        },
+        Err(e) => {
+            eprintln!("Error calling GPT API: {:?}", e);
+            eprintln!("Error details: {}", e);
+            Ok("".to_string())
+        },
+    }
+}
+
+/// 旧インターフェース: 互換性のため残す
 pub async fn get_reply<'a>(
     personality: &'a str, 
     user_text: &'a str, 
