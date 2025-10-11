@@ -88,29 +88,13 @@ pub async fn rag_search(config: AppConfig, person: db::Person, event: Event) -> 
     let mut result_lines = vec![format!("「{}」の検索結果:", query)];
     result_lines.push(String::new());
     
-    for (i, (event_record, similarity)) in similar_events.iter().enumerate() {
-        // 日時をフォーマット
+    for (event_record, _similarity) in similar_events.iter() {
+        // 日時をフォーマット（日本時間）
         let dt = Local
             .timestamp_opt(event_record.created_at, 0)
             .single()
             .ok_or("タイムスタンプ変換エラー")?;
-        let time_str = dt.format("%Y/%m/%d %H:%M").to_string();
-        
-        // 投稿者名
-        let author = event_record
-            .kind0_name
-            .clone()
-            .unwrap_or_else(|| format!("{}...", &event_record.pubkey[..8]));
-        
-        // 内容を要約（最大100文字）
-        let content_preview = {
-            let chars: Vec<char> = event_record.content.chars().collect();
-            if chars.len() > 100 {
-                format!("{}...", chars.iter().take(100).collect::<String>())
-            } else {
-                event_record.content.clone()
-            }
-        };
+        let time_str = dt.format("%m/%d %H:%M").to_string();
         
         // event_idをbech32形式（note1...）に変換
         let note_id = match EventId::from_hex(&event_record.event_id) {
@@ -118,16 +102,7 @@ pub async fn rag_search(config: AppConfig, person: db::Person, event: Event) -> 
             Err(_) => event_record.event_id.clone(),
         };
         
-        result_lines.push(format!(
-            "{}. [{:.3}] {} ({})\n{}\nnostr:{}",
-            i + 1,
-            similarity,
-            author,
-            time_str,
-            content_preview,
-            note_id
-        ));
-        result_lines.push(String::new());
+        result_lines.push(format!("[{}] nostr:{}", time_str, note_id));
     }
     
     let response = result_lines.join("\n");
