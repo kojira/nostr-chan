@@ -88,7 +88,7 @@ pub async fn rag_search(config: AppConfig, person: db::Person, event: Event) -> 
     let mut result_lines = vec![format!("「{}」の検索結果:", query)];
     result_lines.push(String::new());
     
-    for (event_record, _similarity) in similar_events.iter() {
+    for (event_record, similarity) in similar_events.iter() {
         // 日時をフォーマット（日本時間）
         let dt = Local
             .timestamp_opt(event_record.created_at, 0)
@@ -102,7 +102,7 @@ pub async fn rag_search(config: AppConfig, person: db::Person, event: Event) -> 
             Err(_) => event_record.event_id.clone(),
         };
         
-        result_lines.push(format!("[{}] nostr:{}", time_str, note_id));
+        result_lines.push(format!("[{}] 類似度:{:.3} nostr:{}", time_str, similarity, note_id));
     }
     
     let response = result_lines.join("\n");
