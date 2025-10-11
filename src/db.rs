@@ -680,17 +680,19 @@ pub fn insert_conversation_summary(
 pub fn get_conversation_summaries(
     conn: &Connection,
     bot_pubkey: &str,
+    user_pubkey: &str,
     limit: usize,
 ) -> Result<Vec<ConversationSummary>> {
     let mut stmt = conn.prepare(
         "SELECT id, bot_pubkey, summary, user_input, user_input_embedding, participants_json, from_timestamp, to_timestamp, created_at
          FROM conversation_summaries
          WHERE bot_pubkey = ?
+         AND (participants_json LIKE '%' || ? || '%' OR participants_json IS NULL)
          ORDER BY created_at DESC
          LIMIT ?"
     )?;
     
-    let summaries = stmt.query_map(params![bot_pubkey, limit], |row| {
+    let summaries = stmt.query_map(params![bot_pubkey, user_pubkey, limit], |row| {
         Ok(ConversationSummary {
             id: row.get(0)?,
             bot_pubkey: row.get(1)?,

@@ -298,10 +298,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             let conn_clone = db::connect().unwrap();
                             let has_conversation_log = conversation_log_id.is_some();
                             
+                            // ユーザーのpubkeyを取得
+                            let user_pubkey_clone = event_clone.pubkey.to_string();
+                            
                             // メンション時はユーザー名を取得してプロンプトに追加
                             if has_mention {
-                                let user_pubkey = event_clone.pubkey.to_string();
-                                if let Ok(user_name) = util::get_user_name(&user_pubkey).await {
+                                if let Ok(user_name) = util::get_user_name(&user_pubkey_clone).await {
                                     // pubkeyの短縮形でない場合のみ追加
                                     if !user_name.ends_with("...") {
                                         prompt_clone = format!("{}。話しかけてきた相手の名前は「{}」です。", prompt_clone, user_name);
@@ -311,10 +313,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             
                             // 会話コンテキストを準備
                             let context_clone = if has_conversation_log {
-                                // メンション: 会話コンテキストを使用
+                                // メンション: 会話コンテキストを使用（同じユーザーとの会話履歴のみ）
                                 match conversation::prepare_context_for_reply(
                                     &conn_clone,
                                     &person_clone.pubkey,
+                                    &user_pubkey_clone,
                                     &content_clone,
                                     50, // 最大50件の会話履歴
                                 ).await {

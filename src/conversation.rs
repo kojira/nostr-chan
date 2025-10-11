@@ -50,6 +50,7 @@ pub fn build_conversation_timeline(
 pub async fn summarize_conversation_if_needed(
     conn: &Connection,
     bot_pubkey: &str,
+    user_pubkey: &str,
     user_input: &str,
     timeline_text: &str,
 ) -> Result<Option<String>, Box<dyn std::error::Error>> {
@@ -62,8 +63,8 @@ pub async fn summarize_conversation_if_needed(
     // ユーザー入力をベクトル化
     let user_input_embedding = embedding::generate_embedding_global(user_input)?;
     
-    // 過去の類似要約を検索
-    let similar_summary = search_most_similar_summary(conn, bot_pubkey, &user_input_embedding)?;
+    // 過去の類似要約を検索（同じユーザーとの会話のみ）
+    let similar_summary = search_most_similar_summary(conn, bot_pubkey, user_pubkey, &user_input_embedding)?;
     
     // 要約プロンプト作成
     let summary_prompt = format!(
@@ -145,9 +146,10 @@ pub async fn summarize_conversation_if_needed(
 fn search_most_similar_summary(
     conn: &Connection,
     bot_pubkey: &str,
+    user_pubkey: &str,
     user_input_embedding: &[f32],
 ) -> Result<Option<db::ConversationSummary>, Box<dyn std::error::Error>> {
-    let summaries = db::get_conversation_summaries(conn, bot_pubkey, 10)?;
+    let summaries = db::get_conversation_summaries(conn, bot_pubkey, user_pubkey, 10)?;
     
     if summaries.is_empty() {
         return Ok(None);
@@ -181,6 +183,7 @@ fn search_most_similar_summary(
 pub async fn prepare_context_for_reply(
     conn: &Connection,
     bot_pubkey: &str,
+    user_pubkey: &str,
     user_input: &str,
     limit: usize,
 ) -> Result<String, Box<dyn std::error::Error>> {
@@ -193,7 +196,7 @@ pub async fn prepare_context_for_reply(
     
     // 5000文字を超える場合は要約
     if timeline_text.len() > MAX_TIMELINE_LENGTH {
-        if let Some(summary) = summarize_conversation_if_needed(conn, bot_pubkey, user_input, &timeline_text).await? {
+        if let Some(summary) = summarize_conversation_if_needed(conn, bot_pubkey, user_pubkey, user_input, &timeline_text).await? {
             // 要約がある場合は要約を返す
             return Ok(format!("【会話の要約】\n{}\n\n【現在の発言】\n{}", summary, user_input));
         }
