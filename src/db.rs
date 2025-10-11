@@ -598,6 +598,27 @@ pub fn get_thread_message_count(
     Ok(count)
 }
 
+/// 特定のbotと相手との過去N分間の会話回数を取得
+pub fn get_conversation_count_with_user(
+    conn: &Connection,
+    bot_pubkey: &str,
+    user_pubkey: &str,
+    minutes: i64,
+) -> Result<usize> {
+    let cutoff_time = Utc::now().timestamp() - (minutes * 60);
+    
+    let mut stmt = conn.prepare(
+        "SELECT COUNT(*) FROM conversation_logs cl
+         INNER JOIN events e ON cl.event_ref_id = e.id
+         WHERE cl.bot_pubkey = ? 
+         AND (e.pubkey = ? OR cl.is_bot_message = 1)
+         AND cl.logged_at > ?"
+    )?;
+    
+    let count: usize = stmt.query_row(params![bot_pubkey, user_pubkey, cutoff_time], |row| row.get(0))?;
+    Ok(count)
+}
+
 // ========== Conversation summaries functions ==========
 
 #[derive(Debug, Clone)]

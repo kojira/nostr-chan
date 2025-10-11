@@ -88,6 +88,78 @@ impl EmbeddingService {
             .map_err(|e| format!("トークン化エラー: {}", e))?;
         
         let tokens = encoding.get_ids();
+        
+        // トークン数を512に制限（BERTの最大長）
+        const MAX_TOKENS: usize = 510; // [CLS]と[SEP]用に2トークン予約
+        
+        if tokens.len() <= MAX_TOKENS {
+            // 通常処理
+            return self.encode_tokens(tokens);
+        }
+        
+        // 長いテキストの場合: チャンク分割して平均を取る
+        println!(
+            "[EmbeddingService] 長いテキスト検出: {}トークン → チャンク分割して処理",
+            tokens.len()
+        );
+        
+        let mut chunk_embeddings = Vec::new();
+        let stride = MAX_TOKENS / 2; // 50%オーバーラップ
+        
+        for start in (0..tokens.len()).step_by(stride) {
+            let end = (start + MAX_TOKENS).min(tokens.len());
+            let chunk = &tokens[start..end];
+            
+            if chunk.is_empty() {
+                continue;
+            }
+            
+            match self.encode_tokens(chunk) {
+                Ok(emb) => chunk_embeddings.push(emb),
+                Err(e) => {
+                    eprintln!("[EmbeddingService] チャンクのベクトル化エラー: {}", e);
+                    continue;
+                }
+            }
+            
+            // 最後のチャンクまで到達したら終了
+            if end >= tokens.len() {
+                break;
+            }
+        }
+        
+        if chunk_embeddings.is_empty() {
+            return Err("チャンク分割後にベクトル化できませんでした".into());
+        }
+        
+        // 全チャンクの平均を計算
+        println!("[EmbeddingService] {}個のチャンクの平均を計算", chunk_embeddings.len());
+        let mut avg_embedding = vec![0.0f32; EMBEDDING_DIMENSION];
+        
+        for emb in &chunk_embeddings {
+            for (i, &val) in emb.iter().enumerate() {
+                avg_embedding[i] += val;
+            }
+        }
+        
+        let n = chunk_embeddings.len() as f32;
+        for val in &mut avg_embedding {
+            *val /= n;
+        }
+        
+        // L2正規化
+        let norm: f32 = avg_embedding.iter().map(|&x| x * x).sum::<f32>().sqrt();
+        if norm > 0.0 {
+            for val in &mut avg_embedding {
+                *val /= norm;
+            }
+        }
+        
+        Ok(avg_embedding)
+    }
+    
+    /// トークン列をベクトル化（内部ヘルパー関数）
+    fn encode_tokens(&self, tokens: &[u32]) -> Result<Vec<f32>, Box<dyn std::error::Error>> {
         let token_ids = Tensor::new(tokens, &self.device)?
             .unsqueeze(0)?; // バッチ次元追加
 

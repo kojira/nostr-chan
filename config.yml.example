@@ -26,6 +26,8 @@ bot:
   reaction_freq: 600
   follower_cache_ttl: 86400
   timeline_size: 30
+  conversation_limit_count: 5
+  conversation_limit_minutes: 3
   blacklist:
     - blacklist hex pubkey
 

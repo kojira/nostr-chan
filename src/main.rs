@@ -224,6 +224,26 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             util::is_follower(&event.pubkey.to_string(), &person.secretkey).await?;
                         println!("follower:{}", follower);
                         if follower {
+                            // メンション時: 会話回数制限チェック
+                            if has_mention {
+                                let conversation_count = db::get_conversation_count_with_user(
+                                    &conn,
+                                    &person.pubkey,
+                                    &event.pubkey.to_string(),
+                                    config.bot.conversation_limit_minutes,
+                                )?;
+                                
+                                if conversation_count >= config.bot.conversation_limit_count {
+                                    println!(
+                                        "会話回数制限: {}分間で{}回 (制限: {}回)",
+                                        config.bot.conversation_limit_minutes,
+                                        conversation_count,
+                                        config.bot.conversation_limit_count
+                                    );
+                                    continue;
+                                }
+                            }
+                            
                             // メンション時: 会話ログに記録
                             let conversation_log_id = if has_mention {
                                 // イベントが既にeventsテーブルに保存されているか確認
