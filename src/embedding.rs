@@ -247,11 +247,11 @@ pub struct ModelInfo {
 }
 
 /// ヘルパー関数: グローバルサービスでテキストをベクトル化
-pub fn generate_embedding_global(text: &str) -> Result<Vec<f32>, Box<dyn std::error::Error>> {
+pub fn generate_embedding_global(text: &str) -> Result<Vec<f32>, String> {
     let service = EMBEDDING_SERVICE.lock().unwrap();
     match service.as_ref() {
-        Some(s) => s.generate_embedding(text),
-        None => Err("EmbeddingServiceが初期化されていません".into()),
+        Some(s) => s.generate_embedding(text).map_err(|e| format!("{}", e)),
+        None => Err("EmbeddingServiceが初期化されていません".to_string()),
     }
 }
 

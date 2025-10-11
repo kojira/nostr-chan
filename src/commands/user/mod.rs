@@ -9,6 +9,7 @@ mod update_follower;
 mod search_posts;
 mod help;
 mod search_web;
+mod rag_search;
 
 // ユーザーコマンド定義
 pub struct UserCommand {
@@ -99,10 +100,35 @@ pub fn get_user_commands() -> Vec<UserCommand> {
             handler: |c, p, e| Box::pin(search_web::search_web(c, p, e)),
         },
         UserCommand {
+            name: "rag",
+            patterns: vec!["rag", "意味検索"],
+            description: "AIによる意味検索（ベクトル類似度）",
+            detailed_help: Some(
+"AIによる意味検索を行います。キーワード一致ではなく、意味的に似ている投稿を探します。
+
+【使い方】
+rag [検索したい内容]
+意味検索 [検索したい内容]
+
+【特徴】
+・ベクトル類似度による意味的な検索
+・キーワードが完全一致しなくても類似する内容を発見
+・日本語投稿のみが対象
+・上位5件を類似度スコア付きで表示
+
+【例】
+rag Nostrの使い方
+意味検索 プログラミングの学び方
+rag AIとの付き合い方"
+            ),
+            require_start: true,  // 文頭必須
+            handler: |c, p, e| Box::pin(rag_search::rag_search(c, p, e)),
+        },
+        UserCommand {
             name: "help",
             patterns: vec!["help", "ヘルプ"],
             description: "利用可能なコマンド一覧を表示します",
-            detailed_help: Some("利用可能なコマンドの一覧を表示します。\n\n【使い方】\nhelp: 全コマンド一覧\nhelp コマンド名: 特定コマンドの詳細ヘルプ\n\n【例】\nhelp\nhelp search"),
+            detailed_help: Some("利用可能なコマンドの一覧を表示します。\n\n【使い方】\nhelp: 全コマンド一覧\nhelp コマンド名: 特定コマンドの詳細ヘルプ\n\n【例】\nhelp\nhelp search\nhelp rag"),
             require_start: false,
             handler: |c, p, e| Box::pin(help::show_help(c, p, e)),
         },
