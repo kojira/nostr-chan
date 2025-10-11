@@ -38,27 +38,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     } else {
         println!("Embeddingサービスの初期化完了");
     }
-    
-    // マイグレーション: timelineテーブルからeventsテーブルへデータ移行
-    println!("データベースマイグレーションを確認中...");
-    match db::migrate_timeline_to_events(&conn) {
-        Ok(count) => {
-            if count > 0 {
-                println!("マイグレーション完了: {} 件のタイムラインデータを移行しました", count);
-                // マイグレーション成功後、timelineテーブルを削除
-                if let Err(e) = db::drop_timeline_table(&conn) {
-                    eprintln!("警告: timelineテーブルの削除に失敗しました: {}", e);
-                } else {
-                    println!("timelineテーブルを削除しました");
-                }
-            } else {
-                println!("マイグレーション: 移行するデータがありません");
-            }
-        }
-        Err(e) => {
-            eprintln!("警告: マイグレーションエラー: {}", e);
-        }
-    }
 
     let secret_key = env::var("BOT_SECRETKEY").expect("BOT_SECRETKEY is not set");
 
