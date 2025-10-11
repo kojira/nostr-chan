@@ -103,10 +103,13 @@ pub async fn rag_search(config: AppConfig, person: db::Person, event: Event) -> 
             .unwrap_or_else(|| format!("{}...", &event_record.pubkey[..8]));
         
         // 内容を要約（最大100文字）
-        let content_preview = if event_record.content.len() > 100 {
-            format!("{}...", &event_record.content[..100])
-        } else {
-            event_record.content.clone()
+        let content_preview = {
+            let chars: Vec<char> = event_record.content.chars().collect();
+            if chars.len() > 100 {
+                format!("{}...", chars.iter().take(100).collect::<String>())
+            } else {
+                event_record.content.clone()
+            }
         };
         
         result_lines.push(format!(
