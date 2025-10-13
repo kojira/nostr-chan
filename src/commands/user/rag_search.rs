@@ -158,6 +158,11 @@ fn search_similar_events(
             // バイト列からf32配列に変換
             let embedding = bytes_to_f32_vec(embedding_bytes);
             
+            // ゼロベクトル（空コンテンツ）はスキップ
+            if embedding.iter().all(|&x| x == 0.0) {
+                continue;
+            }
+            
             // コサイン類似度を計算
             if let Ok(similarity) = embedding::cosine_similarity(query_embedding, &embedding) {
                 scored_events.push((event_record, similarity));
