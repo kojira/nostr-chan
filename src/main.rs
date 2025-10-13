@@ -148,6 +148,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     
     // イベント処理ワーカーを起動
+    let config_for_worker = config.clone();
+    let bot_info_for_worker = Arc::clone(&bot_info);
     tokio::spawn(async move {
         println!("Starting event queue worker...");
         loop {
@@ -184,13 +186,29 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             };
             
-            // TODO: イベント処理を実行（次のコミットで実装）
-            println!("[Worker] Processing event: {}", event.id);
-            
-            // 処理完了: キューから削除
-            if let Err(e) = db::complete_queue_event(&conn_worker, queue_id) {
-                eprintln!("[Worker] キュー削除エラー: {}", e);
-            }
+            // イベント処理を非同期タスクで実行
+            let config_clone = config_for_worker.clone();
+            let bot_info_clone = Arc::clone(&bot_info_for_worker);
+            tokio::spawn(async move {
+                // process_event内で新しいConnectionを作成するため、Sendトレイト問題は解決
+                match process_event(config_clone, bot_info_clone, event).await {
+                    Ok(_) => {
+                        // 処理成功: キューから削除
+                        if let Ok(conn) = db::connect() {
+                            if let Err(e) = db::complete_queue_event(&conn, queue_id) {
+                                eprintln!("[Worker] キュー削除エラー: {}", e);
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        eprintln!("[Worker] イベント処理エラー: {} - キューから削除", e);
+                        // エラーでも削除（無限ループ防止）
+                        if let Ok(conn) = db::connect() {
+                            let _ = db::complete_queue_event(&conn, queue_id);
+                        }
+                    }
+                }
+            });
         }
     });
     
@@ -256,5 +274,299 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
+    Ok(())
+}
+
+/// キューから取り出したイベントを処理する
+async fn process_event(
+    config: config::AppConfig,
+    bot_info: Arc<RwLock<dashboard::BotInfo>>,
+    event: Event,
+) -> Result<(), Box<dyn std::error::Error>> {
+    use whatlang::{detect, Lang};
+    use chrono::TimeZone;
+    
+    // DB接続
+    let conn = db::connect()?;
+    
+    // 言語判定
+    let japanese = if let Some(lang) = detect(&event.content) {
+        matches!(lang.lang(), Lang::Jpn)
+    } else {
+        false
+    };
+    
+    // イベントをeventsテーブルに保存
+    if event.kind == Kind::TextNote {
+        let event_type = if japanese { Some("air_reply") } else { None };
+        match db::insert_event(&conn, &event, japanese, event_type) {
+            Ok(event_ref_id) => {
+                // kind 0情報を非同期で取得して更新
+                let conn_clone = db::connect()?;
+                let event_id = event.id.to_string();
+                let pubkey = event.pubkey.to_string();
+                tokio::spawn(async move {
+                    if let Ok(name) = util::get_user_name(&pubkey).await {
+                        let _ = db::update_event_kind0(&conn_clone, &event_id, Some(&name), None);
+                    }
+                });
+                let _ = event_ref_id;
+            }
+            Err(e) => {
+                if !e.to_string().contains("UNIQUE constraint failed") {
+                    eprintln!("[Worker] Failed to save event: {}", e);
+                }
+            }
+        }
+    }
+    
+    // 処理判定
+    if event.content.is_empty() {
+        return Ok(());
+    }
+    
+    // personsを取得
+    let persons = db::get_all_persons(&conn)?;
+    
+    // メンション判定
+    let person_op = util::extract_mention(persons.clone(), &event)?;
+    let has_mention = person_op.is_some();
+    
+    // エアリプは日本語のみ
+    if !has_mention && !japanese {
+        return Ok(());
+    }
+    
+    // 確率判定
+    let (mut should_post, _) = util::judge_post(&config, persons.clone(), &event)?;
+    
+    // Personを決定
+    let person = if let Some(p) = person_op {
+        p
+    } else {
+        db::get_random_person(&conn)?
+    };
+    
+    // メンションの場合は必ず返信
+    if has_mention {
+        should_post = true;
+    }
+    
+    if !should_post {
+        return Ok(());
+    }
+    
+    // フォロワーチェック
+    let is_follower = util::is_follower(&event.pubkey.to_string(), &person.secretkey).await?;
+    if !is_follower {
+        println!("[Worker] Not a follower, skipping");
+        return Ok(());
+    }
+    
+    // 会話回数制限チェック（メンション時のみ）
+    if has_mention {
+        let conversation_count = db::get_conversation_count_with_user(
+            &conn,
+            &person.pubkey,
+            &event.pubkey.to_string(),
+            config.bot.conversation_limit_minutes,
+        )?;
+        
+        if conversation_count >= config.bot.conversation_limit_count {
+            println!(
+                "[Worker] 会話回数制限: {}分間で{}回 (制限: {}回)",
+                config.bot.conversation_limit_minutes,
+                conversation_count,
+                config.bot.conversation_limit_count
+            );
+            return Ok(());
+        }
+    }
+    
+    // 会話ログに記録（メンション時のみ）
+    let conversation_log_id = if has_mention {
+        let event_record = db::get_event_by_event_id(&conn, &event.id.to_string())?;
+        let event_ref_id = if let Some(record) = event_record {
+            record.id
+        } else {
+            let event_type = Some("mention");
+            db::insert_event(&conn, &event, japanese, event_type)?
+        };
+        
+        let event_json = serde_json::to_string(&event)?;
+        let mentioned_pubkeys = db::extract_mentioned_pubkeys(&event_json).ok();
+        let thread_root_id = db::extract_thread_root_id(&event_json).ok().flatten();
+        
+        let all_bot_pubkeys: Vec<String> = persons.iter().map(|p| p.pubkey.clone()).collect();
+        let is_bot_conversation = if let Some(ref pks) = mentioned_pubkeys {
+            db::detect_bot_conversation(pks, &all_bot_pubkeys)
+        } else {
+            false
+        };
+        
+        match db::insert_conversation_log(
+            &conn,
+            &person.pubkey,
+            event_ref_id,
+            thread_root_id.as_deref(),
+            mentioned_pubkeys.as_ref().map(|v| v.as_slice()),
+            false,
+            is_bot_conversation,
+        ) {
+            Ok(log_id) => Some(log_id),
+            Err(e) => {
+                eprintln!("[Worker] 会話ログ記録エラー: {}", e);
+                None
+            }
+        }
+    } else {
+        None
+    };
+    
+    let has_conversation_log = conversation_log_id.is_some();
+    
+    // プロンプト準備
+    let mut prompt = person.prompt.clone();
+    let user_pubkey = event.pubkey.to_string();
+    
+    if has_mention {
+        if let Ok(user_name) = util::get_user_name(&user_pubkey).await {
+            if !user_name.ends_with("...") {
+                prompt = format!("{}。話しかけてきた相手の名前は「{}」です。", prompt, user_name);
+            }
+        }
+    }
+    
+    // 会話コンテキストを準備
+    let context = if has_conversation_log {
+        match conversation::prepare_context_for_reply(
+            &conn,
+            &person.pubkey,
+            &user_pubkey,
+            &event.content,
+            50,
+        ).await {
+            Ok(ctx) => Some(ctx),
+            Err(e) => {
+                eprintln!("[Worker] コンテキスト準備エラー: {}", e);
+                None
+            }
+        }
+    } else {
+        match conversation::build_japanese_timeline_for_air_reply(&conn, config.bot.timeline_size) {
+            Ok(events) => {
+                if events.is_empty() {
+                    None
+                } else {
+                    let timeline_lines: Vec<String> = events.iter()
+                        .enumerate()
+                        .map(|(i, ev)| {
+                            let dt = chrono::Local.timestamp_opt(ev.created_at, 0).single().unwrap();
+                            let time_str = dt.format("%m/%d %H:%M").to_string();
+                            let display_name = ev.kind0_name.clone().unwrap_or_else(|| {
+                                if ev.pubkey.len() > 8 {
+                                    format!("{}...", &ev.pubkey[..8])
+                                } else {
+                                    ev.pubkey.clone()
+                                }
+                            });
+                            format!("{}. [{}] {}: {}", i + 1, time_str, display_name, ev.content)
+                        })
+                        .collect();
+                    Some(format!("【タイムライン】\n{}", timeline_lines.join("\n")))
+                }
+            }
+            Err(e) => {
+                eprintln!("[Worker] タイムライン取得エラー: {}", e);
+                None
+            }
+        }
+    };
+    
+    // GPT応答生成
+    let reply = gpt::get_reply_with_context(&prompt, &event.content, has_mention, context).await?;
+    
+    if reply.is_empty() {
+        return Ok(());
+    }
+    
+    println!("[Worker] Replying: {}", reply);
+    
+    // 返信送信
+    let sent_event = if has_mention {
+        match util::reply_to(&config, event.clone(), person.clone(), &reply).await {
+            Ok(evt) => {
+                // ダッシュボードに最終返信時刻を更新
+                {
+                    let mut info = bot_info.write().await;
+                    info.last_reply_timestamp = Utc::now().timestamp();
+                }
+                Some(evt)
+            }
+            Err(e) => {
+                eprintln!("[Worker] Failed to reply: {}", e);
+                None
+            }
+        }
+    } else if event.kind == Kind::TextNote {
+        let send_ok = util::send_to(&config, event.clone(), person.clone(), &reply).await.is_ok();
+        if send_ok {
+            if let Ok(bot_keys) = Keys::parse(&person.secretkey) {
+                let event_builder = EventBuilder::text_note(&reply);
+                event_builder.sign(&bot_keys).await.ok()
+            } else {
+                None
+            }
+        } else {
+            eprintln!("[Worker] Failed to send");
+            None
+        }
+    } else {
+        None
+    };
+    
+    // bot自身の発言を記録
+    if let Some(bot_event) = sent_event {
+        let event_type = if has_conversation_log { Some("bot_reply") } else { Some("bot_post") };
+        match db::insert_event(&conn, &bot_event, true, event_type) {
+            Ok(event_ref_id) => {
+                if has_conversation_log {
+                    let event_json = serde_json::to_string(&bot_event).unwrap_or_default();
+                    let thread_root_id = db::extract_thread_root_id(&event_json).ok().flatten();
+                    
+                    if let Err(e) = db::insert_conversation_log(
+                        &conn,
+                        &person.pubkey,
+                        event_ref_id,
+                        thread_root_id.as_deref(),
+                        None,
+                        true,
+                        false,
+                    ) {
+                        eprintln!("[Worker] bot発言の会話ログ記録エラー: {}", e);
+                    }
+                }
+            }
+            Err(e) => {
+                if !e.to_string().contains("UNIQUE constraint failed") {
+                    eprintln!("[Worker] bot発言の保存エラー: {}", e);
+                }
+            }
+        }
+        
+        // タイムラインに追加
+        if let Err(e) = db::add_timeline_post(
+            &conn,
+            &person.pubkey,
+            Some("Bot"),
+            &reply,
+            Utc::now().timestamp()
+        ) {
+            eprintln!("[Worker] Failed to save bot timeline post: {}", e);
+        }
+        
+        let _ = db::cleanup_old_timeline_posts(&conn, config.bot.timeline_size);
+    }
+    
     Ok(())
 }
