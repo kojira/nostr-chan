@@ -40,8 +40,8 @@ pub async fn call_gpt(prompt: &str, user_text: &str) -> Result<String, Box<dyn E
         client.chat_completion(req).await
     };
 
-    // タイムアウトを設定
-    match timeout(Duration::from_secs(30), chat_completion_future).await {
+    // タイムアウトを設定（60秒）
+    match timeout(Duration::from_secs(60), chat_completion_future).await {
         Ok(result) => match result {
             Ok(response) => {
                 // 正常なレスポンスの処理
