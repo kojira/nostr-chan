@@ -5,6 +5,7 @@ mod commands;
 mod util;
 mod embedding;
 mod conversation;
+mod dashboard;
 use chrono::{Utc, TimeZone};
 use dotenv::dotenv;
 use nostr_sdk::prelude::*;
@@ -29,6 +30,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let file = File::open("../config.yml")?;
     let config: config::AppConfig = serde_yaml::from_reader(file)?;
     let conn = db::connect()?;
+    
+    // ダッシュボードサーバーを起動（バックグラウンド）
+    let dashboard_config_path = "../config.yml".to_string();
+    tokio::spawn(async move {
+        if let Err(e) = dashboard::start_dashboard(3000, dashboard_config_path).await {
+            eprintln!("ダッシュボードエラー: {}", e);
+        }
+    });
     
     // Embeddingサービスを初期化
     println!("Embeddingサービスを初期化中...");

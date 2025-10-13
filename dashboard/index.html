@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nostr Bot Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .stat-card {
+            @apply bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 transition-all hover:shadow-xl;
+        }
+        .stat-value {
+            @apply text-3xl font-bold text-blue-600 dark:text-blue-400;
+        }
+        .stat-label {
+            @apply text-sm text-gray-600 dark:text-gray-400 mt-2;
+        }
+        .status-online {
+            @apply inline-block w-3 h-3 bg-green-500 rounded-full animate-pulse;
+        }
+        .status-offline {
+            @apply inline-block w-3 h-3 bg-red-500 rounded-full;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-100">
+    <div class="container mx-auto px-4 py-8">
+        <!-- Header -->
+        <header class="mb-8">
+            <h1 class="text-4xl font-bold mb-2">📊 Nostr Bot Dashboard</h1>
+            <p class="text-gray-600 dark:text-gray-400">リアルタイム監視とメトリクス</p>
+        </header>
+
+        <!-- Bot Status -->
+        <section class="mb-8">
+            <h2 class="text-2xl font-bold mb-4">Bot稼働状況</h2>
+            <div class="stat-card">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <span id="status-indicator" class="status-offline"></span>
+                            <span class="text-xl font-semibold" id="status-text">オフライン</span>
+                        </div>
+                        <p class="text-sm text-gray-600 dark:text-gray-400 mt-2">
+                            稼働時間: <span id="uptime" class="font-mono">--</span>
+                        </p>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">
+                            最終返信: <span id="last-reply" class="font-mono">--</span>
+                        </p>
+                    </div>
+                    <div>
+                        <p class="text-sm text-gray-600 dark:text-gray-400 mb-2">接続リレー:</p>
+                        <div id="connected-relays" class="text-xs space-y-1">
+                            <span class="text-gray-400">読み込み中...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Statistics Grid -->
+        <section class="mb-8">
+            <h2 class="text-2xl font-bold mb-4">統計情報</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <!-- Reply Stats -->
+                <div class="stat-card">
+                    <div class="stat-value" id="replies-today">0</div>
+                    <div class="stat-label">今日の返信数</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="replies-week">0</div>
+                    <div class="stat-label">今週の返信数</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="replies-month">0</div>
+                    <div class="stat-label">今月の返信数</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="replies-total">0</div>
+                    <div class="stat-label">総返信数</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Conversation Stats -->
+        <section class="mb-8">
+            <h2 class="text-2xl font-bold mb-4">会話統計</h2>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div class="stat-card">
+                    <div class="stat-value" id="active-conversations">0</div>
+                    <div class="stat-label">アクティブな会話</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="unique-users">0</div>
+                    <div class="stat-label">ユニークユーザー</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="rate-limited">0</div>
+                    <div class="stat-label">会話制限中のユーザー</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- RAG Stats -->
+        <section class="mb-8">
+            <h2 class="text-2xl font-bold mb-4">RAG検索統計</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
+                <div class="stat-card">
+                    <div class="stat-value" id="vectorized-events">0</div>
+                    <div class="stat-label">ベクトル化済み</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="total-events">0</div>
+                    <div class="stat-label">総イベント数</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="pending-vectorization">0</div>
+                    <div class="stat-label">ベクトル化待ち</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="total-searches">0</div>
+                    <div class="stat-label">総検索回数</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="avg-similarity">0.000</div>
+                    <div class="stat-label">平均類似度</div>
+                </div>
+            </div>
+            <div class="mt-4 stat-card">
+                <div class="flex items-center justify-between">
+                    <span class="text-sm text-gray-600 dark:text-gray-400">ベクトル化進捗</span>
+                    <span class="text-sm font-mono" id="vectorization-percent">0%</span>
+                </div>
+                <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 mt-2">
+                    <div id="vectorization-bar" class="bg-blue-600 h-2 rounded-full transition-all" style="width: 0%"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Error Log -->
+        <section class="mb-8">
+            <h2 class="text-2xl font-bold mb-4">エラーログ（最新10件）</h2>
+            <div class="stat-card">
+                <div id="error-log" class="space-y-2 max-h-96 overflow-y-auto">
+                    <p class="text-gray-400 text-sm">エラーはありません</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Footer -->
+        <footer class="text-center text-sm text-gray-500 mt-12">
+            <p>自動更新: 3秒ごと | Last updated: <span id="last-updated">--</span></p>
+        </footer>
+    </div>
+
+    <script>
+        // 統計データを取得して更新
+        async function updateStats() {
+            try {
+                const response = await fetch('/api/stats');
+                const data = await response.json();
+                
+                // Bot Status
+                const isOnline = data.bot_status.online;
+                document.getElementById('status-indicator').className = isOnline ? 'status-online' : 'status-offline';
+                document.getElementById('status-text').textContent = isOnline ? 'オンライン' : 'オフライン';
+                document.getElementById('uptime').textContent = formatUptime(data.bot_status.uptime_seconds);
+                document.getElementById('last-reply').textContent = formatTimestamp(data.bot_status.last_reply_timestamp);
+                
+                // Connected Relays
+                const relaysEl = document.getElementById('connected-relays');
+                if (data.bot_status.connected_relays.length > 0) {
+                    relaysEl.innerHTML = data.bot_status.connected_relays
+                        .map(relay => `<div class="text-green-500">✓ ${relay}</div>`)
+                        .join('');
+                } else {
+                    relaysEl.innerHTML = '<span class="text-gray-400">接続なし</span>';
+                }
+                
+                // Reply Stats
+                document.getElementById('replies-today').textContent = data.reply_stats.today;
+                document.getElementById('replies-week').textContent = data.reply_stats.this_week;
+                document.getElementById('replies-month').textContent = data.reply_stats.this_month;
+                document.getElementById('replies-total').textContent = data.reply_stats.total;
+                
+                // Conversation Stats
+                document.getElementById('active-conversations').textContent = data.conversation_stats.active_conversations;
+                document.getElementById('unique-users').textContent = data.conversation_stats.unique_users;
+                document.getElementById('rate-limited').textContent = data.conversation_stats.rate_limited_users;
+                
+                // RAG Stats
+                document.getElementById('vectorized-events').textContent = data.rag_stats.vectorized_events;
+                document.getElementById('total-events').textContent = data.rag_stats.total_events;
+                document.getElementById('pending-vectorization').textContent = data.rag_stats.pending_vectorization;
+                document.getElementById('total-searches').textContent = data.rag_stats.total_searches;
+                document.getElementById('avg-similarity').textContent = data.rag_stats.average_similarity.toFixed(3);
+                
+                // Vectorization Progress
+                const percent = data.rag_stats.total_events > 0 
+                    ? (data.rag_stats.vectorized_events / data.rag_stats.total_events * 100).toFixed(1)
+                    : 0;
+                document.getElementById('vectorization-percent').textContent = `${percent}%`;
+                document.getElementById('vectorization-bar').style.width = `${percent}%`;
+                
+                // Error Log
+                const errorLogEl = document.getElementById('error-log');
+                if (data.error_log.length > 0) {
+                    errorLogEl.innerHTML = data.error_log
+                        .slice(0, 10)
+                        .map(err => `
+                            <div class="border-l-4 border-red-500 pl-4 py-2">
+                                <div class="flex justify-between items-start">
+                                    <span class="font-mono text-xs text-gray-500">${formatTimestamp(err.timestamp)}</span>
+                                    <span class="text-xs bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200 px-2 py-1 rounded">${err.error_type}</span>
+                                </div>
+                                <p class="text-sm mt-1">${escapeHtml(err.message)}</p>
+                            </div>
+                        `)
+                        .join('');
+                } else {
+                    errorLogEl.innerHTML = '<p class="text-gray-400 text-sm">エラーはありません</p>';
+                }
+                
+                // Last Updated
+                document.getElementById('last-updated').textContent = new Date().toLocaleTimeString('ja-JP');
+                
+            } catch (error) {
+                console.error('Failed to fetch stats:', error);
+            }
+        }
+        
+        // ユーティリティ関数
+        function formatUptime(seconds) {
+            const days = Math.floor(seconds / 86400);
+            const hours = Math.floor((seconds % 86400) / 3600);
+            const minutes = Math.floor((seconds % 3600) / 60);
+            const secs = seconds % 60;
+            
+            if (days > 0) return `${days}日 ${hours}時間`;
+            if (hours > 0) return `${hours}時間 ${minutes}分`;
+            if (minutes > 0) return `${minutes}分 ${secs}秒`;
+            return `${secs}秒`;
+        }
+        
+        function formatTimestamp(timestamp) {
+            const date = new Date(timestamp * 1000);
+            return date.toLocaleString('ja-JP');
+        }
+        
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        // 初回読み込みと定期更新
+        updateStats();
+        setInterval(updateStats, 3000); // 3秒ごとに更新
+    </script>
+</body>
+</html>
+
