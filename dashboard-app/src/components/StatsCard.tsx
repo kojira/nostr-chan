@@ -27,56 +27,34 @@ export const StatsCard = ({ title, value, subtitle, icon: Icon, color = 'primary
       }}
     >
       <CardContent sx={{ p: 3 }}>
-        <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', mb: 3 }}>
-          <Box sx={{ flex: 1 }}>
-            <Typography 
-              variant="caption" 
-              color="text.secondary" 
-              fontWeight={700} 
-              textTransform="uppercase" 
-              letterSpacing={1.5} 
-              sx={{ display: 'block', mb: 1.5, fontSize: '0.7rem' }}
-            >
-              {title}
-            </Typography>
-            <Typography 
-              variant="h1" 
-              component="div" 
-              fontWeight="900" 
-              sx={{ 
-                lineHeight: 1, 
-                fontSize: { xs: '2.5rem', sm: '3rem', md: '3.5rem' },
-                background: `linear-gradient(135deg, ${color}.main 0%, ${color}.dark 100%)`,
-                backgroundClip: 'text',
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
-              }}
-            >
-              {value}
-            </Typography>
-            {subtitle && (
-              <Typography variant="body2" color="text.secondary" sx={{ mt: 1, fontWeight: 500 }}>
-                {subtitle}
-              </Typography>
-            )}
-          </Box>
-          {Icon && (
-            <Box 
-              sx={{ 
-                width: 56, 
-                height: 56, 
-                borderRadius: '16px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                background: `linear-gradient(135deg, ${color}.light 0%, ${color}.main 100%)`,
-                boxShadow: `0 4px 12px rgba(0,0,0,0.1)`,
-              }}
-            >
-              <Icon sx={{ fontSize: 30, color: 'white' }} />
-            </Box>
-          )}
-        </Box>
+        <Typography 
+          variant="caption" 
+          color="text.secondary" 
+          fontWeight={700} 
+          textTransform="uppercase" 
+          letterSpacing={1.5} 
+          sx={{ display: 'block', mb: 1.5, fontSize: '0.7rem' }}
+        >
+          {title}
+        </Typography>
+        <Typography 
+          variant="h1" 
+          component="div" 
+          fontWeight="900" 
+          sx={{ 
+            lineHeight: 1, 
+            fontSize: { xs: '2.5rem', sm: '3rem', md: '3.5rem' },
+            color: `${color}.main`,
+            mb: 1,
+          }}
+        >
+          {value}
+        </Typography>
+        {subtitle && (
+          <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 500 }}>
+            {subtitle}
+          </Typography>
+        )}
       </CardContent>
     </Card>
   );
