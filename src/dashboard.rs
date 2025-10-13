@@ -1,10 +1,11 @@
 use axum::{
     extract::{State, Path},
-    response::{Html, IntoResponse, Json},
+    response::{IntoResponse, Json},
     routing::{get, post, put, delete},
     Router,
     http::StatusCode,
 };
+use tower_http::services::ServeDir;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use std::time::Instant;
@@ -122,13 +123,13 @@ pub async fn start_dashboard(
     };
 
     let app = Router::new()
-        .route("/", get(index_handler))
         .route("/api/stats", get(stats_handler))
         .route("/api/bots", get(list_bots_handler))
         .route("/api/bots", post(create_bot_handler))
         .route("/api/bots/:pubkey", put(update_bot_handler))
         .route("/api/bots/:pubkey", delete(delete_bot_handler))
         .route("/api/bots/:pubkey/toggle", post(toggle_bot_handler))
+        .nest_service("/", ServeDir::new("dashboard"))
         .with_state(state);
 
     let addr = format!("127.0.0.1:{}", port);
@@ -138,11 +139,6 @@ pub async fn start_dashboard(
     axum::serve(listener, app).await?;
 
     Ok(())
-}
-
-/// トップページ
-async fn index_handler() -> Html<&'static str> {
-    Html(include_str!("../dashboard/index.html"))
 }
 
 /// 統計API
