@@ -125,9 +125,11 @@ pub async fn start_dashboard(
         .route("/api/stats", get(stats_handler))
         .route("/api/bots", get(list_bots_handler))
         .route("/api/bots", post(create_bot_handler))
+        .route("/api/bots/generate-key", get(generate_key_handler))
         .route("/api/bots/:pubkey", put(update_bot_handler))
         .route("/api/bots/:pubkey", delete(delete_bot_handler))
         .route("/api/bots/:pubkey/toggle", post(toggle_bot_handler))
+        .route("/api/bots/:pubkey/kind0", get(fetch_kind0_handler))
         .route("/api/global-pause", get(get_global_pause_handler))
         .route("/api/global-pause", post(set_global_pause_handler))
         .route("/api/analytics/daily-replies", get(daily_replies_handler))
@@ -403,5 +405,113 @@ async fn daily_replies_handler(
     }
     
     Ok(Json(serde_json::json!({ "data": bot_data })))
+}
+
+/// ランダムな秘密鍵を生成
+async fn generate_key_handler(
+    State(_state): State<DashboardState>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    use nostr_sdk::prelude::*;
+    
+    // 新しいKeysを生成
+    let keys = Keys::generate();
+    let secret_key = keys.secret_key().to_secret_hex();
+    
+    Ok(Json(serde_json::json!({ 
+        "secretkey": secret_key 
+    })))
+}
+
+/// リレーからKind 0を取得
+async fn fetch_kind0_handler(
+    State(_state): State<DashboardState>,
+    Path(pubkey): Path<String>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    use nostr_sdk::prelude::*;
+    
+    // DBから対象BotのSecretKeyを取得
+    let conn = db::connect().map_err(|e| {
+        eprintln!("DB接続エラー: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+    
+    let persons = db::get_all_persons(&conn).map_err(|e| {
+        eprintln!("Bot情報取得エラー: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+    
+    let bot = persons.iter().find(|p| p.pubkey == pubkey)
+        .ok_or_else(|| {
+            eprintln!("Botが見つかりません: {}", pubkey);
+            StatusCode::NOT_FOUND
+        })?;
+    
+    // Keysを生成
+    let keys = Keys::parse(&bot.secretkey).map_err(|e| {
+        eprintln!("秘密鍵のパースエラー: {}", e);
+        StatusCode::BAD_REQUEST
+    })?;
+    
+    // Clientを作成してリレーに接続
+    let client = Client::new(keys);
+    
+    // config.ymlから設定を読み込む
+    let config_path = "../config.yml";
+    let file = std::fs::File::open(config_path).map_err(|e| {
+        eprintln!("設定ファイルオープンエラー: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+    
+    let config: crate::config::AppConfig = serde_yaml::from_reader(file).map_err(|e| {
+        eprintln!("設定ファイルパースエラー: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+    
+    // リレーに接続
+    for relay in &config.relay_servers.read {
+        if let Err(e) = client.add_relay(relay).await {
+            eprintln!("リレー追加エラー ({}): {}", relay, e);
+        }
+    }
+    
+    client.connect().await;
+    
+    // 自分のKind 0を取得
+    let signer = client.signer().await
+        .map_err(|e| {
+            eprintln!("Signer取得エラー: {}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+    
+    let pubkey = signer.get_public_key().await
+        .map_err(|e| {
+            eprintln!("公開鍵取得エラー: {}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+    
+    let filter = Filter::new()
+        .kind(Kind::Metadata)
+        .author(pubkey);
+    
+    let events = client.fetch_events(filter, std::time::Duration::from_secs(10))
+        .await
+        .map_err(|e| {
+            eprintln!("Kind 0取得エラー: {}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+    
+    // 最新のKind 0を取得
+    let latest_event = events.iter()
+        .max_by_key(|e| e.created_at);
+    
+    if let Some(event) = latest_event {
+        Ok(Json(serde_json::json!({ 
+            "content": event.content.clone() 
+        })))
+    } else {
+        Ok(Json(serde_json::json!({ 
+            "content": "" 
+        })))
+    }
 }
 
