@@ -133,18 +133,33 @@ pub async fn start_dashboard(
         .with_state(state);
 
     // 静的ファイル配信 + APIルート
-    // カレントディレクトリに依存しない絶対パス
-    let dashboard_path = std::env::current_dir()
-        .unwrap()
-        .join("dashboard");
+    // プロジェクトルートからの絶対パス（CARGO_MANIFEST_DIRを使用）
+    let project_root = std::env::var("CARGO_MANIFEST_DIR")
+        .unwrap_or_else(|_| ".".to_string());
+    let dashboard_path = std::path::PathBuf::from(project_root).join("dashboard");
     
     println!("📁 Dashboard path: {:?}", dashboard_path);
     println!("📁 Assets path: {:?}", dashboard_path.join("assets"));
     
+    // ファイル存在確認
+    let assets_path = dashboard_path.join("assets");
+    if assets_path.exists() {
+        println!("✅ Assets directory exists");
+        if let Ok(entries) = std::fs::read_dir(&assets_path) {
+            for entry in entries {
+                if let Ok(entry) = entry {
+                    println!("  📄 {}", entry.file_name().to_string_lossy());
+                }
+            }
+        }
+    } else {
+        println!("❌ Assets directory NOT found!");
+    }
+    
     let app = Router::new()
         .route("/", get(index_handler))
         .merge(api_router)
-        .nest_service("/assets", ServeDir::new(dashboard_path.join("assets")));
+        .nest_service("/assets", ServeDir::new(assets_path));
 
     let addr = format!("127.0.0.1:{}", port);
     println!("📊 Dashboard starting on http://{}", addr);
