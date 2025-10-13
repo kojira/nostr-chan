@@ -1,7 +1,15 @@
 import { Card, CardContent, Typography, Box, Chip, IconButton, Tooltip } from '@mui/material';
 import { CheckCircle, Cancel, PlayArrow, Pause, Edit, Delete } from '@mui/icons-material';
+import type { BotData } from '../types';
 
-export const BotCard = ({ bot, onEdit, onDelete, onToggle }) => {
+interface BotCardProps {
+  bot: BotData;
+  onEdit: (bot: BotData) => void;
+  onDelete: (pubkey: string) => void;
+  onToggle: (pubkey: string) => void;
+}
+
+export const BotCard = ({ bot, onEdit, onDelete, onToggle }: BotCardProps) => {
   const isActive = bot.status === 0;
 
   return (

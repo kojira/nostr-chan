@@ -10,8 +10,16 @@ import {
   InputAdornment,
 } from '@mui/material';
 import { VpnKey, Psychology, Description, Save, Close } from '@mui/icons-material';
+import type { BotData, BotRequest } from '../types';
 
-export const BotDialog = ({ open, bot, onClose, onSave }) => {
+interface BotDialogProps {
+  open: boolean;
+  bot: BotData | null;
+  onClose: () => void;
+  onSave: (data: BotRequest, pubkey?: string) => void;
+}
+
+export const BotDialog = ({ open, bot, onClose, onSave }: BotDialogProps) => {
   const [formData, setFormData] = useState({
     secretkey: '',
     prompt: '',

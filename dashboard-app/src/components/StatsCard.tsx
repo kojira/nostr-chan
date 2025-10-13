@@ -1,6 +1,15 @@
 import { Card, CardContent, Typography, Box } from '@mui/material';
+import type { SvgIconComponent } from '@mui/icons-material';
 
-export const StatsCard = ({ title, value, subtitle, icon: Icon, color = 'primary' }) => {
+interface StatsCardProps {
+  title: string;
+  value: string | number;
+  subtitle?: string;
+  icon?: SvgIconComponent;
+  color?: 'primary' | 'success' | 'info' | 'warning' | 'error';
+}
+
+export const StatsCard = ({ title, value, subtitle, icon: Icon, color = 'primary' }: StatsCardProps) => {
   return (
     <Card sx={{ height: '100%', transition: 'all 0.3s', '&:hover': { transform: 'translateY(-4px)', boxShadow: 6 } }}>
       <CardContent>

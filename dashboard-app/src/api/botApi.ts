@@ -1,16 +1,18 @@
+import type { Stats, BotData, BotRequest } from '../types';
+
 // Bot API
 export const botApi = {
-  async getStats() {
+  async getStats(): Promise<Stats> {
     const res = await fetch('/api/stats');
     return res.json();
   },
 
-  async getBots() {
+  async getBots(): Promise<BotData[]> {
     const res = await fetch('/api/bots');
     return res.json();
   },
 
-  async createBot(data) {
+  async createBot(data: BotRequest): Promise<BotData> {
     const res = await fetch('/api/bots', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -20,7 +22,7 @@ export const botApi = {
     return res.json();
   },
 
-  async updateBot(pubkey, data) {
+  async updateBot(pubkey: string, data: BotRequest): Promise<BotData> {
     const res = await fetch(`/api/bots/${pubkey}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -30,14 +32,14 @@ export const botApi = {
     return res.json();
   },
 
-  async deleteBot(pubkey) {
+  async deleteBot(pubkey: string): Promise<void> {
     const res = await fetch(`/api/bots/${pubkey}`, {
       method: 'DELETE',
     });
     if (!res.ok) throw new Error('削除に失敗しました');
   },
 
-  async toggleBot(pubkey) {
+  async toggleBot(pubkey: string): Promise<BotData> {
     const res = await fetch(`/api/bots/${pubkey}/toggle`, {
       method: 'POST',
     });

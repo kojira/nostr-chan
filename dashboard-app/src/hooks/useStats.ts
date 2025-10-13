@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import { botApi } from '../api/botApi';
+import type { Stats } from '../types';
 
 export const useStats = () => {
-  const [stats, setStats] = useState(null);
+  const [stats, setStats] = useState<Stats | null>(null);
   const [loading, setLoading] = useState(true);
 
   const loadStats = useCallback(async () => {

@@ -27,12 +27,13 @@ import { BotDialog } from './components/BotDialog';
 import { useBots } from './hooks/useBots';
 import { useStats } from './hooks/useStats';
 import { botApi } from './api/botApi';
+import type { BotData, BotRequest } from './types';
 
 function App() {
   const { bots, loading: botsLoading, reload: reloadBots } = useBots();
   const { stats, loading: statsLoading, reload: reloadStats } = useStats();
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [editingBot, setEditingBot] = useState(null);
+  const [editingBot, setEditingBot] = useState<BotData | null>(null);
 
   const handleRefresh = () => {
     reloadBots();
@@ -44,12 +45,12 @@ function App() {
     setDialogOpen(true);
   };
 
-  const handleEditBot = (bot) => {
+  const handleEditBot = (bot: BotData) => {
     setEditingBot(bot);
     setDialogOpen(true);
   };
 
-  const handleSaveBot = async (data, pubkey) => {
+  const handleSaveBot = async (data: BotRequest, pubkey?: string) => {
     try {
       if (pubkey) {
         await botApi.updateBot(pubkey, data);
@@ -61,31 +62,31 @@ function App() {
       setDialogOpen(false);
       reloadBots();
     } catch (err) {
-      alert('❌ エラー: ' + err.message);
+      alert('❌ エラー: ' + (err as Error).message);
     }
   };
 
-  const handleDeleteBot = async (pubkey) => {
+  const handleDeleteBot = async (pubkey: string) => {
     if (!confirm('このBotを削除しますか？')) return;
     try {
       await botApi.deleteBot(pubkey);
       alert('✅ Botを削除しました');
       reloadBots();
     } catch (err) {
-      alert('❌ エラー: ' + err.message);
+      alert('❌ エラー: ' + (err as Error).message);
     }
   };
 
-  const handleToggleBot = async (pubkey) => {
+  const handleToggleBot = async (pubkey: string) => {
     try {
       await botApi.toggleBot(pubkey);
       reloadBots();
     } catch (err) {
-      alert('❌ エラー: ' + err.message);
+      alert('❌ エラー: ' + (err as Error).message);
     }
   };
 
-  const formatUptime = (seconds) => {
+  const formatUptime = (seconds: number): string => {
     const days = Math.floor(seconds / 86400);
     const hours = Math.floor((seconds % 86400) / 3600);
     const minutes = Math.floor((seconds % 3600) / 60);

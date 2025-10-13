@@ -1,10 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
 import { botApi } from '../api/botApi';
+import type { BotData } from '../types';
 
 export const useBots = () => {
-  const [bots, setBots] = useState([]);
+  const [bots, setBots] = useState<BotData[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [error, setError] = useState<string | null>(null);
 
   const loadBots = useCallback(async () => {
     try {
@@ -13,7 +14,7 @@ export const useBots = () => {
       setBots(data);
       setError(null);
     } catch (err) {
-      setError(err.message);
+      setError((err as Error).message);
     } finally {
       setLoading(false);
     }
