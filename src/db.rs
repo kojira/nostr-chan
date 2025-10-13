@@ -46,6 +46,24 @@ pub(crate) fn connect() -> Result<Connection> {
         [],
     )?;
     
+    // Create event_queue table for persistent event processing queue
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS event_queue (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            event_json TEXT NOT NULL,
+            added_at INTEGER NOT NULL,
+            status TEXT NOT NULL DEFAULT 'pending'
+        )",
+        [],
+    )?;
+    
+    // Create index for efficient queue processing
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_event_queue_status_added 
+         ON event_queue(status, added_at)",
+        [],
+    )?;
+    
     // Create events table if not exists
     conn.execute(
         "CREATE TABLE IF NOT EXISTS events (
@@ -803,6 +821,110 @@ pub fn detect_bot_conversation(mentioned_pubkeys: &[String], all_bot_pubkeys: &[
 
 // ========== Migration functions ==========
 
+
+// ========== Event Queue Management ==========
+
+/// キューにイベントを追加（最大30件まで、古いものを削除）
+pub fn enqueue_event(conn: &Connection, event_json: &str) -> Result<i64> {
+    let now = Utc::now().timestamp();
+    
+    // 現在のキューサイズを確認
+    let queue_size: i64 = conn.query_row(
+        "SELECT COUNT(*) FROM event_queue WHERE status = 'pending'",
+        [],
+        |row| row.get(0)
+    )?;
+    
+    // 30件を超える場合は古いものを削除
+    if queue_size >= 30 {
+        let to_delete = queue_size - 29; // 1つ分の余地を作る
+        conn.execute(
+            "DELETE FROM event_queue 
+             WHERE id IN (
+                 SELECT id FROM event_queue 
+                 WHERE status = 'pending' 
+                 ORDER BY added_at ASC 
+                 LIMIT ?
+             )",
+            params![to_delete],
+        )?;
+    }
+    
+    // イベントを追加
+    conn.execute(
+        "INSERT INTO event_queue (event_json, added_at, status) VALUES (?, ?, 'pending')",
+        params![event_json, now],
+    )?;
+    
+    Ok(conn.last_insert_rowid())
+}
+
+/// キューから次の処理対象イベントを取得（ステータスを'processing'に更新）
+pub fn dequeue_event(conn: &Connection) -> Result<Option<(i64, String)>> {
+    // トランザクション開始
+    let tx = conn.unchecked_transaction()?;
+    
+    // 最も古いpendingイベントを取得
+    let result = tx.query_row(
+        "SELECT id, event_json FROM event_queue 
+         WHERE status = 'pending' 
+         ORDER BY added_at ASC 
+         LIMIT 1",
+        [],
+        |row| Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?))
+    );
+    
+    match result {
+        Ok((id, event_json)) => {
+            // ステータスをprocessingに更新
+            tx.execute(
+                "UPDATE event_queue SET status = 'processing' WHERE id = ?",
+                params![id],
+            )?;
+            tx.commit()?;
+            Ok(Some((id, event_json)))
+        }
+        Err(rusqlite::Error::QueryReturnedNoRows) => {
+            tx.commit()?;
+            Ok(None)
+        }
+        Err(e) => Err(e),
+    }
+}
+
+/// 処理完了したイベントをキューから削除
+pub fn complete_queue_event(conn: &Connection, id: i64) -> Result<()> {
+    conn.execute("DELETE FROM event_queue WHERE id = ?", params![id])?;
+    Ok(())
+}
+
+/// 処理失敗したイベントをpendingに戻す
+pub fn retry_queue_event(conn: &Connection, id: i64) -> Result<()> {
+    conn.execute(
+        "UPDATE event_queue SET status = 'pending' WHERE id = ?",
+        params![id],
+    )?;
+    Ok(())
+}
+
+/// キューのサイズを取得
+pub fn get_queue_size(conn: &Connection) -> Result<i64> {
+    let size: i64 = conn.query_row(
+        "SELECT COUNT(*) FROM event_queue WHERE status IN ('pending', 'processing')",
+        [],
+        |row| row.get(0)
+    )?;
+    Ok(size)
+}
+
+/// 起動時に処理中だったイベントをpendingに戻す
+pub fn reset_processing_events(conn: &Connection) -> Result<usize> {
+    let updated = conn.execute(
+        "UPDATE event_queue SET status = 'pending' WHERE status = 'processing'",
+        [],
+    )?;
+    Ok(updated)
+}
 
 // ========== Dashboard Statistics ==========
 
