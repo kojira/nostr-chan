@@ -11,11 +11,12 @@ use openai_api_rs::v1::chat_completion::{self, ChatCompletionRequest};
 use chrono::{Local, TimeZone};
 
 pub async fn call_gpt(prompt: &str, user_text: &str) -> Result<String, Box<dyn Error>> {
+    const MAX_RETRIES: u32 = 3;
+    const RETRY_DELAY_SECS: u64 = 3;
+    
     dotenv().ok();
     let api_key = env::var("OPEN_AI_API_KEY").expect("OPEN_AI_API_KEY is not set");
-    let mut client = OpenAIClient::builder()
-        .with_api_key(api_key)
-        .build()?;
+    
     let req = ChatCompletionRequest::new(
         "gpt-5-nano".to_string(),
         vec![
@@ -35,25 +36,54 @@ pub async fn call_gpt(prompt: &str, user_text: &str) -> Result<String, Box<dyn E
             },
         ]
     );
+    
+    let mut last_error: Option<String> = None;
+    
+    for attempt in 1..=MAX_RETRIES {
+        let mut client = OpenAIClient::builder()
+            .with_api_key(api_key.clone())
+            .build()?;
+        
+        let chat_completion_future = async {
+            client.chat_completion(req.clone()).await
+        };
 
-    let chat_completion_future = async {
-        client.chat_completion(req).await
-    };
-
-    // タイムアウトを設定（60秒）
-    match timeout(Duration::from_secs(60), chat_completion_future).await {
-        Ok(result) => match result {
-            Ok(response) => {
-                // 正常なレスポンスの処理
-                match &response.choices[0].message.content {
-                    Some(content) => Ok(content.to_string()),
-                    None => Err("No content found in response".into()), // 適切なエラーメッセージを返す
-                }            
+        // タイムアウトを設定（60秒）
+        match timeout(Duration::from_secs(60), chat_completion_future).await {
+            Ok(result) => match result {
+                Ok(response) => {
+                    // 正常なレスポンスの処理
+                    match &response.choices[0].message.content {
+                        Some(content) => {
+                            if attempt > 1 {
+                                println!("[GPT] リトライ成功 (試行 {}/{})", attempt, MAX_RETRIES);
+                            }
+                            return Ok(content.to_string());
+                        },
+                        None => {
+                            last_error = Some("No content found in response".to_string());
+                        }
+                    }            
+                },
+                Err(e) => {
+                    last_error = Some(format!("{}", e));
+                }
             },
-            Err(e) => Err(e.into()), // APIErrorをBox<dyn Error>に変換
-        },
-        Err(_) => Err("Timeout after 30 seconds".into()),
+            Err(_) => {
+                last_error = Some("Timeout after 60 seconds".to_string());
+            }
+        }
+        
+        // 最後の試行でなければリトライ
+        if attempt < MAX_RETRIES {
+            eprintln!("[GPT] エラー発生 (試行 {}/{}): {:?} - {}秒後にリトライ", 
+                      attempt, MAX_RETRIES, last_error, RETRY_DELAY_SECS);
+            tokio::time::sleep(Duration::from_secs(RETRY_DELAY_SECS)).await;
+        }
     }
+    
+    // 全てのリトライが失敗
+    Err(last_error.unwrap_or_else(|| "Unknown error after retries".to_string()).into())
 }
 
 /// 新しいインターフェース: 会話コンテキスト文字列を受け取る
