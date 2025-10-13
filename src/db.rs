@@ -211,7 +211,7 @@ pub fn update_person_status(conn: &Connection, pubkey: &str, status: i32) -> Res
 }
 
 pub fn get_all_persons(conn: &Connection) -> Result<Vec<Person>> {
-    let mut stmt = conn.prepare("SELECT * FROM Persons WHERE status=0")?;
+    let mut stmt = conn.prepare("SELECT * FROM Persons")?;
     let persons = stmt
         .query_map(params![], |row| {
             Ok(Person {

@@ -13,24 +13,41 @@ export const BotCard = ({ bot, onEdit, onDelete, onToggle }: BotCardProps) => {
   const isActive = bot.status === 0;
 
   return (
-    <Card sx={{ transition: 'all 0.3s', '&:hover': { transform: 'translateY(-2px)', boxShadow: 4 } }}>
+    <Card 
+      sx={{ 
+        height: '100%',
+        background: isActive 
+          ? 'linear-gradient(135deg, #667eea15 0%, #764ba215 100%)'
+          : 'linear-gradient(135deg, #f5f5f5 0%, #e0e0e0 100%)',
+        border: isActive ? '2px solid #667eea' : '2px solid #e0e0e0',
+        transition: 'all 0.3s',
+        '&:hover': { 
+          transform: 'translateY(-4px)', 
+          boxShadow: 8,
+          border: isActive ? '2px solid #764ba2' : '2px solid #bdbdbd',
+        } 
+      }}
+    >
       <CardContent>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flex: 1 }}>
             {isActive ? (
-              <CheckCircle sx={{ fontSize: 40, color: 'success.main' }} />
+              <CheckCircle sx={{ fontSize: 48, color: 'success.main' }} />
             ) : (
-              <Cancel sx={{ fontSize: 40, color: 'grey.400' }} />
+              <Cancel sx={{ fontSize: 48, color: 'grey.500' }} />
             )}
             <Box>
-              <Typography variant="body2" fontFamily="monospace" fontWeight="bold" noWrap>
-                {bot.pubkey.substring(0, 24)}...
+              <Typography variant="body1" fontFamily="monospace" fontWeight="bold" noWrap sx={{ mb: 0.5 }}>
+                {bot.pubkey.substring(0, 20)}...
               </Typography>
               <Chip
-                label={isActive ? '🟢 有効' : '⚫ 無効'}
+                label={isActive ? '✓ 有効' : '× 無効'}
                 size="small"
                 color={isActive ? 'success' : 'default'}
-                sx={{ mt: 0.5 }}
+                sx={{ 
+                  fontWeight: 'bold',
+                  fontSize: '0.75rem',
+                }}
               />
             </Box>
           </Box>
