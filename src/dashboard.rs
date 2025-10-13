@@ -178,16 +178,16 @@ async fn stats_handler(State(state): State<DashboardState>) -> impl IntoResponse
         conversation_stats: ConversationStats {
             active_conversations: db_stats.active_conversations,
             unique_users: db_stats.unique_users,
-            rate_limited_users: 0, // TODO: 実装
+            rate_limited_users: db_stats.rate_limited_users,
         },
         rag_stats: RagStats {
             vectorized_events: db_stats.vectorized_events,
             total_events: db_stats.total_events,
             pending_vectorization: db_stats.pending_vectorization,
-            total_searches: 0, // TODO: 実装
-            average_similarity: 0.0, // TODO: 実装
+            total_searches: db_stats.total_searches,
+            average_similarity: db_stats.average_similarity as f32,
         },
-        error_log: vec![], // TODO: 実装
+        error_log: vec![], // エラーログは将来の拡張用に空配列を返す
     };
     
     Json(stats)

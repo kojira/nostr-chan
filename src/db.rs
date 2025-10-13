@@ -1006,6 +1006,31 @@ pub fn get_dashboard_stats(conn: &Connection) -> Result<DashboardStats> {
     
     let pending_vectorization = total_events.saturating_sub(vectorized_events);
     
+    // レート制限されたユーザー数（過去N分間でM回以上会話したユーザー）
+    // 簡易実装: 過去3分間で5回以上会話したユーザー数
+    let rate_limited_users: u32 = conn.query_row(
+        "SELECT COUNT(DISTINCT user_pubkey) FROM (
+            SELECT user_pubkey, COUNT(*) as cnt 
+            FROM conversation_logs 
+            WHERE timestamp >= ? AND is_bot_message = 0
+            GROUP BY user_pubkey 
+            HAVING cnt >= 5
+        )",
+        params![now - 180], // 過去3分
+        |row| row.get(0)
+    ).unwrap_or(0);
+    
+    // RAG検索統計: conversation_summariesテーブルの件数を使用
+    let total_searches: u32 = conn.query_row(
+        "SELECT COUNT(*) FROM conversation_summaries",
+        [],
+        |row| row.get(0)
+    ).unwrap_or(0);
+    
+    // 平均類似度: conversation_summariesが存在しないため、暫定で0.0
+    // 実装するには検索履歴テーブルが必要
+    let average_similarity: f64 = 0.0;
+    
     Ok(DashboardStats {
         replies_today,
         replies_week,
@@ -1013,9 +1038,12 @@ pub fn get_dashboard_stats(conn: &Connection) -> Result<DashboardStats> {
         replies_total,
         active_conversations,
         unique_users,
+        rate_limited_users,
         vectorized_events,
         total_events,
         pending_vectorization,
+        total_searches,
+        average_similarity,
     })
 }
 
@@ -1027,8 +1055,11 @@ pub struct DashboardStats {
     pub replies_total: u32,
     pub active_conversations: u32,
     pub unique_users: u32,
+    pub rate_limited_users: u32,
     pub vectorized_events: u32,
     pub total_events: u32,
     pub pending_vectorization: u32,
+    pub total_searches: u32,
+    pub average_similarity: f64,
 }
 
