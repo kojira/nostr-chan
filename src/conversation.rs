@@ -7,18 +7,8 @@ use rusqlite::Connection;
 const MAX_TIMELINE_LENGTH: usize = 5000;
 const SUMMARY_MAX_LENGTH: usize = 1000;
 
-/// 会話タイムラインを文字列として構築（最大5000文字）
-pub fn build_conversation_timeline(
-    conn: &Connection,
-    bot_pubkey: &str,
-    limit: usize,
-) -> Result<String, Box<dyn std::error::Error>> {
-    let events = db::get_conversation_timeline(conn, bot_pubkey, limit)?;
-    
-    if events.is_empty() {
-        return Ok(String::new());
-    }
-    
+/// イベントリストをタイムライン文字列にフォーマット
+fn format_timeline_text(events: Vec<db::EventRecord>) -> Result<String, Box<dyn std::error::Error>> {
     let mut timeline_lines = Vec::new();
     
     for (i, event) in events.iter().enumerate() {
@@ -41,9 +31,95 @@ pub fn build_conversation_timeline(
         timeline_lines.push(line);
     }
     
-    let timeline_text = timeline_lines.join("\n");
+    Ok(timeline_lines.join("\n"))
+}
+
+/// 会話タイムラインを文字列として構築（最大5000文字）
+/// user_inputが指定された場合、80%高類似度 + 20%低類似度で多様性を持たせる
+pub fn build_conversation_timeline_with_diversity(
+    conn: &Connection,
+    bot_pubkey: &str,
+    user_input: Option<&str>,
+    limit: usize,
+) -> Result<String, Box<dyn std::error::Error>> {
+    let mut events = db::get_conversation_timeline(conn, bot_pubkey, limit * 2)?; // 多めに取得
     
-    Ok(timeline_text)
+    if events.is_empty() {
+        return Ok(String::new());
+    }
+    
+    // user_inputがある場合は類似度で選別
+    let selected_events = if let Some(input) = user_input {
+        // ユーザー入力をベクトル化
+        let user_embedding = match embedding::generate_embedding_global(input) {
+            Ok(emb) => emb,
+            Err(_) => {
+                // ベクトル化失敗時は通常の時系列順
+                events.truncate(limit);
+                return format_timeline_text(events);
+            }
+        };
+        
+        // embeddingを持つイベントのみを対象に類似度計算
+        let mut scored_events: Vec<(db::EventRecord, f32)> = Vec::new();
+        for event in events {
+            if let Some(embedding_bytes) = &event.embedding {
+                let embedding = bytes_to_f32_vec(embedding_bytes);
+                
+                // ゼロベクトルはスキップ
+                if embedding.iter().all(|&x| x == 0.0) {
+                    continue;
+                }
+                
+                if let Ok(similarity) = embedding::cosine_similarity(&user_embedding, &embedding) {
+                    scored_events.push((event, similarity));
+                }
+            }
+        }
+        
+        if scored_events.is_empty() {
+            return Ok(String::new());
+        }
+        
+        // 類似度でソート（降順）
+        scored_events.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
+        
+        // 80%高類似度 + 20%低類似度
+        let high_count = (limit as f32 * 0.8).ceil() as usize;
+        let low_count = limit.saturating_sub(high_count);
+        
+        let mut result = Vec::new();
+        
+        // 上位80%を追加
+        result.extend(scored_events.iter().take(high_count).map(|(e, _)| e.clone()));
+        
+        // 下位から20%を追加（類似度が低いもの）
+        if low_count > 0 && scored_events.len() > high_count {
+            let low_similarity_start = scored_events.len().saturating_sub(low_count);
+            result.extend(scored_events.iter()
+                .skip(low_similarity_start)
+                .map(|(e, _)| e.clone()));
+        }
+        
+        // 時系列順にソート（新しい順）
+        result.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+        result
+    } else {
+        // user_inputがない場合は通常の時系列順
+        events.truncate(limit);
+        events
+    };
+    
+    format_timeline_text(selected_events)
+}
+
+/// 旧インターフェース（互換性のため）
+pub fn build_conversation_timeline(
+    conn: &Connection,
+    bot_pubkey: &str,
+    limit: usize,
+) -> Result<String, Box<dyn std::error::Error>> {
+    build_conversation_timeline_with_diversity(conn, bot_pubkey, None, limit)
 }
 
 /// 会話が5000文字を超える場合に要約を作成
@@ -187,8 +263,8 @@ pub async fn prepare_context_for_reply(
     user_input: &str,
     limit: usize,
 ) -> Result<String, Box<dyn std::error::Error>> {
-    // 会話タイムラインを構築
-    let timeline_text = build_conversation_timeline(conn, bot_pubkey, limit)?;
+    // 会話タイムラインを構築（80%高類似度 + 20%低類似度）
+    let timeline_text = build_conversation_timeline_with_diversity(conn, bot_pubkey, Some(user_input), limit)?;
     
     if timeline_text.is_empty() {
         return Ok(String::new());
