@@ -133,10 +133,18 @@ pub async fn start_dashboard(
         .with_state(state);
 
     // 静的ファイル配信 + APIルート
+    // カレントディレクトリに依存しない絶対パス
+    let dashboard_path = std::env::current_dir()
+        .unwrap()
+        .join("dashboard");
+    
+    println!("📁 Dashboard path: {:?}", dashboard_path);
+    println!("📁 Assets path: {:?}", dashboard_path.join("assets"));
+    
     let app = Router::new()
         .route("/", get(index_handler))
         .merge(api_router)
-        .nest_service("/assets", ServeDir::new("dashboard/assets"));
+        .nest_service("/assets", ServeDir::new(dashboard_path.join("assets")));
 
     let addr = format!("127.0.0.1:{}", port);
     println!("📊 Dashboard starting on http://{}", addr);
