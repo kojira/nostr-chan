@@ -1,6 +1,6 @@
 use axum::{
     extract::{State, Path},
-    response::{IntoResponse, Json},
+    response::{Html, IntoResponse, Json},
     routing::{get, post, put, delete},
     Router,
     http::StatusCode,
@@ -122,15 +122,21 @@ pub async fn start_dashboard(
         bot_info,
     };
 
-    let app = Router::new()
+    // APIルート
+    let api_router = Router::new()
         .route("/api/stats", get(stats_handler))
         .route("/api/bots", get(list_bots_handler))
         .route("/api/bots", post(create_bot_handler))
         .route("/api/bots/:pubkey", put(update_bot_handler))
         .route("/api/bots/:pubkey", delete(delete_bot_handler))
         .route("/api/bots/:pubkey/toggle", post(toggle_bot_handler))
-        .nest_service("/", ServeDir::new("dashboard"))
         .with_state(state);
+
+    // 静的ファイル配信 + APIルート
+    let app = Router::new()
+        .route("/", get(index_handler))
+        .merge(api_router)
+        .nest_service("/assets", ServeDir::new("dashboard/assets"));
 
     let addr = format!("127.0.0.1:{}", port);
     println!("📊 Dashboard starting on http://{}", addr);
@@ -139,6 +145,11 @@ pub async fn start_dashboard(
     axum::serve(listener, app).await?;
 
     Ok(())
+}
+
+/// トップページ
+async fn index_handler() -> Html<&'static str> {
+    Html(include_str!("../dashboard/index.html"))
 }
 
 /// 統計API
