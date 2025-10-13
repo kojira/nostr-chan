@@ -290,7 +290,7 @@ async fn process_event(
         false
     };
     
-    // イベントをeventsテーブルに保存（一時停止中でも保存）
+    // イベントをeventsテーブルに保存
     if event.kind == Kind::TextNote {
         let event_type = if japanese { Some("air_reply") } else { None };
         match db::insert_event(&conn, &event, japanese, event_type) {
