@@ -11,6 +11,8 @@ use dotenv::dotenv;
 use nostr_sdk::prelude::*;
 use std::{fs::File, str::FromStr};
 use std::env;
+use std::sync::Arc;
+use tokio::sync::RwLock;
 use whatlang::{detect, Lang};
 
 // タイムライン投稿の構造体
@@ -31,11 +33,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let config: config::AppConfig = serde_yaml::from_reader(file)?;
     let conn = db::connect()?;
     
+    // ダッシュボード用のBot情報を共有
+    let bot_info = Arc::new(RwLock::new(dashboard::BotInfo {
+        online: true,
+        last_reply_timestamp: Utc::now().timestamp(),
+        connected_relays: vec![],
+    }));
+    
     // ダッシュボードサーバーを起動（バックグラウンド）
     let dashboard_port = config.dashboard.port;
-    let dashboard_config_path = "../config.yml".to_string();
+    let dashboard_db_path = "../nostrchan.db".to_string();
+    let bot_info_clone = Arc::clone(&bot_info);
     tokio::spawn(async move {
-        if let Err(e) = dashboard::start_dashboard(dashboard_port, dashboard_config_path).await {
+        if let Err(e) = dashboard::start_dashboard(dashboard_port, dashboard_db_path, bot_info_clone).await {
             eprintln!("ダッシュボードエラー: {}", e);
         }
     });
@@ -63,6 +73,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Connect to relays
     client.connect().await;
     println!("client.connect");
+    
+    // ダッシュボードに接続リレー情報を更新
+    {
+        let mut info = bot_info.write().await;
+        info.connected_relays = config.relay_servers.read.clone();
+    }
 
     let subscription = Filter::new()
         .kinds([nostr_sdk::Kind::TextNote, nostr_sdk::Kind::ChannelMessage].to_vec())
@@ -126,6 +142,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut notifications = client.notifications();
     while let Ok(notification) = notifications.recv().await {
         if let RelayPoolNotification::Event{relay_url: _, subscription_id: _, event} = notification {
+            // ループ内でbot_infoをクローン
+            let bot_info = Arc::clone(&bot_info);
             let result = config
                 .bot
                 .blacklist
@@ -379,9 +397,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                     println!("publish_text_note...{}", reply);
                                     
                                     // 返信を送信し、送信したイベントを取得
+                                    let bot_info_clone_for_reply = Arc::clone(&bot_info);
                                     let sent_event: Option<Event> = if has_mention {
                                         match util::reply_to(&config_clone, event_clone, person_clone.clone(), &reply).await {
-                                            Ok(evt) => Some(evt),
+                                            Ok(evt) => {
+                                                // ダッシュボードに最終返信時刻を更新
+                                                tokio::spawn(async move {
+                                                    let mut info = bot_info_clone_for_reply.write().await;
+                                                    info.last_reply_timestamp = Utc::now().timestamp();
+                                                });
+                                                Some(evt)
+                                            },
                                             Err(e) => {
                                                 eprintln!("Failed to reply: {}", e);
                                                 None

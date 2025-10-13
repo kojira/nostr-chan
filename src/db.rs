@@ -803,3 +803,92 @@ pub fn detect_bot_conversation(mentioned_pubkeys: &[String], all_bot_pubkeys: &[
 
 // ========== Migration functions ==========
 
+
+// ========== Dashboard Statistics ==========
+
+/// ダッシュボード用の統計データを取得
+pub fn get_dashboard_stats(conn: &Connection) -> Result<DashboardStats> {
+    let now = Utc::now().timestamp();
+    let today_start = now - (now % 86400);
+    let week_start = now - (7 * 86400);
+    let month_start = now - (30 * 86400);
+    
+    // 返信統計
+    let replies_today: u32 = conn.query_row(
+        "SELECT COUNT(*) FROM conversation_logs WHERE timestamp >= ?",
+        params![today_start],
+        |row| row.get(0)
+    ).unwrap_or(0);
+    
+    let replies_week: u32 = conn.query_row(
+        "SELECT COUNT(*) FROM conversation_logs WHERE timestamp >= ?",
+        params![week_start],
+        |row| row.get(0)
+    ).unwrap_or(0);
+    
+    let replies_month: u32 = conn.query_row(
+        "SELECT COUNT(*) FROM conversation_logs WHERE timestamp >= ?",
+        params![month_start],
+        |row| row.get(0)
+    ).unwrap_or(0);
+    
+    let replies_total: u32 = conn.query_row(
+        "SELECT COUNT(*) FROM conversation_logs",
+        [],
+        |row| row.get(0)
+    ).unwrap_or(0);
+    
+    // 会話統計
+    let active_conversations: u32 = conn.query_row(
+        "SELECT COUNT(DISTINCT user_pubkey) FROM conversation_logs WHERE timestamp >= ?",
+        params![now - 3600], // 過去1時間
+        |row| row.get(0)
+    ).unwrap_or(0);
+    
+    let unique_users: u32 = conn.query_row(
+        "SELECT COUNT(DISTINCT user_pubkey) FROM conversation_logs",
+        [],
+        |row| row.get(0)
+    ).unwrap_or(0);
+    
+    // RAG統計
+    let vectorized_events: u32 = conn.query_row(
+        "SELECT COUNT(*) FROM events WHERE embedding IS NOT NULL AND length(embedding) > 0",
+        [],
+        |row| row.get(0)
+    ).unwrap_or(0);
+    
+    let total_events: u32 = conn.query_row(
+        "SELECT COUNT(*) FROM events",
+        [],
+        |row| row.get(0)
+    ).unwrap_or(0);
+    
+    let pending_vectorization = total_events.saturating_sub(vectorized_events);
+    
+    Ok(DashboardStats {
+        replies_today,
+        replies_week,
+        replies_month,
+        replies_total,
+        active_conversations,
+        unique_users,
+        vectorized_events,
+        total_events,
+        pending_vectorization,
+    })
+}
+
+#[derive(Debug, Clone)]
+pub struct DashboardStats {
+    pub replies_today: u32,
+    pub replies_week: u32,
+    pub replies_month: u32,
+    pub replies_total: u32,
+    pub active_conversations: u32,
+    pub unique_users: u32,
+    pub vectorized_events: u32,
+    pub total_events: u32,
+    pub pending_vectorization: u32,
+}
+

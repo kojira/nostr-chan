@@ -6,14 +6,25 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+use std::time::Instant;
 use tokio::sync::RwLock;
 use chrono::Utc;
+use crate::db;
 
 /// ダッシュボードの状態
 #[derive(Clone)]
 pub struct DashboardState {
-    pub stats: Arc<RwLock<Stats>>,
-    pub config_path: String,
+    pub db_path: String,
+    pub start_time: Arc<Instant>,
+    pub bot_info: Arc<RwLock<BotInfo>>,
+}
+
+/// Bot実行情報
+#[derive(Debug, Clone)]
+pub struct BotInfo {
+    pub online: bool,
+    pub last_reply_timestamp: i64,
+    pub connected_relays: Vec<String>,
 }
 
 /// 統計情報
@@ -98,10 +109,15 @@ impl Default for Stats {
 }
 
 /// ダッシュボードサーバーを起動
-pub async fn start_dashboard(port: u16, config_path: String) -> Result<(), Box<dyn std::error::Error>> {
+pub async fn start_dashboard(
+    port: u16,
+    db_path: String,
+    bot_info: Arc<RwLock<BotInfo>>,
+) -> Result<(), Box<dyn std::error::Error>> {
     let state = DashboardState {
-        stats: Arc::new(RwLock::new(Stats::default())),
-        config_path,
+        db_path,
+        start_time: Arc::new(Instant::now()),
+        bot_info,
     };
 
     let app = Router::new()
@@ -125,16 +141,55 @@ async fn index_handler() -> Html<&'static str> {
 
 /// 統計API
 async fn stats_handler(State(state): State<DashboardState>) -> impl IntoResponse {
-    let stats = state.stats.read().await;
-    Json(stats.clone())
-}
-
-/// 統計を更新するヘルパー関数
-pub async fn update_stats<F>(state: &DashboardState, updater: F)
-where
-    F: FnOnce(&mut Stats),
-{
-    let mut stats = state.stats.write().await;
-    updater(&mut *stats);
+    // DBから統計データを取得
+    let conn = match rusqlite::Connection::open(&state.db_path) {
+        Ok(c) => c,
+        Err(e) => {
+            eprintln!("[Dashboard] DB接続エラー: {}", e);
+            return Json(Stats::default());
+        }
+    };
+    
+    let db_stats = match db::get_dashboard_stats(&conn) {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("[Dashboard] 統計取得エラー: {}", e);
+            return Json(Stats::default());
+        }
+    };
+    
+    // Bot情報を取得
+    let bot_info = state.bot_info.read().await;
+    let uptime = state.start_time.elapsed().as_secs();
+    
+    let stats = Stats {
+        bot_status: BotStatus {
+            online: bot_info.online,
+            uptime_seconds: uptime,
+            last_reply_timestamp: bot_info.last_reply_timestamp,
+            connected_relays: bot_info.connected_relays.clone(),
+        },
+        reply_stats: ReplyStats {
+            today: db_stats.replies_today,
+            this_week: db_stats.replies_week,
+            this_month: db_stats.replies_month,
+            total: db_stats.replies_total,
+        },
+        conversation_stats: ConversationStats {
+            active_conversations: db_stats.active_conversations,
+            unique_users: db_stats.unique_users,
+            rate_limited_users: 0, // TODO: 実装
+        },
+        rag_stats: RagStats {
+            vectorized_events: db_stats.vectorized_events,
+            total_events: db_stats.total_events,
+            pending_vectorization: db_stats.pending_vectorization,
+            total_searches: 0, // TODO: 実装
+            average_similarity: 0.0, // TODO: 実装
+        },
+        error_log: vec![], // TODO: 実装
+    };
+    
+    Json(stats)
 }
 
