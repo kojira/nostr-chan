@@ -1,7 +1,7 @@
-import { Card, CardContent, Typography, Box, Chip, IconButton, Tooltip, Avatar } from '@mui/material';
-import { CheckCircle, Cancel, PlayArrow, Pause, Edit, Delete, SmartToy } from '@mui/icons-material';
+import { Card, CardContent, Typography, Box, Chip, IconButton, Tooltip, Avatar, Dialog, DialogTitle, DialogContent, DialogActions, TextField, Button } from '@mui/material';
+import { CheckCircle, Cancel, PlayArrow, Pause, Edit, Delete, SmartToy, Send } from '@mui/icons-material';
 import type { BotData } from '../types';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 
 interface BotCardProps {
   bot: BotData;
@@ -12,6 +12,9 @@ interface BotCardProps {
 
 export const BotCard = ({ bot, onEdit, onDelete, onToggle }: BotCardProps) => {
   const isActive = bot.status === 0;
+  const [postDialogOpen, setPostDialogOpen] = useState(false);
+  const [postContent, setPostContent] = useState('');
+  const [posting, setPosting] = useState(false);
 
   // contentからJSONパース
   const kind0Info = useMemo(() => {
@@ -26,6 +29,35 @@ export const BotCard = ({ bot, onEdit, onDelete, onToggle }: BotCardProps) => {
       return null;
     }
   }, [bot.content]);
+
+  const handlePost = async () => {
+    if (!postContent.trim()) {
+      alert('投稿内容を入力してください');
+      return;
+    }
+
+    setPosting(true);
+    try {
+      const response = await fetch(`/api/bots/${bot.pubkey}/post`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: postContent }),
+      });
+
+      if (!response.ok) {
+        throw new Error('投稿に失敗しました');
+      }
+
+      alert('✅ 投稿しました！');
+      setPostContent('');
+      setPostDialogOpen(false);
+    } catch (error) {
+      console.error('投稿エラー:', error);
+      alert('❌ 投稿に失敗しました');
+    } finally {
+      setPosting(false);
+    }
+  };
 
   return (
     <Card 
@@ -100,6 +132,23 @@ export const BotCard = ({ bot, onEdit, onDelete, onToggle }: BotCardProps) => {
           </Box>
           
           <Box sx={{ display: 'flex', gap: 0.5 }}>
+            <Tooltip title="投稿">
+              <IconButton 
+                onClick={() => setPostDialogOpen(true)}
+                sx={{
+                  color: 'text.secondary',
+                  bgcolor: 'rgba(0, 0, 0, 0.04)',
+                  '&:hover': {
+                    bgcolor: 'rgba(2, 136, 209, 0.08)',
+                    color: '#0288d1',
+                  },
+                  transition: 'all 0.2s',
+                }}
+                size="small"
+              >
+                <Send fontSize="small" />
+              </IconButton>
+            </Tooltip>
             <Tooltip title={isActive ? '無効化' : '有効化'}>
               <IconButton 
                 onClick={() => onToggle(bot.pubkey)}
@@ -201,6 +250,32 @@ export const BotCard = ({ bot, onEdit, onDelete, onToggle }: BotCardProps) => {
           </Box>
         )}
       </CardContent>
+
+      {/* 投稿ダイアログ */}
+      <Dialog open={postDialogOpen} onClose={() => setPostDialogOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>📝 {kind0Info?.name || 'Bot'}として投稿</DialogTitle>
+        <DialogContent>
+          <TextField
+            autoFocus
+            margin="dense"
+            label="投稿内容"
+            fullWidth
+            multiline
+            rows={4}
+            value={postContent}
+            onChange={(e) => setPostContent(e.target.value)}
+            placeholder="投稿したい内容を入力してください..."
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setPostDialogOpen(false)}>
+            キャンセル
+          </Button>
+          <Button onClick={handlePost} variant="contained" disabled={posting || !postContent.trim()}>
+            {posting ? '投稿中...' : '投稿'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Card>
   );
 };

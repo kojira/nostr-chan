@@ -130,6 +130,7 @@ pub async fn start_dashboard(
         .route("/api/bots/:pubkey", delete(delete_bot_handler))
         .route("/api/bots/:pubkey/toggle", post(toggle_bot_handler))
         .route("/api/bots/:pubkey/kind0", get(fetch_kind0_handler))
+        .route("/api/bots/:pubkey/post", post(post_as_bot_handler))
         .route("/api/global-pause", get(get_global_pause_handler))
         .route("/api/global-pause", post(set_global_pause_handler))
         .route("/api/analytics/daily-replies", get(daily_replies_handler))
@@ -270,16 +271,26 @@ async fn create_bot_handler(
     State(_state): State<DashboardState>,
     Json(req): Json<BotRequest>,
 ) -> Result<Json<BotData>, StatusCode> {
+    use nostr_sdk::prelude::*;
+    
     let conn = db::connect().map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     
     // secretkeyからpubkeyを取得
-    use nostr_sdk::Keys;
     let keys = Keys::parse(&req.secretkey).map_err(|_| StatusCode::BAD_REQUEST)?;
     let pubkey = keys.public_key().to_string();
     
     // DBに追加
     db::add_person(&conn, &pubkey, &req.secretkey, &req.prompt, &req.content)
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    
+    // 誕生投稿を非同期で送信
+    let secretkey = req.secretkey.clone();
+    let content = req.content.clone();
+    tokio::spawn(async move {
+        if let Err(e) = post_birth_announcement(&secretkey, &content).await {
+            eprintln!("誕生投稿エラー: {}", e);
+        }
+    });
     
     Ok(Json(BotData {
         pubkey,
@@ -288,6 +299,51 @@ async fn create_bot_handler(
         content: req.content,
         status: 0,
     }))
+}
+
+/// 誕生投稿
+async fn post_birth_announcement(secretkey: &str, content_json: &str) -> Result<(), Box<dyn std::error::Error>> {
+    use nostr_sdk::prelude::*;
+    
+    // Botの名前を取得
+    let bot_name = if !content_json.is_empty() {
+        match serde_json::from_str::<serde_json::Value>(content_json) {
+            Ok(json) => {
+                json["display_name"].as_str()
+                    .or_else(|| json["name"].as_str())
+                    .unwrap_or("新しいBot")
+                    .to_string()
+            }
+            Err(_) => "新しいBot".to_string()
+        }
+    } else {
+        "新しいBot".to_string()
+    };
+    
+    let keys = Keys::parse(secretkey)?;
+    let client = Client::new(keys);
+    
+    // config.ymlから設定を読み込む
+    let config_path = "../config.yml";
+    let file = std::fs::File::open(config_path)?;
+    let config: crate::config::AppConfig = serde_yaml::from_reader(file)?;
+    
+    // リレーに接続
+    for relay in &config.relay_servers.write {
+        let _ = client.add_relay(relay).await;
+    }
+    
+    client.connect().await;
+    
+    // 誕生メッセージを投稿（adminコマンドと同じ文面）
+    let message = format!("{}です。コンゴトモヨロシク！", bot_name);
+    
+    let builder = EventBuilder::text_note(message);
+    client.send_event_builder(builder).await?;
+    
+    println!("✨ {}の誕生投稿を送信しました", bot_name);
+    
+    Ok(())
 }
 
 /// Bot更新
@@ -419,6 +475,83 @@ async fn generate_key_handler(
     
     Ok(Json(serde_json::json!({ 
         "secretkey": secret_key 
+    })))
+}
+
+/// Botとして投稿
+#[derive(Debug, Deserialize)]
+struct PostRequest {
+    content: String,
+}
+
+async fn post_as_bot_handler(
+    State(_state): State<DashboardState>,
+    Path(pubkey): Path<String>,
+    Json(req): Json<PostRequest>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    use nostr_sdk::prelude::*;
+    
+    // DBから対象BotのSecretKeyを取得
+    let conn = db::connect().map_err(|e| {
+        eprintln!("DB接続エラー: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+    
+    let persons = db::get_all_persons(&conn).map_err(|e| {
+        eprintln!("Bot情報取得エラー: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+    
+    let bot = persons.iter().find(|p| p.pubkey == pubkey)
+        .ok_or_else(|| {
+            eprintln!("Botが見つかりません: {}", pubkey);
+            StatusCode::NOT_FOUND
+        })?;
+    
+    // Keysを生成
+    let keys = Keys::parse(&bot.secretkey).map_err(|e| {
+        eprintln!("秘密鍵のパースエラー: {}", e);
+        StatusCode::BAD_REQUEST
+    })?;
+    
+    // Clientを作成してリレーに接続
+    let client = Client::new(keys);
+    
+    // config.ymlから設定を読み込む
+    let config_path = "../config.yml";
+    let file = std::fs::File::open(config_path).map_err(|e| {
+        eprintln!("設定ファイルオープンエラー: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+    
+    let config: crate::config::AppConfig = serde_yaml::from_reader(file).map_err(|e| {
+        eprintln!("設定ファイルパースエラー: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+    
+    // リレーに接続
+    for relay in &config.relay_servers.write {
+        if let Err(e) = client.add_relay(relay).await {
+            eprintln!("リレー追加エラー ({}): {}", relay, e);
+        }
+    }
+    
+    client.connect().await;
+    
+    // 投稿を送信
+    let builder = EventBuilder::text_note(&req.content);
+    let event_id = client.send_event_builder(builder)
+        .await
+        .map_err(|e| {
+            eprintln!("投稿送信エラー: {}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+    
+    println!("📝 {}として投稿しました: {}", pubkey, req.content);
+    
+    Ok(Json(serde_json::json!({ 
+        "success": true,
+        "event_id": event_id.to_string()
     })))
 }
 
