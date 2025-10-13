@@ -38,7 +38,7 @@ export const BotCard = ({ bot, onEdit, onDelete, onToggle }: BotCardProps) => {
         borderRadius: '16px',
         transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
         position: 'relative',
-        overflow: 'visible',
+        overflow: 'hidden',
         boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
         '&:hover': { 
           transform: 'translateY(-8px)', 
@@ -53,7 +53,6 @@ export const BotCard = ({ bot, onEdit, onDelete, onToggle }: BotCardProps) => {
           right: 0,
           height: '4px',
           background: 'linear-gradient(90deg, #667eea 0%, #764ba2 100%)',
-          borderRadius: '15px 15px 0 0',
         } : {},
       }}
     >
