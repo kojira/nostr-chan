@@ -13,6 +13,7 @@ pub struct BotConfig {
     pub timeline_size: usize,
     pub conversation_limit_count: usize,
     pub conversation_limit_minutes: i64,
+    pub rag_similarity_threshold: f32,
     pub blacklist: Vec<String>,
 }
 

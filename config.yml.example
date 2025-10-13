@@ -28,6 +28,7 @@ bot:
   timeline_size: 30
   conversation_limit_count: 5
   conversation_limit_minutes: 3
+  rag_similarity_threshold: 0.5
   blacklist:
     - blacklist hex pubkey
 

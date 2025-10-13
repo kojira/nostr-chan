@@ -52,9 +52,10 @@ pub async fn rag_search(config: AppConfig, person: db::Person, event: Event) -> 
     
     // データベースから類似イベントを検索
     let conn = db::connect()?;
+    let threshold = config.bot.rag_similarity_threshold;
     let similar_events;
     {
-        match search_similar_events(&conn, &query_embedding, 5) {
+        match search_similar_events(&conn, &query_embedding, 5, threshold) {
             Ok(events) => {
                 similar_events = events;
             }
@@ -117,6 +118,7 @@ fn search_similar_events(
     conn: &Connection,
     query_embedding: &[f32],
     limit: usize,
+    threshold: f32,
 ) -> std::result::Result<Vec<(db::EventRecord, f32)>, String> {
     // embedding付きの日本語イベントを全取得
     let mut stmt = conn.prepare(
@@ -165,7 +167,10 @@ fn search_similar_events(
             
             // コサイン類似度を計算
             if let Ok(similarity) = embedding::cosine_similarity(query_embedding, &embedding) {
-                scored_events.push((event_record, similarity));
+                // 閾値以上のみを追加
+                if similarity >= threshold {
+                    scored_events.push((event_record, similarity));
+                }
             }
         }
     }
