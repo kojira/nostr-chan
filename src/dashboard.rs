@@ -130,6 +130,8 @@ pub async fn start_dashboard(
         .route("/api/bots/:pubkey", put(update_bot_handler))
         .route("/api/bots/:pubkey", delete(delete_bot_handler))
         .route("/api/bots/:pubkey/toggle", post(toggle_bot_handler))
+        .route("/api/global-pause", get(get_global_pause_handler))
+        .route("/api/global-pause", post(set_global_pause_handler))
         .with_state(state);
 
     // 静的ファイル配信 + APIルート
@@ -349,5 +351,31 @@ async fn toggle_bot_handler(
         content: existing.content.clone(),
         status: new_status,
     }))
+}
+
+/// グローバル一時停止状態の取得
+async fn get_global_pause_handler(
+    State(_state): State<DashboardState>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let conn = db::connect().map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let paused = db::is_global_pause(&conn).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    
+    Ok(Json(serde_json::json!({ "paused": paused })))
+}
+
+/// グローバル一時停止状態の設定
+async fn set_global_pause_handler(
+    State(_state): State<DashboardState>,
+    Json(req): Json<serde_json::Value>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let conn = db::connect().map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let paused = req["paused"].as_bool().ok_or(StatusCode::BAD_REQUEST)?;
+    
+    let value = if paused { "true" } else { "false" };
+    db::set_system_setting(&conn, "global_pause", value).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    
+    println!("🔔 グローバル一時停止: {}", if paused { "有効" } else { "無効" });
+    
+    Ok(Json(serde_json::json!({ "paused": paused })))
 }
 

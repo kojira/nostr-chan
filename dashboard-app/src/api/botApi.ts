@@ -46,5 +46,20 @@ export const botApi = {
     if (!res.ok) throw new Error('切り替えに失敗しました');
     return res.json();
   },
+
+  async getGlobalPause(): Promise<{ paused: boolean }> {
+    const res = await fetch('/api/global-pause');
+    return res.json();
+  },
+
+  async setGlobalPause(paused: boolean): Promise<{ paused: boolean }> {
+    const res = await fetch('/api/global-pause', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ paused }),
+    });
+    if (!res.ok) throw new Error('設定に失敗しました');
+    return res.json();
+  },
 };
 

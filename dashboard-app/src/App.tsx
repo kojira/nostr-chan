@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
   Container,
   Typography,
@@ -9,6 +9,10 @@ import {
   Toolbar,
   Paper,
   CircularProgress,
+  ToggleButton,
+  ToggleButtonGroup,
+  Switch,
+  FormControlLabel,
 } from '@mui/material';
 import {
   SmartToy,
@@ -20,6 +24,9 @@ import {
   People,
   Search,
   Speed,
+  CheckCircle,
+  Cancel,
+  ViewList,
 } from '@mui/icons-material';
 import { StatsCard } from './components/StatsCard';
 import { BotCard } from './components/BotCard';
@@ -29,15 +36,35 @@ import { useStats } from './hooks/useStats';
 import { botApi } from './api/botApi';
 import type { BotData, BotRequest } from './types';
 
+type BotFilter = 'all' | 'active' | 'inactive';
+
 function App() {
   const { bots, loading: botsLoading, reload: reloadBots } = useBots();
   const { stats, loading: statsLoading, reload: reloadStats } = useStats();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingBot, setEditingBot] = useState<BotData | null>(null);
+  const [botFilter, setBotFilter] = useState<BotFilter>('all');
+  const [globalPause, setGlobalPause] = useState(false);
+
+  useEffect(() => {
+    botApi.getGlobalPause().then(({ paused }) => setGlobalPause(paused));
+  }, []);
 
   const handleRefresh = () => {
     reloadBots();
     reloadStats();
+    botApi.getGlobalPause().then(({ paused }) => setGlobalPause(paused));
+  };
+
+  const handleGlobalPauseToggle = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const paused = event.target.checked;
+    try {
+      await botApi.setGlobalPause(paused);
+      setGlobalPause(paused);
+      alert(paused ? '⏸️ 全Bot一時停止を有効にしました' : '▶️ 全Bot一時停止を解除しました');
+    } catch (err) {
+      alert('❌ エラー: ' + (err as Error).message);
+    }
   };
 
   const handleAddBot = () => {
@@ -95,6 +122,13 @@ function App() {
     return `${minutes}分`;
   };
 
+  // フィルタリングされたBotリスト
+  const filteredBots = useMemo(() => {
+    if (botFilter === 'all') return bots;
+    if (botFilter === 'active') return bots.filter(bot => bot.status === 0);
+    return bots.filter(bot => bot.status === 1); // inactive
+  }, [bots, botFilter]);
+
   return (
     <Box sx={{ flexGrow: 1, bgcolor: 'grey.50', minHeight: '100vh' }}>
       <AppBar position="static" sx={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
@@ -103,6 +137,24 @@ function App() {
           <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
             📊 Nostr Bot Dashboard
           </Typography>
+          <FormControlLabel
+            control={
+              <Switch
+                checked={globalPause}
+                onChange={handleGlobalPauseToggle}
+                color="warning"
+              />
+            }
+            label={
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                {globalPause ? '⏸️' : '▶️'}
+                <Typography variant="body2">
+                  {globalPause ? '一時停止中' : '稼働中'}
+                </Typography>
+              </Box>
+            }
+            sx={{ mr: 2, color: 'white' }}
+          />
           <Button color="inherit" startIcon={<Refresh />} onClick={handleRefresh}>
             更新
           </Button>
@@ -173,27 +225,54 @@ function App() {
         </Grid>
 
         {/* Bot管理 */}
-        <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
           <Typography variant="h5" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <SmartToy />
             Bot管理
           </Typography>
-          <Button variant="contained" startIcon={<Add />} onClick={handleAddBot} color="success">
-            Bot追加
-          </Button>
+          <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+            <ToggleButtonGroup
+              value={botFilter}
+              exclusive
+              onChange={(_, newFilter) => newFilter && setBotFilter(newFilter)}
+              size="small"
+            >
+              <ToggleButton value="all">
+                <ViewList sx={{ mr: 1 }} />
+                全て ({bots.length})
+              </ToggleButton>
+              <ToggleButton value="active">
+                <CheckCircle sx={{ mr: 1 }} />
+                有効 ({bots.filter(b => b.status === 0).length})
+              </ToggleButton>
+              <ToggleButton value="inactive">
+                <Cancel sx={{ mr: 1 }} />
+                無効 ({bots.filter(b => b.status === 1).length})
+              </ToggleButton>
+            </ToggleButtonGroup>
+            <Button variant="contained" startIcon={<Add />} onClick={handleAddBot} color="success">
+              Bot追加
+            </Button>
+          </Box>
         </Box>
 
         {botsLoading ? (
           <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
             <CircularProgress />
           </Box>
-        ) : bots.length === 0 ? (
+        ) : filteredBots.length === 0 ? (
           <Paper sx={{ p: 3, textAlign: 'center' }}>
-            <Typography color="text.secondary">登録されているBotはありません</Typography>
+            <Typography color="text.secondary">
+              {botFilter === 'all' 
+                ? '登録されているBotはありません' 
+                : botFilter === 'active'
+                ? '有効なBotはありません'
+                : '無効なBotはありません'}
+            </Typography>
           </Paper>
         ) : (
           <Grid container spacing={3}>
-            {bots.map((bot) => (
+            {filteredBots.map((bot) => (
               <Grid key={bot.pubkey} item xs={12} md={6} lg={4}>
                 <BotCard
                   bot={bot}

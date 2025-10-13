@@ -46,6 +46,16 @@ pub(crate) fn connect() -> Result<Connection> {
         [],
     )?;
     
+    // Create system_settings table for global settings
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS system_settings (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL,
+            updated_at INTEGER NOT NULL
+        )",
+        [],
+    )?;
+    
     // Create event_queue table for persistent event processing queue
     conn.execute(
         "CREATE TABLE IF NOT EXISTS event_queue (
@@ -208,6 +218,39 @@ pub fn update_person_status(conn: &Connection, pubkey: &str, status: i32) -> Res
         params![status, pubkey],
     )?;
     Ok(())
+}
+
+// システム設定の取得
+pub fn get_system_setting(conn: &Connection, key: &str) -> Result<Option<String>> {
+    let result = conn.query_row(
+        "SELECT value FROM system_settings WHERE key = ?",
+        params![key],
+        |row| row.get(0),
+    );
+    
+    match result {
+        Ok(value) => Ok(Some(value)),
+        Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+        Err(e) => Err(e),
+    }
+}
+
+// システム設定の保存
+pub fn set_system_setting(conn: &Connection, key: &str, value: &str) -> Result<()> {
+    let now = Utc::now().timestamp();
+    conn.execute(
+        "INSERT OR REPLACE INTO system_settings (key, value, updated_at) VALUES (?, ?, ?)",
+        params![key, value, now],
+    )?;
+    Ok(())
+}
+
+// Bot全体一時停止状態の取得
+pub fn is_global_pause(conn: &Connection) -> Result<bool> {
+    match get_system_setting(conn, "global_pause")? {
+        Some(value) => Ok(value == "true"),
+        None => Ok(false),
+    }
 }
 
 pub fn get_all_persons(conn: &Connection) -> Result<Vec<Person>> {

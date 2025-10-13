@@ -290,7 +290,7 @@ async fn process_event(
         false
     };
     
-    // イベントをeventsテーブルに保存
+    // イベントをeventsテーブルに保存（一時停止中でも保存）
     if event.kind == Kind::TextNote {
         let event_type = if japanese { Some("air_reply") } else { None };
         match db::insert_event(&conn, &event, japanese, event_type) {
@@ -347,6 +347,12 @@ async fn process_event(
     }
     
     if !should_post {
+        return Ok(());
+    }
+    
+    // グローバル一時停止チェック（返信処理の直前）
+    if db::is_global_pause(&conn)? {
+        println!("⏸️ グローバル一時停止中のため、返信をスキップ: {}", event.id);
         return Ok(());
     }
     

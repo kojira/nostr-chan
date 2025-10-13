@@ -1,6 +1,7 @@
-import { Card, CardContent, Typography, Box, Chip, IconButton, Tooltip } from '@mui/material';
-import { CheckCircle, Cancel, PlayArrow, Pause, Edit, Delete } from '@mui/icons-material';
+import { Card, CardContent, Typography, Box, Chip, IconButton, Tooltip, Avatar } from '@mui/material';
+import { CheckCircle, Cancel, PlayArrow, Pause, Edit, Delete, SmartToy } from '@mui/icons-material';
 import type { BotData } from '../types';
+import { useMemo } from 'react';
 
 interface BotCardProps {
   bot: BotData;
@@ -11,6 +12,20 @@ interface BotCardProps {
 
 export const BotCard = ({ bot, onEdit, onDelete, onToggle }: BotCardProps) => {
   const isActive = bot.status === 0;
+
+  // contentからJSONパース
+  const kind0Info = useMemo(() => {
+    try {
+      if (!bot.content) return null;
+      const parsed = JSON.parse(bot.content);
+      return {
+        name: parsed.name || parsed.display_name || null,
+        picture: parsed.picture || null,
+      };
+    } catch {
+      return null;
+    }
+  }, [bot.content]);
 
   return (
     <Card 
@@ -31,22 +46,40 @@ export const BotCard = ({ bot, onEdit, onDelete, onToggle }: BotCardProps) => {
       <CardContent>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flex: 1 }}>
-            {isActive ? (
-              <CheckCircle sx={{ fontSize: 48, color: 'success.main' }} />
-            ) : (
-              <Cancel sx={{ fontSize: 48, color: 'grey.500' }} />
-            )}
-            <Box>
-              <Typography variant="body1" fontFamily="monospace" fontWeight="bold" noWrap sx={{ mb: 0.5 }}>
-                {bot.pubkey.substring(0, 20)}...
+            <Avatar
+              src={kind0Info?.picture || undefined}
+              sx={{ 
+                width: 56, 
+                height: 56,
+                border: isActive ? '3px solid #667eea' : '3px solid #bdbdbd',
+              }}
+            >
+              <SmartToy sx={{ fontSize: 32 }} />
+            </Avatar>
+            <Box sx={{ flex: 1, minWidth: 0 }}>
+              {kind0Info?.name && (
+                <Typography variant="h6" fontWeight="bold" noWrap sx={{ mb: 0.5 }}>
+                  {kind0Info.name}
+                </Typography>
+              )}
+              <Typography 
+                variant="caption" 
+                fontFamily="monospace" 
+                color="text.secondary"
+                noWrap
+                sx={{ display: 'block' }}
+              >
+                {bot.pubkey.substring(0, 16)}...
               </Typography>
               <Chip
                 label={isActive ? '✓ 有効' : '× 無効'}
                 size="small"
                 color={isActive ? 'success' : 'default'}
+                icon={isActive ? <CheckCircle /> : <Cancel />}
                 sx={{ 
                   fontWeight: 'bold',
-                  fontSize: '0.75rem',
+                  fontSize: '0.7rem',
+                  mt: 0.5,
                 }}
               />
             </Box>
