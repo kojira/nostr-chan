@@ -173,6 +173,43 @@ pub struct Person {
     pub updated_at: String,
 }
 
+/// Botを追加
+pub fn add_person(conn: &Connection, pubkey: &str, secretkey: &str, prompt: &str) -> Result<()> {
+    let now = Utc::now().timestamp();
+    conn.execute(
+        "INSERT INTO Persons (status, prompt, pubkey, secretkey, content, created_at) VALUES(0, ?, ?, ?, '', datetime(?, 'unixepoch'))",
+        params![prompt, pubkey, secretkey, now],
+    )?;
+    Ok(())
+}
+
+/// Botを更新
+pub fn update_person(conn: &Connection, pubkey: &str, secretkey: &str, prompt: &str) -> Result<()> {
+    conn.execute(
+        "UPDATE Persons SET secretkey = ?, prompt = ? WHERE pubkey = ?",
+        params![secretkey, prompt, pubkey],
+    )?;
+    Ok(())
+}
+
+/// Bot削除
+pub fn delete_person(conn: &Connection, pubkey: &str) -> Result<()> {
+    conn.execute(
+        "DELETE FROM Persons WHERE pubkey = ?",
+        params![pubkey],
+    )?;
+    Ok(())
+}
+
+/// Botのstatus更新
+pub fn update_person_status(conn: &Connection, pubkey: &str, status: i32) -> Result<()> {
+    conn.execute(
+        "UPDATE Persons SET status = ? WHERE pubkey = ?",
+        params![status, pubkey],
+    )?;
+    Ok(())
+}
+
 pub fn get_all_persons(conn: &Connection) -> Result<Vec<Person>> {
     let mut stmt = conn.prepare("SELECT * FROM Persons WHERE status=0")?;
     let persons = stmt

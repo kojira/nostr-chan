@@ -137,6 +137,24 @@
             </div>
         </section>
 
+        <!-- Bot管理 -->
+        <section class="mb-8">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-2xl font-bold">Bot管理</h2>
+                <button 
+                    onclick="showAddBotModal()" 
+                    class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors"
+                >
+                    ➕ Bot追加
+                </button>
+            </div>
+            <div class="stat-card">
+                <div id="bot-list" class="space-y-4">
+                    <p class="text-gray-400 text-sm">読み込み中...</p>
+                </div>
+            </div>
+        </section>
+
         <!-- Error Log -->
         <section class="mb-8">
             <h2 class="text-2xl font-bold mb-4">エラーログ（最新10件）</h2>
@@ -146,6 +164,52 @@
                 </div>
             </div>
         </section>
+        
+        <!-- Bot追加/編集モーダル -->
+        <div id="bot-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
+            <div class="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+                <h3 id="modal-title" class="text-xl font-bold mb-4">Bot追加</h3>
+                <form id="bot-form" class="space-y-4">
+                    <input type="hidden" id="bot-pubkey" value="">
+                    
+                    <div>
+                        <label class="block text-sm font-medium mb-1">Secret Key (nsec または hex)</label>
+                        <input 
+                            type="text" 
+                            id="bot-secretkey"
+                            class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700"
+                            required
+                        >
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium mb-1">プロンプト（Bot性格設定）</label>
+                        <textarea 
+                            id="bot-prompt"
+                            rows="8"
+                            class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700"
+                            required
+                        ></textarea>
+                    </div>
+                    
+                    <div class="flex gap-2 justify-end">
+                        <button 
+                            type="button" 
+                            onclick="closeBotModal()"
+                            class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
+                        >
+                            キャンセル
+                        </button>
+                        <button 
+                            type="submit"
+                            class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg"
+                        >
+                            保存
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
 
         <!-- Footer -->
         <footer class="text-center text-sm text-gray-500 mt-12">
@@ -260,8 +324,165 @@
             return div.innerHTML;
         }
         
+        // Bot管理機能
+        async function loadBots() {
+            try {
+                const response = await fetch('/api/bots');
+                const bots = await response.json();
+                
+                const botListEl = document.getElementById('bot-list');
+                if (bots.length === 0) {
+                    botListEl.innerHTML = '<p class="text-gray-400 text-sm">登録されているBotはありません</p>';
+                    return;
+                }
+                
+                botListEl.innerHTML = bots.map(bot => `
+                    <div class="border border-gray-300 dark:border-gray-600 rounded-lg p-4">
+                        <div class="flex justify-between items-start mb-2">
+                            <div class="flex-1">
+                                <div class="flex items-center gap-2 mb-1">
+                                    <span class="font-mono text-sm font-semibold">${bot.pubkey.substring(0, 16)}...</span>
+                                    <span class="px-2 py-1 text-xs rounded ${bot.status === 0 ? 'bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200' : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200'}">
+                                        ${bot.status === 0 ? '🟢 有効' : '⚫ 無効'}
+                                    </span>
+                                </div>
+                                <p class="text-sm text-gray-600 dark:text-gray-400 line-clamp-2">${escapeHtml(bot.prompt.substring(0, 100))}...</p>
+                            </div>
+                            <div class="flex gap-2 ml-4">
+                                <button 
+                                    onclick="toggleBot('${bot.pubkey}')"
+                                    class="px-3 py-1 text-sm bg-yellow-600 hover:bg-yellow-700 text-white rounded"
+                                    title="${bot.status === 0 ? '無効化' : '有効化'}"
+                                >
+                                    ${bot.status === 0 ? '⏸' : '▶'}
+                                </button>
+                                <button 
+                                    onclick="editBot('${bot.pubkey}')"
+                                    class="px-3 py-1 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded"
+                                    title="編集"
+                                >
+                                    ✏️
+                                </button>
+                                <button 
+                                    onclick="deleteBot('${bot.pubkey}')"
+                                    class="px-3 py-1 text-sm bg-red-600 hover:bg-red-700 text-white rounded"
+                                    title="削除"
+                                >
+                                    🗑️
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+            } catch (error) {
+                console.error('Failed to load bots:', error);
+            }
+        }
+        
+        function showAddBotModal() {
+            document.getElementById('modal-title').textContent = 'Bot追加';
+            document.getElementById('bot-pubkey').value = '';
+            document.getElementById('bot-secretkey').value = '';
+            document.getElementById('bot-prompt').value = '';
+            document.getElementById('bot-modal').classList.remove('hidden');
+            document.getElementById('bot-modal').classList.add('flex');
+        }
+        
+        async function editBot(pubkey) {
+            try {
+                const response = await fetch('/api/bots');
+                const bots = await response.json();
+                const bot = bots.find(b => b.pubkey === pubkey);
+                
+                if (bot) {
+                    document.getElementById('modal-title').textContent = 'Bot編集';
+                    document.getElementById('bot-pubkey').value = bot.pubkey;
+                    document.getElementById('bot-secretkey').value = bot.secretkey;
+                    document.getElementById('bot-prompt').value = bot.prompt;
+                    document.getElementById('bot-modal').classList.remove('hidden');
+                    document.getElementById('bot-modal').classList.add('flex');
+                }
+            } catch (error) {
+                console.error('Failed to load bot:', error);
+            }
+        }
+        
+        function closeBotModal() {
+            document.getElementById('bot-modal').classList.add('hidden');
+            document.getElementById('bot-modal').classList.remove('flex');
+        }
+        
+        document.getElementById('bot-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const pubkey = document.getElementById('bot-pubkey').value;
+            const secretkey = document.getElementById('bot-secretkey').value;
+            const prompt = document.getElementById('bot-prompt').value;
+            
+            try {
+                const isEdit = pubkey !== '';
+                const url = isEdit ? `/api/bots/${pubkey}` : '/api/bots';
+                const method = isEdit ? 'PUT' : 'POST';
+                
+                const response = await fetch(url, {
+                    method,
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ secretkey, prompt })
+                });
+                
+                if (response.ok) {
+                    closeBotModal();
+                    await loadBots();
+                    alert(isEdit ? 'Botを更新しました' : 'Botを追加しました');
+                } else {
+                    alert('エラーが発生しました');
+                }
+            } catch (error) {
+                console.error('Failed to save bot:', error);
+                alert('エラーが発生しました');
+            }
+        });
+        
+        async function deleteBot(pubkey) {
+            if (!confirm('このBotを削除しますか？')) return;
+            
+            try {
+                const response = await fetch(`/api/bots/${pubkey}`, {
+                    method: 'DELETE'
+                });
+                
+                if (response.ok) {
+                    await loadBots();
+                    alert('Botを削除しました');
+                } else {
+                    alert('削除に失敗しました');
+                }
+            } catch (error) {
+                console.error('Failed to delete bot:', error);
+                alert('エラーが発生しました');
+            }
+        }
+        
+        async function toggleBot(pubkey) {
+            try {
+                const response = await fetch(`/api/bots/${pubkey}/toggle`, {
+                    method: 'POST'
+                });
+                
+                if (response.ok) {
+                    await loadBots();
+                } else {
+                    alert('切り替えに失敗しました');
+                }
+            } catch (error) {
+                console.error('Failed to toggle bot:', error);
+                alert('エラーが発生しました');
+            }
+        }
+        
         // 初回読み込み
         updateStats();
+        loadBots();
     </script>
 </body>
 </html>

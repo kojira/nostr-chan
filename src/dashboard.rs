@@ -1,8 +1,9 @@
 use axum::{
-    extract::State,
+    extract::{State, Path},
     response::{Html, IntoResponse, Json},
-    routing::get,
+    routing::{get, post, put, delete},
     Router,
+    http::StatusCode,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -123,6 +124,11 @@ pub async fn start_dashboard(
     let app = Router::new()
         .route("/", get(index_handler))
         .route("/api/stats", get(stats_handler))
+        .route("/api/bots", get(list_bots_handler))
+        .route("/api/bots", post(create_bot_handler))
+        .route("/api/bots/:pubkey", put(update_bot_handler))
+        .route("/api/bots/:pubkey", delete(delete_bot_handler))
+        .route("/api/bots/:pubkey/toggle", post(toggle_bot_handler))
         .with_state(state);
 
     let addr = format!("127.0.0.1:{}", port);
@@ -191,5 +197,121 @@ async fn stats_handler(State(state): State<DashboardState>) -> impl IntoResponse
     };
     
     Json(stats)
+}
+
+/// Bot情報（API用）
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BotData {
+    pub pubkey: String,
+    pub secretkey: String,
+    pub prompt: String,
+    pub status: i32, // 0: active, 1: inactive
+}
+
+/// Bot作成/更新リクエスト
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BotRequest {
+    pub secretkey: String,
+    pub prompt: String,
+}
+
+/// Bot一覧取得
+async fn list_bots_handler(State(_state): State<DashboardState>) -> Result<Json<Vec<BotData>>, StatusCode> {
+    let conn = db::connect().map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let persons = db::get_all_persons(&conn).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    
+    let bots: Vec<BotData> = persons.into_iter().map(|p| BotData {
+        pubkey: p.pubkey,
+        secretkey: p.secretkey,
+        prompt: p.prompt,
+        status: p.status,
+    }).collect();
+    
+    Ok(Json(bots))
+}
+
+/// Bot作成
+async fn create_bot_handler(
+    State(_state): State<DashboardState>,
+    Json(req): Json<BotRequest>,
+) -> Result<Json<BotData>, StatusCode> {
+    let conn = db::connect().map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    
+    // secretkeyからpubkeyを取得
+    use nostr_sdk::Keys;
+    let keys = Keys::parse(&req.secretkey).map_err(|_| StatusCode::BAD_REQUEST)?;
+    let pubkey = keys.public_key().to_string();
+    
+    // DBに追加
+    db::add_person(&conn, &pubkey, &req.secretkey, &req.prompt)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    
+    Ok(Json(BotData {
+        pubkey,
+        secretkey: req.secretkey,
+        prompt: req.prompt,
+        status: 0,
+    }))
+}
+
+/// Bot更新
+async fn update_bot_handler(
+    State(_state): State<DashboardState>,
+    Path(pubkey): Path<String>,
+    Json(req): Json<BotRequest>,
+) -> Result<Json<BotData>, StatusCode> {
+    let conn = db::connect().map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    
+    // 既存のbotを取得
+    let persons = db::get_all_persons(&conn).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let existing = persons.iter().find(|p| p.pubkey == pubkey).ok_or(StatusCode::NOT_FOUND)?;
+    
+    // 更新
+    db::update_person(&conn, &pubkey, &req.secretkey, &req.prompt)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    
+    Ok(Json(BotData {
+        pubkey,
+        secretkey: req.secretkey,
+        prompt: req.prompt,
+        status: existing.status,
+    }))
+}
+
+/// Bot削除
+async fn delete_bot_handler(
+    State(_state): State<DashboardState>,
+    Path(pubkey): Path<String>,
+) -> Result<StatusCode, StatusCode> {
+    let conn = db::connect().map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    
+    db::delete_person(&conn, &pubkey)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    
+    Ok(StatusCode::NO_CONTENT)
+}
+
+/// Bot有効/無効切り替え
+async fn toggle_bot_handler(
+    State(_state): State<DashboardState>,
+    Path(pubkey): Path<String>,
+) -> Result<Json<BotData>, StatusCode> {
+    let conn = db::connect().map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    
+    // 既存のbotを取得
+    let persons = db::get_all_persons(&conn).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let existing = persons.iter().find(|p| p.pubkey == pubkey).ok_or(StatusCode::NOT_FOUND)?;
+    
+    // statusを切り替え
+    let new_status = if existing.status == 0 { 1 } else { 0 };
+    db::update_person_status(&conn, &pubkey, new_status)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    
+    Ok(Json(BotData {
+        pubkey: existing.pubkey.clone(),
+        secretkey: existing.secretkey.clone(),
+        prompt: existing.prompt.clone(),
+        status: new_status,
+    }))
 }
 
