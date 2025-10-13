@@ -26,7 +26,7 @@ export const StatsCard = ({ title, value, subtitle, icon: Icon, color = 'primary
         } 
       }}
     >
-      <CardContent sx={{ p: 3, height: '100%', display: 'flex', flexDirection: 'column' }}>
+      <CardContent sx={{ p: 3, height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
         <Typography 
           variant="caption" 
           color="text.secondary" 
