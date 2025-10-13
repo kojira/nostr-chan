@@ -51,9 +51,9 @@ export const BotCard = ({ bot, onEdit, onDelete, onToggle }: BotCardProps) => {
           top: 0,
           left: 0,
           right: 0,
-          height: '5px',
+          height: '4px',
           background: 'linear-gradient(90deg, #667eea 0%, #764ba2 100%)',
-          borderRadius: '16px 16px 0 0',
+          borderRadius: '15px 15px 0 0',
         } : {},
       }}
     >
