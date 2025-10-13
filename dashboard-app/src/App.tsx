@@ -161,13 +161,28 @@ function App() {
               <Switch
                 checked={globalPause}
                 onChange={handleGlobalPauseToggle}
-                color="warning"
+                sx={{
+                  '& .MuiSwitch-switchBase.Mui-checked': {
+                    color: '#fbbf24', // 明るいアンバー（一時停止時）
+                  },
+                  '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': {
+                    backgroundColor: '#fbbf24',
+                    opacity: 0.5,
+                  },
+                  '& .MuiSwitch-switchBase': {
+                    color: '#a5f3fc', // 明るいシアン（稼働時）
+                  },
+                  '& .MuiSwitch-track': {
+                    backgroundColor: '#a5f3fc',
+                    opacity: 0.5,
+                  },
+                }}
               />
             }
             label={
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                 {globalPause ? '⏸️' : '▶️'}
-                <Typography variant="body2">
+                <Typography variant="body2" fontWeight={500}>
                   {globalPause ? '一時停止中' : '稼働中'}
                 </Typography>
               </Box>
@@ -237,16 +252,16 @@ function App() {
         </Paper>
 
         {/* 統計カード */}
-        <Grid container spacing={3} sx={{ mb: 5 }}>
-          <Grid item xs={12} sm={6} md={3}>
+        <Box sx={{ display: 'flex', gap: 3, mb: 5 }}>
+          <Box sx={{ flex: 1 }}>
             <StatsCard
               title="今日の返信"
               value={statsLoading ? '...' : stats?.reply_stats?.today || 0}
               icon={ChatBubble}
               color="primary"
             />
-          </Grid>
-          <Grid item xs={12} sm={6} md={3}>
+          </Box>
+          <Box sx={{ flex: 1 }}>
             <StatsCard
               title="ベクトル化済"
               value={statsLoading ? '...' : stats?.rag_stats?.vectorized_events || 0}
@@ -254,8 +269,8 @@ function App() {
               icon={Search}
               color="info"
             />
-          </Grid>
-          <Grid item xs={12} sm={6} md={3}>
+          </Box>
+          <Box sx={{ flex: 1 }}>
             <StatsCard
               title="レート制限"
               value={statsLoading ? '...' : stats?.conversation_stats?.rate_limited_users || 0}
@@ -263,8 +278,8 @@ function App() {
               icon={Speed}
               color="warning"
             />
-          </Grid>
-        </Grid>
+          </Box>
+        </Box>
 
         {/* グラフ */}
         {!dailyRepliesLoading && (

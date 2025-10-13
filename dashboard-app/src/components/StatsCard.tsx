@@ -26,14 +26,14 @@ export const StatsCard = ({ title, value, subtitle, icon: Icon, color = 'primary
         } 
       }}
     >
-      <CardContent sx={{ p: 3 }}>
+      <CardContent sx={{ p: 3, height: '100%', display: 'flex', flexDirection: 'column' }}>
         <Typography 
           variant="caption" 
           color="text.secondary" 
           fontWeight={700} 
           textTransform="uppercase" 
           letterSpacing={1.5} 
-          sx={{ display: 'block', mb: 1.5, fontSize: '0.7rem' }}
+          sx={{ display: 'block', mb: 2, fontSize: '0.7rem' }}
         >
           {title}
         </Typography>
@@ -42,19 +42,21 @@ export const StatsCard = ({ title, value, subtitle, icon: Icon, color = 'primary
           component="div" 
           fontWeight="900" 
           sx={{ 
-            lineHeight: 1, 
-            fontSize: { xs: '2.5rem', sm: '3rem', md: '3.5rem' },
+            lineHeight: 1.2, 
+            fontSize: { xs: '2.5rem', sm: '2.75rem', md: '3rem' },
             color: `${color}.main`,
-            mb: 1,
+            mb: 1.5,
           }}
         >
           {value}
         </Typography>
-        {subtitle && (
-          <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 500 }}>
-            {subtitle}
-          </Typography>
-        )}
+        <Box sx={{ mt: 'auto', minHeight: '24px' }}>
+          {subtitle && (
+            <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 500 }}>
+              {subtitle}
+            </Typography>
+          )}
+        </Box>
       </CardContent>
     </Card>
   );

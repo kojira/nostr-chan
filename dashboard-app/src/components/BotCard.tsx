@@ -105,12 +105,13 @@ export const BotCard = ({ bot, onEdit, onDelete, onToggle }: BotCardProps) => {
               <IconButton 
                 onClick={() => onToggle(bot.pubkey)}
                 sx={{
-                  bgcolor: isActive ? 'warning.light' : 'success.light',
-                  color: isActive ? 'warning.dark' : 'success.dark',
+                  color: 'text.secondary',
+                  bgcolor: 'rgba(0, 0, 0, 0.04)',
                   '&:hover': {
-                    bgcolor: isActive ? 'warning.main' : 'success.main',
-                    color: 'white',
+                    bgcolor: isActive ? 'rgba(237, 108, 2, 0.08)' : 'rgba(46, 125, 50, 0.08)',
+                    color: isActive ? '#ed6c02' : '#2e7d32',
                   },
+                  transition: 'all 0.2s',
                 }}
                 size="small"
               >
@@ -121,12 +122,13 @@ export const BotCard = ({ bot, onEdit, onDelete, onToggle }: BotCardProps) => {
               <IconButton 
                 onClick={() => onEdit(bot)} 
                 sx={{
-                  bgcolor: 'primary.light',
-                  color: 'primary.dark',
+                  color: 'text.secondary',
+                  bgcolor: 'rgba(0, 0, 0, 0.04)',
                   '&:hover': {
-                    bgcolor: 'primary.main',
-                    color: 'white',
+                    bgcolor: 'rgba(102, 126, 234, 0.08)',
+                    color: '#667eea',
                   },
+                  transition: 'all 0.2s',
                 }}
                 size="small"
               >
@@ -137,12 +139,13 @@ export const BotCard = ({ bot, onEdit, onDelete, onToggle }: BotCardProps) => {
               <IconButton 
                 onClick={() => onDelete(bot.pubkey)}
                 sx={{
-                  bgcolor: 'error.light',
-                  color: 'error.dark',
+                  color: 'text.secondary',
+                  bgcolor: 'rgba(0, 0, 0, 0.04)',
                   '&:hover': {
-                    bgcolor: 'error.main',
-                    color: 'white',
+                    bgcolor: 'rgba(211, 47, 47, 0.08)',
+                    color: '#d32f2f',
                   },
+                  transition: 'all 0.2s',
                 }}
                 size="small"
               >
