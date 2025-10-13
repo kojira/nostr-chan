@@ -186,29 +186,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             };
             
-            // イベント処理を非同期タスクで実行
-            let config_clone = config_for_worker.clone();
-            let bot_info_clone = Arc::clone(&bot_info_for_worker);
-            tokio::spawn(async move {
-                // process_event内で新しいConnectionを作成するため、Sendトレイト問題は解決
-                match process_event(config_clone, bot_info_clone, event).await {
-                    Ok(_) => {
-                        // 処理成功: キューから削除
-                        if let Ok(conn) = db::connect() {
-                            if let Err(e) = db::complete_queue_event(&conn, queue_id) {
-                                eprintln!("[Worker] キュー削除エラー: {}", e);
-                            }
-                        }
-                    }
-                    Err(e) => {
-                        eprintln!("[Worker] イベント処理エラー: {} - キューから削除", e);
-                        // エラーでも削除（無限ループ防止）
-                        if let Ok(conn) = db::connect() {
-                            let _ = db::complete_queue_event(&conn, queue_id);
-                        }
+            // イベント処理を実行（ワーカーループ内で直接実行）
+            match process_event(config_for_worker.clone(), Arc::clone(&bot_info_for_worker), event).await {
+                Ok(_) => {
+                    // 処理成功: キューから削除
+                    if let Err(e) = db::complete_queue_event(&conn_worker, queue_id) {
+                        eprintln!("[Worker] キュー削除エラー: {}", e);
                     }
                 }
-            });
+                Err(e) => {
+                    eprintln!("[Worker] イベント処理エラー: {} - キューから削除", e);
+                    // エラーでも削除（無限ループ防止）
+                    let _ = db::complete_queue_event(&conn_worker, queue_id);
+                }
+            }
         }
     });
     
