@@ -32,9 +32,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let conn = db::connect()?;
     
     // ダッシュボードサーバーを起動（バックグラウンド）
+    let dashboard_port = config.dashboard.port;
     let dashboard_config_path = "../config.yml".to_string();
     tokio::spawn(async move {
-        if let Err(e) = dashboard::start_dashboard(3000, dashboard_config_path).await {
+        if let Err(e) = dashboard::start_dashboard(dashboard_port, dashboard_config_path).await {
             eprintln!("ダッシュボードエラー: {}", e);
         }
     });

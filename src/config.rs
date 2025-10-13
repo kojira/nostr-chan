@@ -32,8 +32,14 @@ pub struct RelayConfig {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DashboardConfig {
+    pub port: u16,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppConfig {
     pub relay_servers: RelayConfig,
     pub bot: BotConfig,
     pub gpt: GptConfig,
+    pub dashboard: DashboardConfig,
 }

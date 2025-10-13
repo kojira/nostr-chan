@@ -149,7 +149,14 @@
 
         <!-- Footer -->
         <footer class="text-center text-sm text-gray-500 mt-12">
-            <p>自動更新: 3秒ごと | Last updated: <span id="last-updated">--</span></p>
+            <button 
+                id="refresh-btn" 
+                class="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+                onclick="updateStats()"
+            >
+                🔄 更新
+            </button>
+            <p class="mt-2">Last updated: <span id="last-updated">--</span></p>
         </footer>
     </div>
 
@@ -253,9 +260,8 @@
             return div.innerHTML;
         }
         
-        // 初回読み込みと定期更新
+        // 初回読み込み
         updateStats();
-        setInterval(updateStats, 3000); // 3秒ごとに更新
     </script>
 </body>
 </html>
