@@ -147,60 +147,63 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Err(e) => eprintln!("Failed to reset processing events: {}", e),
     }
     
-    // イベント処理ワーカーを起動
+    // イベント処理ワーカーを起動（別スレッドで実行）
     let config_for_worker = config.clone();
     let bot_info_for_worker = Arc::clone(&bot_info);
-    tokio::spawn(async move {
-        println!("Starting event queue worker...");
-        loop {
-            // 0.5秒ごとにキューをチェック
-            tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
-            
-            // キューから次のイベントを取得
-            let conn_worker = match db::connect() {
-                Ok(c) => c,
-                Err(e) => {
-                    eprintln!("[Worker] DB接続エラー: {}", e);
-                    continue;
-                }
-            };
-            
-            let queue_item = match db::dequeue_event(&conn_worker) {
-                Ok(Some(item)) => item,
-                Ok(None) => continue, // キューが空
-                Err(e) => {
-                    eprintln!("[Worker] キュー取得エラー: {}", e);
-                    continue;
-                }
-            };
-            
-            let (queue_id, event_json) = queue_item;
-            
-            // JSONからEventを復元
-            let event: nostr_sdk::Event = match serde_json::from_str(&event_json) {
-                Ok(e) => e,
-                Err(e) => {
-                    eprintln!("[Worker] イベント復元エラー: {}", e);
-                    let _ = db::complete_queue_event(&conn_worker, queue_id);
-                    continue;
-                }
-            };
-            
-            // イベント処理を実行（ワーカーループ内で直接実行）
-            match process_event(config_for_worker.clone(), Arc::clone(&bot_info_for_worker), event).await {
-                Ok(_) => {
-                    // 処理成功: キューから削除
-                    if let Err(e) = db::complete_queue_event(&conn_worker, queue_id) {
-                        eprintln!("[Worker] キュー削除エラー: {}", e);
+    std::thread::spawn(move || {
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        rt.block_on(async move {
+            println!("Starting event queue worker...");
+            loop {
+                // 0.5秒ごとにキューをチェック
+                tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+                
+                // キューから次のイベントを取得
+                let conn_worker = match db::connect() {
+                    Ok(c) => c,
+                    Err(e) => {
+                        eprintln!("[Worker] DB接続エラー: {}", e);
+                        continue;
+                    }
+                };
+                
+                let queue_item = match db::dequeue_event(&conn_worker) {
+                    Ok(Some(item)) => item,
+                    Ok(None) => continue, // キューが空
+                    Err(e) => {
+                        eprintln!("[Worker] キュー取得エラー: {}", e);
+                        continue;
+                    }
+                };
+                
+                let (queue_id, event_json) = queue_item;
+                
+                // JSONからEventを復元
+                let event: nostr_sdk::Event = match serde_json::from_str(&event_json) {
+                    Ok(e) => e,
+                    Err(e) => {
+                        eprintln!("[Worker] イベント復元エラー: {}", e);
+                        let _ = db::complete_queue_event(&conn_worker, queue_id);
+                        continue;
+                    }
+                };
+                
+                // イベント処理を実行
+                match process_event(config_for_worker.clone(), Arc::clone(&bot_info_for_worker), event).await {
+                    Ok(_) => {
+                        // 処理成功: キューから削除
+                        if let Err(e) = db::complete_queue_event(&conn_worker, queue_id) {
+                            eprintln!("[Worker] キュー削除エラー: {}", e);
+                        }
+                    }
+                    Err(e) => {
+                        eprintln!("[Worker] イベント処理エラー: {} - キューから削除", e);
+                        // エラーでも削除（無限ループ防止）
+                        let _ = db::complete_queue_event(&conn_worker, queue_id);
                     }
                 }
-                Err(e) => {
-                    eprintln!("[Worker] イベント処理エラー: {} - キューから削除", e);
-                    // エラーでも削除（無限ループ防止）
-                    let _ = db::complete_queue_event(&conn_worker, queue_id);
-                }
             }
-        }
+        })
     });
     
     let mut notifications = client.notifications();
