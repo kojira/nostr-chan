@@ -179,6 +179,8 @@ pub fn extract_mention(persons: Vec<db::Person>, event: &Event) -> Result<Option
   Ok(person)
 }
 
+#[allow(dead_code)]
+#[allow(dead_code)]
 pub fn judge_post(
   config: &AppConfig,
   persons: Vec<db::Person>,
@@ -202,6 +204,7 @@ pub fn judge_post(
   Ok((post, person))
 }
 
+#[allow(dead_code)]
 pub async fn send_to(config: &config::AppConfig, event: Event, person: db::Person, text: &str) -> Result<()> {
   let bot_keys = Keys::parse(&person.secretkey)?;
   let client_temp = Client::new(bot_keys.clone());
@@ -354,6 +357,7 @@ pub fn format_with_commas(num: u64) -> String {
 }
 
 // 名前取得関数（キャッシュ優先、なければリレーから取得）
+#[allow(dead_code)]
 pub async fn get_user_name(pubkey: &str) -> Result<String> {
     let file = File::open("../config.yml")?;
     let config: config::AppConfig = serde_yaml::from_reader(file)?;

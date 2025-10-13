@@ -87,6 +87,7 @@ pub async fn call_gpt(prompt: &str, user_text: &str) -> Result<String, Box<dyn E
 }
 
 /// 新しいインターフェース: 会話コンテキスト文字列を受け取る
+#[allow(dead_code)]
 pub async fn get_reply_with_context<'a>(
     personality: &'a str,
     user_text: &'a str,

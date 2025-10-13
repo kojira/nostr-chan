@@ -244,6 +244,7 @@ pub(crate) fn update_person_content(conn: &Connection, pubkey: &str, content: &s
     Ok(())
 }
 
+#[allow(dead_code)]
 pub fn get_random_person(conn: &Connection) -> Result<Person> {
     let mut stmt =
         conn.prepare("SELECT * FROM Persons WHERE status=0 ORDER BY RANDOM() LIMIT 1")?;
@@ -315,6 +316,7 @@ pub fn delete_user_follower_cache(conn: &Connection, user_pubkey: &str, bot_pubk
 }
 
 // Kind 0 cache functions
+#[allow(dead_code)]
 pub fn get_kind0_cache(conn: &Connection, pubkey: &str, ttl: i64) -> Result<Option<String>> {
     let now = Utc::now().timestamp();
     let mut stmt = conn.prepare(
@@ -336,6 +338,7 @@ pub fn get_kind0_cache(conn: &Connection, pubkey: &str, ttl: i64) -> Result<Opti
     Ok(None)
 }
 
+#[allow(dead_code)]
 pub fn set_kind0_cache(conn: &Connection, pubkey: &str, name: &str) -> Result<()> {
     let now = Utc::now().timestamp();
     conn.execute(
@@ -346,6 +349,7 @@ pub fn set_kind0_cache(conn: &Connection, pubkey: &str, name: &str) -> Result<()
 }
 
 // Timeline functions
+#[allow(dead_code)]
 pub fn add_timeline_post(conn: &Connection, pubkey: &str, name: Option<&str>, content: &str, timestamp: i64) -> Result<()> {
     conn.execute(
         "INSERT INTO timeline (pubkey, name, content, timestamp) VALUES (?, ?, ?, ?)",
@@ -373,6 +377,7 @@ pub fn get_latest_timeline_posts(conn: &Connection, limit: usize) -> Result<Vec<
     Ok(posts.into_iter().rev().collect())
 }
 
+#[allow(dead_code)]
 pub fn cleanup_old_timeline_posts(conn: &Connection, keep_count: usize) -> Result<usize> {
     // Keep only the latest N posts
     let deleted = conn.execute(
@@ -405,6 +410,7 @@ pub struct EventRecord {
 }
 
 /// イベントをeventsテーブルに保存
+#[allow(dead_code)]
 pub fn insert_event(
     conn: &Connection,
     event: &Event,
@@ -435,6 +441,7 @@ pub fn insert_event(
 }
 
 /// イベントIDからイベントを取得
+#[allow(dead_code)]
 pub fn get_event_by_event_id(conn: &Connection, event_id: &str) -> Result<Option<EventRecord>> {
     let mut stmt = conn.prepare(
         "SELECT id, event_id, event_json, pubkey, kind, content, created_at, received_at, 
@@ -466,6 +473,7 @@ pub fn get_event_by_event_id(conn: &Connection, event_id: &str) -> Result<Option
 }
 
 /// イベントのkind0情報を更新
+#[allow(dead_code)]
 pub fn update_event_kind0(
     conn: &Connection,
     event_id: &str,
@@ -527,6 +535,7 @@ pub fn get_events_without_embedding(conn: &Connection, limit: usize) -> Result<V
 // ========== Conversation logs functions ==========
 
 /// 会話ログを記録
+#[allow(dead_code)]
 pub fn insert_conversation_log(
     conn: &Connection,
     bot_pubkey: &str,
@@ -560,6 +569,7 @@ pub fn insert_conversation_log(
 }
 
 /// bot別の会話タイムラインを取得
+#[allow(dead_code)]
 pub fn get_conversation_timeline(
     conn: &Connection,
     bot_pubkey: &str,
@@ -617,6 +627,7 @@ pub fn get_thread_message_count(
 }
 
 /// 特定のbotと相手との過去N分間の会話回数を取得
+#[allow(dead_code)]
 pub fn get_conversation_count_with_user(
     conn: &Connection,
     bot_pubkey: &str,
@@ -654,6 +665,7 @@ pub struct ConversationSummary {
 }
 
 /// 要約を保存
+#[allow(dead_code)]
 pub fn insert_conversation_summary(
     conn: &Connection,
     bot_pubkey: &str,
@@ -695,6 +707,7 @@ pub fn insert_conversation_summary(
 }
 
 /// bot別の要約を取得
+#[allow(dead_code)]
 pub fn get_conversation_summaries(
     conn: &Connection,
     bot_pubkey: &str,
@@ -756,6 +769,7 @@ pub fn extract_reply_to_event_id(event_json: &str) -> Result<Option<String>> {
 }
 
 /// event_jsonからメンションされた全pubkeyを抽出
+#[allow(dead_code)]
 pub fn extract_mentioned_pubkeys(event_json: &str) -> Result<Vec<String>> {
     let event: Value = serde_json::from_str(event_json)
         .map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))?;
@@ -782,6 +796,7 @@ pub fn extract_mentioned_pubkeys(event_json: &str) -> Result<Vec<String>> {
 }
 
 /// event_jsonからスレッドroot_idを抽出
+#[allow(dead_code)]
 pub fn extract_thread_root_id(event_json: &str) -> Result<Option<String>> {
     let event: Value = serde_json::from_str(event_json)
         .map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))?;
@@ -810,6 +825,7 @@ pub fn extract_thread_root_id(event_json: &str) -> Result<Option<String>> {
 }
 
 /// bot同士の会話を検出
+#[allow(dead_code)]
 pub fn detect_bot_conversation(mentioned_pubkeys: &[String], all_bot_pubkeys: &[String]) -> bool {
     let bot_mention_count = mentioned_pubkeys
         .iter()
@@ -899,6 +915,7 @@ pub fn complete_queue_event(conn: &Connection, id: i64) -> Result<()> {
 }
 
 /// 処理失敗したイベントをpendingに戻す
+#[allow(dead_code)]
 pub fn retry_queue_event(conn: &Connection, id: i64) -> Result<()> {
     conn.execute(
         "UPDATE event_queue SET status = 'pending' WHERE id = ?",
@@ -908,6 +925,7 @@ pub fn retry_queue_event(conn: &Connection, id: i64) -> Result<()> {
 }
 
 /// キューのサイズを取得
+#[allow(dead_code)]
 pub fn get_queue_size(conn: &Connection) -> Result<i64> {
     let size: i64 = conn.query_row(
         "SELECT COUNT(*) FROM event_queue WHERE status IN ('pending', 'processing')",

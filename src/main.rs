@@ -6,14 +6,13 @@ mod util;
 mod embedding;
 mod conversation;
 mod dashboard;
-use chrono::{Utc, TimeZone};
+use chrono::Utc;
 use dotenv::dotenv;
 use nostr_sdk::prelude::*;
 use std::{fs::File, str::FromStr};
 use std::env;
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use whatlang::{detect, Lang};
 
 // タイムライン投稿の構造体
 #[derive(Clone, Debug)]
@@ -86,7 +85,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let _ = client.subscribe(subscription, None).await;
     println!("subscribe");
-    let mut last_post_time = Utc::now().timestamp() - config.bot.reaction_freq;
     
     // バックグラウンドでembedding生成タスクを開始
     let conn_bg = db::connect()?;
@@ -150,8 +148,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     
     // イベント処理ワーカーを起動
-    let config_worker = config.clone();
-    let bot_info_worker = Arc::clone(&bot_info);
     tokio::spawn(async move {
         println!("Starting event queue worker...");
         loop {

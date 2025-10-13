@@ -114,6 +114,7 @@ pub fn build_conversation_timeline_with_diversity(
 }
 
 /// 旧インターフェース（互換性のため）
+#[allow(dead_code)]
 pub fn build_conversation_timeline(
     conn: &Connection,
     bot_pubkey: &str,
@@ -256,6 +257,7 @@ fn search_most_similar_summary(
 }
 
 /// 返信用のコンテキストを準備
+#[allow(dead_code)]
 pub async fn prepare_context_for_reply(
     conn: &Connection,
     bot_pubkey: &str,
@@ -283,6 +285,7 @@ pub async fn prepare_context_for_reply(
 }
 
 /// バイト列をf32ベクトルに変換
+#[allow(dead_code)]
 fn bytes_to_f32_vec(bytes: &[u8]) -> Vec<f32> {
     bytes
         .chunks_exact(4)
@@ -294,6 +297,7 @@ fn bytes_to_f32_vec(bytes: &[u8]) -> Vec<f32> {
 }
 
 /// エアリプ用の日本語タイムライン構築（従来のtimeline機能の代替）
+#[allow(dead_code)]
 pub fn build_japanese_timeline_for_air_reply(
     conn: &Connection,
     limit: usize,
