@@ -205,6 +205,7 @@ pub struct BotData {
     pub pubkey: String,
     pub secretkey: String,
     pub prompt: String,
+    pub content: String,
     pub status: i32, // 0: active, 1: inactive
 }
 
@@ -213,6 +214,7 @@ pub struct BotData {
 pub struct BotRequest {
     pub secretkey: String,
     pub prompt: String,
+    pub content: String,
 }
 
 /// Bot一覧取得
@@ -224,6 +226,7 @@ async fn list_bots_handler(State(_state): State<DashboardState>) -> Result<Json<
         pubkey: p.pubkey,
         secretkey: p.secretkey,
         prompt: p.prompt,
+        content: p.content,
         status: p.status,
     }).collect();
     
@@ -243,13 +246,14 @@ async fn create_bot_handler(
     let pubkey = keys.public_key().to_string();
     
     // DBに追加
-    db::add_person(&conn, &pubkey, &req.secretkey, &req.prompt)
+    db::add_person(&conn, &pubkey, &req.secretkey, &req.prompt, &req.content)
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     
     Ok(Json(BotData {
         pubkey,
         secretkey: req.secretkey,
         prompt: req.prompt,
+        content: req.content,
         status: 0,
     }))
 }
@@ -267,13 +271,14 @@ async fn update_bot_handler(
     let existing = persons.iter().find(|p| p.pubkey == pubkey).ok_or(StatusCode::NOT_FOUND)?;
     
     // 更新
-    db::update_person(&conn, &pubkey, &req.secretkey, &req.prompt)
+    db::update_person(&conn, &pubkey, &req.secretkey, &req.prompt, &req.content)
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     
     Ok(Json(BotData {
         pubkey,
         secretkey: req.secretkey,
         prompt: req.prompt,
+        content: req.content,
         status: existing.status,
     }))
 }
@@ -311,6 +316,7 @@ async fn toggle_bot_handler(
         pubkey: existing.pubkey.clone(),
         secretkey: existing.secretkey.clone(),
         prompt: existing.prompt.clone(),
+        content: existing.content.clone(),
         status: new_status,
     }))
 }

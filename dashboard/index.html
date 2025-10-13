@@ -5,9 +5,23 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Nostr Bot Dashboard</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
     <style>
+        .material-card {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            transition: all 0.3s ease;
+        }
+        .material-card:hover {
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+            transform: translateY(-2px);
+        }
+        .dark .material-card {
+            background: #1f2937;
+        }
         .stat-card {
-            @apply bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 transition-all hover:shadow-xl;
+            @apply material-card p-6;
         }
         .stat-value {
             @apply text-3xl font-bold text-blue-600 dark:text-blue-400;
@@ -20,6 +34,27 @@
         }
         .status-offline {
             @apply inline-block w-3 h-3 bg-red-500 rounded-full;
+        }
+        .bot-card {
+            @apply material-card p-6 mb-4;
+        }
+        .material-btn {
+            @apply inline-flex items-center px-4 py-2 rounded-lg font-medium transition-all;
+        }
+        .material-btn-primary {
+            @apply material-btn bg-blue-600 hover:bg-blue-700 text-white shadow-md hover:shadow-lg;
+        }
+        .material-btn-success {
+            @apply material-btn bg-green-600 hover:bg-green-700 text-white shadow-md hover:shadow-lg;
+        }
+        .material-btn-warning {
+            @apply material-btn bg-yellow-600 hover:bg-yellow-700 text-white shadow-md hover:shadow-lg;
+        }
+        .material-btn-danger {
+            @apply material-btn bg-red-600 hover:bg-red-700 text-white shadow-md hover:shadow-lg;
+        }
+        .material-input {
+            @apply w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all;
         }
     </style>
 </head>
@@ -140,16 +175,20 @@
         <!-- Bot管理 -->
         <section class="mb-8">
             <div class="flex justify-between items-center mb-4">
-                <h2 class="text-2xl font-bold">Bot管理</h2>
+                <h2 class="text-2xl font-bold flex items-center">
+                    <span class="material-icons mr-2">smart_toy</span>
+                    Bot管理
+                </h2>
                 <button 
                     onclick="showAddBotModal()" 
-                    class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors"
+                    class="material-btn-success"
                 >
-                    ➕ Bot追加
+                    <span class="material-icons mr-1">add</span>
+                    Bot追加
                 </button>
             </div>
-            <div class="stat-card">
-                <div id="bot-list" class="space-y-4">
+            <div id="bot-list" class="grid gap-4">
+                <div class="stat-card">
                     <p class="text-gray-400 text-sm">読み込み中...</p>
                 </div>
             </div>
@@ -167,43 +206,69 @@
         
         <!-- Bot追加/編集モーダル -->
         <div id="bot-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
-            <div class="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-                <h3 id="modal-title" class="text-xl font-bold mb-4">Bot追加</h3>
-                <form id="bot-form" class="space-y-4">
+            <div class="material-card p-8 max-w-3xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+                <h3 id="modal-title" class="text-2xl font-bold mb-6 flex items-center">
+                    <span class="material-icons mr-2">edit</span>
+                    Bot追加
+                </h3>
+                <form id="bot-form" class="space-y-6">
                     <input type="hidden" id="bot-pubkey" value="">
                     
                     <div>
-                        <label class="block text-sm font-medium mb-1">Secret Key (nsec または hex)</label>
+                        <label class="block text-sm font-semibold mb-2 flex items-center">
+                            <span class="material-icons text-sm mr-1">vpn_key</span>
+                            Secret Key (nsec または hex)
+                        </label>
                         <input 
                             type="text" 
                             id="bot-secretkey"
-                            class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700"
+                            class="material-input"
+                            placeholder="nsec1... または hex形式"
                             required
                         >
                     </div>
                     
                     <div>
-                        <label class="block text-sm font-medium mb-1">プロンプト（Bot性格設定）</label>
+                        <label class="block text-sm font-semibold mb-2 flex items-center">
+                            <span class="material-icons text-sm mr-1">psychology</span>
+                            プロンプト（Bot性格設定）
+                        </label>
                         <textarea 
                             id="bot-prompt"
-                            rows="8"
-                            class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700"
+                            rows="6"
+                            class="material-input"
+                            placeholder="Botのキャラクター、話し方、応答スタイルなどを記述"
                             required
                         ></textarea>
                     </div>
                     
-                    <div class="flex gap-2 justify-end">
+                    <div>
+                        <label class="block text-sm font-semibold mb-2 flex items-center">
+                            <span class="material-icons text-sm mr-1">description</span>
+                            追加情報（content）
+                        </label>
+                        <textarea 
+                            id="bot-content"
+                            rows="4"
+                            class="material-input"
+                            placeholder="追加の設定やメモ（任意）"
+                        ></textarea>
+                    </div>
+                    
+                    <div class="flex gap-3 justify-end pt-4 border-t">
                         <button 
                             type="button" 
                             onclick="closeBotModal()"
-                            class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
+                            class="material-btn px-6 py-3 border-2 border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700"
                         >
+                            <span class="material-icons mr-1">close</span>
                             キャンセル
                         </button>
                         <button 
                             type="submit"
-                            class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg"
+                            class="material-btn-primary px-6 py-3"
                         >
+                            <span class="material-icons mr-1">save</span>
                             保存
                         </button>
                     </div>
@@ -332,45 +397,66 @@
                 
                 const botListEl = document.getElementById('bot-list');
                 if (bots.length === 0) {
-                    botListEl.innerHTML = '<p class="text-gray-400 text-sm">登録されているBotはありません</p>';
+                    botListEl.innerHTML = '<div class="stat-card"><p class="text-gray-400 text-sm">登録されているBotはありません</p></div>';
                     return;
                 }
                 
                 botListEl.innerHTML = bots.map(bot => `
-                    <div class="border border-gray-300 dark:border-gray-600 rounded-lg p-4">
-                        <div class="flex justify-between items-start mb-2">
+                    <div class="bot-card">
+                        <div class="flex items-start justify-between mb-4">
                             <div class="flex-1">
-                                <div class="flex items-center gap-2 mb-1">
-                                    <span class="font-mono text-sm font-semibold">${bot.pubkey.substring(0, 16)}...</span>
-                                    <span class="px-2 py-1 text-xs rounded ${bot.status === 0 ? 'bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200' : 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200'}">
-                                        ${bot.status === 0 ? '🟢 有効' : '⚫ 無効'}
+                                <div class="flex items-center gap-3 mb-2">
+                                    <span class="material-icons text-3xl ${bot.status === 0 ? 'text-green-500' : 'text-gray-400'}">
+                                        ${bot.status === 0 ? 'check_circle' : 'cancel'}
                                     </span>
+                                    <div>
+                                        <div class="font-mono text-sm font-bold text-gray-700 dark:text-gray-300">
+                                            ${bot.pubkey.substring(0, 24)}...
+                                        </div>
+                                        <div class="flex items-center gap-2 mt-1">
+                                            <span class="px-3 py-1 text-xs font-semibold rounded-full ${bot.status === 0 ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : 'bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300'}">
+                                                ${bot.status === 0 ? '🟢 有効' : '⚫ 無効'}
+                                            </span>
+                                        </div>
+                                    </div>
                                 </div>
-                                <p class="text-sm text-gray-600 dark:text-gray-400 line-clamp-2">${escapeHtml(bot.prompt.substring(0, 100))}...</p>
                             </div>
-                            <div class="flex gap-2 ml-4">
+                            <div class="flex gap-2">
                                 <button 
                                     onclick="toggleBot('${bot.pubkey}')"
-                                    class="px-3 py-1 text-sm bg-yellow-600 hover:bg-yellow-700 text-white rounded"
+                                    class="${bot.status === 0 ? 'material-btn-warning' : 'material-btn-success'}"
                                     title="${bot.status === 0 ? '無効化' : '有効化'}"
                                 >
-                                    ${bot.status === 0 ? '⏸' : '▶'}
+                                    <span class="material-icons">${bot.status === 0 ? 'pause' : 'play_arrow'}</span>
                                 </button>
                                 <button 
                                     onclick="editBot('${bot.pubkey}')"
-                                    class="px-3 py-1 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded"
+                                    class="material-btn-primary"
                                     title="編集"
                                 >
-                                    ✏️
+                                    <span class="material-icons">edit</span>
                                 </button>
                                 <button 
                                     onclick="deleteBot('${bot.pubkey}')"
-                                    class="px-3 py-1 text-sm bg-red-600 hover:bg-red-700 text-white rounded"
+                                    class="material-btn-danger"
                                     title="削除"
                                 >
-                                    🗑️
+                                    <span class="material-icons">delete</span>
                                 </button>
                             </div>
+                        </div>
+                        
+                        <div class="space-y-3 text-sm">
+                            <div class="border-l-4 border-blue-500 pl-3">
+                                <div class="font-semibold text-gray-700 dark:text-gray-300 mb-1">プロンプト</div>
+                                <p class="text-gray-600 dark:text-gray-400 line-clamp-2">${escapeHtml(bot.prompt)}</p>
+                            </div>
+                            ${bot.content ? `
+                            <div class="border-l-4 border-purple-500 pl-3">
+                                <div class="font-semibold text-gray-700 dark:text-gray-300 mb-1">追加情報</div>
+                                <p class="text-gray-600 dark:text-gray-400 line-clamp-1">${escapeHtml(bot.content)}</p>
+                            </div>
+                            ` : ''}
                         </div>
                     </div>
                 `).join('');
@@ -380,10 +466,11 @@
         }
         
         function showAddBotModal() {
-            document.getElementById('modal-title').textContent = 'Bot追加';
+            document.getElementById('modal-title').innerHTML = '<span class="material-icons mr-2">add</span>Bot追加';
             document.getElementById('bot-pubkey').value = '';
             document.getElementById('bot-secretkey').value = '';
             document.getElementById('bot-prompt').value = '';
+            document.getElementById('bot-content').value = '';
             document.getElementById('bot-modal').classList.remove('hidden');
             document.getElementById('bot-modal').classList.add('flex');
         }
@@ -395,15 +482,17 @@
                 const bot = bots.find(b => b.pubkey === pubkey);
                 
                 if (bot) {
-                    document.getElementById('modal-title').textContent = 'Bot編集';
+                    document.getElementById('modal-title').innerHTML = '<span class="material-icons mr-2">edit</span>Bot編集';
                     document.getElementById('bot-pubkey').value = bot.pubkey;
                     document.getElementById('bot-secretkey').value = bot.secretkey;
                     document.getElementById('bot-prompt').value = bot.prompt;
+                    document.getElementById('bot-content').value = bot.content || '';
                     document.getElementById('bot-modal').classList.remove('hidden');
                     document.getElementById('bot-modal').classList.add('flex');
                 }
             } catch (error) {
                 console.error('Failed to load bot:', error);
+                alert('Botの読み込みに失敗しました');
             }
         }
         
@@ -418,6 +507,7 @@
             const pubkey = document.getElementById('bot-pubkey').value;
             const secretkey = document.getElementById('bot-secretkey').value;
             const prompt = document.getElementById('bot-prompt').value;
+            const content = document.getElementById('bot-content').value;
             
             try {
                 const isEdit = pubkey !== '';
@@ -427,19 +517,20 @@
                 const response = await fetch(url, {
                     method,
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ secretkey, prompt })
+                    body: JSON.stringify({ secretkey, prompt, content })
                 });
                 
                 if (response.ok) {
                     closeBotModal();
                     await loadBots();
-                    alert(isEdit ? 'Botを更新しました' : 'Botを追加しました');
+                    alert(isEdit ? '✅ Botを更新しました' : '✅ Botを追加しました');
                 } else {
-                    alert('エラーが発生しました');
+                    const error = await response.text();
+                    alert('❌ エラーが発生しました: ' + error);
                 }
             } catch (error) {
                 console.error('Failed to save bot:', error);
-                alert('エラーが発生しました');
+                alert('❌ エラーが発生しました: ' + error.message);
             }
         });
         

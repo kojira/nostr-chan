@@ -174,20 +174,20 @@ pub struct Person {
 }
 
 /// Botを追加
-pub fn add_person(conn: &Connection, pubkey: &str, secretkey: &str, prompt: &str) -> Result<()> {
+pub fn add_person(conn: &Connection, pubkey: &str, secretkey: &str, prompt: &str, content: &str) -> Result<()> {
     let now = Utc::now().timestamp();
     conn.execute(
-        "INSERT INTO Persons (status, prompt, pubkey, secretkey, content, created_at) VALUES(0, ?, ?, ?, '', datetime(?, 'unixepoch'))",
-        params![prompt, pubkey, secretkey, now],
+        "INSERT INTO Persons (status, prompt, pubkey, secretkey, content, created_at) VALUES(0, ?, ?, ?, ?, datetime(?, 'unixepoch'))",
+        params![prompt, pubkey, secretkey, content, now],
     )?;
     Ok(())
 }
 
 /// Botを更新
-pub fn update_person(conn: &Connection, pubkey: &str, secretkey: &str, prompt: &str) -> Result<()> {
+pub fn update_person(conn: &Connection, pubkey: &str, secretkey: &str, prompt: &str, content: &str) -> Result<()> {
     conn.execute(
-        "UPDATE Persons SET secretkey = ?, prompt = ? WHERE pubkey = ?",
-        params![secretkey, prompt, pubkey],
+        "UPDATE Persons SET secretkey = ?, prompt = ?, content = ? WHERE pubkey = ?",
+        params![secretkey, prompt, content, pubkey],
     )?;
     Ok(())
 }
