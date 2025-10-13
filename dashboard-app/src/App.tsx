@@ -130,13 +130,28 @@ function App() {
   }, [bots, botFilter]);
 
   return (
-    <Box sx={{ flexGrow: 1, bgcolor: 'grey.50', minHeight: '100vh' }}>
-      <AppBar position="static" sx={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
-        <Toolbar>
-          <SmartToy sx={{ mr: 2 }} />
-          <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
-            📊 Nostr Bot Dashboard
-          </Typography>
+    <Box sx={{ flexGrow: 1, bgcolor: '#f8f9fa', minHeight: '100vh' }}>
+      <AppBar 
+        position="static" 
+        elevation={0}
+        sx={{ 
+          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+          borderBottom: '1px solid rgba(255,255,255,0.1)',
+        }}
+      >
+        <Toolbar sx={{ py: 1 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+            <SmartToy sx={{ fontSize: 32 }} />
+            <Box>
+              <Typography variant="h6" fontWeight="bold" sx={{ lineHeight: 1.2 }}>
+                Nostr Bot Dashboard
+              </Typography>
+              <Typography variant="caption" sx={{ opacity: 0.9 }}>
+                Bot管理コンソール
+              </Typography>
+            </Box>
+          </Box>
+          <Box sx={{ flexGrow: 1 }} />
           <FormControlLabel
             control={
               <Switch
@@ -163,11 +178,42 @@ function App() {
 
       <Container maxWidth="xl" sx={{ py: 4 }}>
         {/* Bot稼働状況 */}
-        <Paper sx={{ p: 3, mb: 4 }}>
-          <Typography variant="h5" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            {stats?.bot_status?.online ? <CloudDone color="success" /> : <CloudOff color="error" />}
-            Bot稼働状況
-          </Typography>
+        <Paper 
+          elevation={0}
+          sx={{ 
+            p: 3, 
+            mb: 4,
+            border: '1px solid',
+            borderColor: 'divider',
+            borderRadius: 2,
+          }}
+        >
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
+            <Box 
+              sx={{ 
+                width: 56, 
+                height: 56, 
+                borderRadius: '14px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                background: stats?.bot_status?.online 
+                  ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)'
+                  : 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
+                color: 'white',
+              }}
+            >
+              {stats?.bot_status?.online ? <CloudDone sx={{ fontSize: 32 }} /> : <CloudOff sx={{ fontSize: 32 }} />}
+            </Box>
+            <Box>
+              <Typography variant="h5" fontWeight="bold">
+                Bot稼働状況
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                リアルタイム監視
+              </Typography>
+            </Box>
+          </Box>
           <Grid container spacing={3}>
             <Grid item xs={12} sm={6} md={4}>
               <Typography variant="body2" color="text.secondary">稼働時間</Typography>
@@ -187,7 +233,7 @@ function App() {
         </Paper>
 
         {/* 統計カード */}
-        <Grid container spacing={3} sx={{ mb: 4 }}>
+        <Grid container spacing={3} sx={{ mb: 5 }}>
           <Grid item xs={12} sm={6} md={3}>
             <StatsCard
               title="今日の返信"
@@ -225,7 +271,7 @@ function App() {
         </Grid>
 
         {/* Bot管理 */}
-        <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
+        <Box sx={{ mb: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
           <Typography variant="h5" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <SmartToy />
             Bot管理
@@ -235,18 +281,36 @@ function App() {
               value={botFilter}
               exclusive
               onChange={(_, newFilter) => newFilter && setBotFilter(newFilter)}
-              size="small"
+              sx={{
+                '& .MuiToggleButton-root': {
+                  px: 3,
+                  py: 1,
+                  border: '2px solid',
+                  borderColor: 'divider',
+                  borderRadius: '8px !important',
+                  mx: 0.5,
+                  fontWeight: 600,
+                  '&.Mui-selected': {
+                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                    color: 'white',
+                    borderColor: '#667eea',
+                    '&:hover': {
+                      background: 'linear-gradient(135deg, #764ba2 0%, #667eea 100%)',
+                    },
+                  },
+                },
+              }}
             >
               <ToggleButton value="all">
-                <ViewList sx={{ mr: 1 }} />
+                <ViewList sx={{ mr: 1, fontSize: 20 }} />
                 全て ({bots.length})
               </ToggleButton>
               <ToggleButton value="active">
-                <CheckCircle sx={{ mr: 1 }} />
+                <CheckCircle sx={{ mr: 1, fontSize: 20 }} />
                 有効 ({bots.filter(b => b.status === 0).length})
               </ToggleButton>
               <ToggleButton value="inactive">
-                <Cancel sx={{ mr: 1 }} />
+                <Cancel sx={{ mr: 1, fontSize: 20 }} />
                 無効 ({bots.filter(b => b.status === 1).length})
               </ToggleButton>
             </ToggleButtonGroup>

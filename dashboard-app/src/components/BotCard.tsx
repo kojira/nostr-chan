@@ -29,18 +29,32 @@ export const BotCard = ({ bot, onEdit, onDelete, onToggle }: BotCardProps) => {
 
   return (
     <Card 
+      elevation={0}
       sx={{ 
         height: '100%',
-        background: isActive 
-          ? 'linear-gradient(135deg, #667eea15 0%, #764ba215 100%)'
-          : 'linear-gradient(135deg, #f5f5f5 0%, #e0e0e0 100%)',
-        border: isActive ? '2px solid #667eea' : '2px solid #e0e0e0',
-        transition: 'all 0.3s',
+        background: '#ffffff',
+        border: '1px solid',
+        borderColor: isActive ? '#667eea' : '#e5e7eb',
+        borderRadius: '16px',
+        transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+        position: 'relative',
+        overflow: 'visible',
+        boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
         '&:hover': { 
-          transform: 'translateY(-4px)', 
-          boxShadow: 8,
-          border: isActive ? '2px solid #764ba2' : '2px solid #bdbdbd',
-        } 
+          transform: 'translateY(-8px)', 
+          boxShadow: '0 20px 40px rgba(102, 126, 234, 0.25)',
+          borderColor: isActive ? '#764ba2' : '#667eea',
+        },
+        '&::before': isActive ? {
+          content: '""',
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          height: '5px',
+          background: 'linear-gradient(90deg, #667eea 0%, #764ba2 100%)',
+          borderRadius: '16px 16px 0 0',
+        } : {},
       }}
     >
       <CardContent>
@@ -49,12 +63,13 @@ export const BotCard = ({ bot, onEdit, onDelete, onToggle }: BotCardProps) => {
             <Avatar
               src={kind0Info?.picture || undefined}
               sx={{ 
-                width: 56, 
-                height: 56,
-                border: isActive ? '3px solid #667eea' : '3px solid #bdbdbd',
+                width: 72, 
+                height: 72,
+                border: isActive ? '4px solid #667eea' : '4px solid #e5e7eb',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
               }}
             >
-              <SmartToy sx={{ fontSize: 32 }} />
+              <SmartToy sx={{ fontSize: 40 }} />
             </Avatar>
             <Box sx={{ flex: 1, minWidth: 0 }}>
               {kind0Info?.name && (
@@ -85,30 +100,70 @@ export const BotCard = ({ bot, onEdit, onDelete, onToggle }: BotCardProps) => {
             </Box>
           </Box>
           
-          <Box sx={{ display: 'flex', gap: 1 }}>
+          <Box sx={{ display: 'flex', gap: 0.5 }}>
             <Tooltip title={isActive ? '無効化' : '有効化'}>
               <IconButton 
                 onClick={() => onToggle(bot.pubkey)}
-                color={isActive ? 'warning' : 'success'}
+                sx={{
+                  bgcolor: isActive ? 'warning.light' : 'success.light',
+                  color: isActive ? 'warning.dark' : 'success.dark',
+                  '&:hover': {
+                    bgcolor: isActive ? 'warning.main' : 'success.main',
+                    color: 'white',
+                  },
+                }}
+                size="small"
               >
-                {isActive ? <Pause /> : <PlayArrow />}
+                {isActive ? <Pause fontSize="small" /> : <PlayArrow fontSize="small" />}
               </IconButton>
             </Tooltip>
             <Tooltip title="編集">
-              <IconButton onClick={() => onEdit(bot)} color="primary">
-                <Edit />
+              <IconButton 
+                onClick={() => onEdit(bot)} 
+                sx={{
+                  bgcolor: 'primary.light',
+                  color: 'primary.dark',
+                  '&:hover': {
+                    bgcolor: 'primary.main',
+                    color: 'white',
+                  },
+                }}
+                size="small"
+              >
+                <Edit fontSize="small" />
               </IconButton>
             </Tooltip>
             <Tooltip title="削除">
-              <IconButton onClick={() => onDelete(bot.pubkey)} color="error">
-                <Delete />
+              <IconButton 
+                onClick={() => onDelete(bot.pubkey)}
+                sx={{
+                  bgcolor: 'error.light',
+                  color: 'error.dark',
+                  '&:hover': {
+                    bgcolor: 'error.main',
+                    color: 'white',
+                  },
+                }}
+                size="small"
+              >
+                <Delete fontSize="small" />
               </IconButton>
             </Tooltip>
           </Box>
         </Box>
 
-        <Box sx={{ borderLeft: 4, borderColor: 'primary.main', pl: 2, mb: 2 }}>
-          <Typography variant="subtitle2" fontWeight="bold" gutterBottom>
+        <Box 
+          sx={{ 
+            borderLeft: '4px solid',
+            borderColor: 'primary.main', 
+            pl: 2, 
+            py: 1,
+            mb: 2,
+            bgcolor: 'rgba(102, 126, 234, 0.03)',
+            borderRadius: '0 8px 8px 0',
+          }}
+        >
+          <Typography variant="caption" fontWeight="bold" color="primary.main" textTransform="uppercase" letterSpacing={0.8}>
             プロンプト
           </Typography>
           <Typography variant="body2" color="text.secondary" sx={{
@@ -117,18 +172,29 @@ export const BotCard = ({ bot, onEdit, onDelete, onToggle }: BotCardProps) => {
             display: '-webkit-box',
             WebkitLineClamp: 2,
             WebkitBoxOrient: 'vertical',
+            mt: 0.5,
+            lineHeight: 1.6,
           }}>
             {bot.prompt}
           </Typography>
         </Box>
 
-        {bot.content && (
-          <Box sx={{ borderLeft: 4, borderColor: 'secondary.main', pl: 2 }}>
-            <Typography variant="subtitle2" fontWeight="bold" gutterBottom>
+        {bot.content && kind0Info?.name && (
+          <Box 
+            sx={{ 
+              borderLeft: '4px solid',
+              borderColor: 'secondary.main', 
+              pl: 2,
+              py: 1,
+              bgcolor: 'rgba(118, 75, 162, 0.03)',
+              borderRadius: '0 8px 8px 0',
+            }}
+          >
+            <Typography variant="caption" fontWeight="bold" color="secondary.main" textTransform="uppercase" letterSpacing={0.8}>
               追加情報
             </Typography>
-            <Typography variant="body2" color="text.secondary" noWrap>
-              {bot.content}
+            <Typography variant="body2" color="text.secondary" noWrap sx={{ mt: 0.5 }}>
+              {kind0Info.name}の設定情報
             </Typography>
           </Box>
         )}
