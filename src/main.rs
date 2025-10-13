@@ -316,7 +316,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 ).await {
                                     Ok(ctx) => Some(ctx),
                                     Err(e) => {
-                                        eprintln!("会話コンテキスト準備エラー: {}", e);
+                                        eprintln!("[Conversation] コンテキスト準備エラー（要約タイムアウト等）: {} - コンテキストなしで返信します", e);
                                         None
                                     }
                                 }
