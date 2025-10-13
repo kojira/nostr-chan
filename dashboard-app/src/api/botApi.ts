@@ -61,5 +61,11 @@ export const botApi = {
     if (!res.ok) throw new Error('設定に失敗しました');
     return res.json();
   },
+
+  async getDailyReplies(): Promise<{ data: Record<string, Array<{ date: string; count: number }>> }> {
+    const res = await fetch('/api/analytics/daily-replies');
+    if (!res.ok) throw new Error('日別返信数の取得に失敗しました');
+    return res.json();
+  },
 };
 

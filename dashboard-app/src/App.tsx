@@ -31,8 +31,10 @@ import {
 import { StatsCard } from './components/StatsCard';
 import { BotCard } from './components/BotCard';
 import { BotDialog } from './components/BotDialog';
+import { ReplyTrendChart } from './components/ReplyTrendChart';
 import { useBots } from './hooks/useBots';
 import { useStats } from './hooks/useStats';
+import { useDailyReplies } from './hooks/useDailyReplies';
 import { botApi } from './api/botApi';
 import type { BotData, BotRequest } from './types';
 
@@ -41,6 +43,7 @@ type BotFilter = 'all' | 'active' | 'inactive';
 function App() {
   const { bots, loading: botsLoading, reload: reloadBots } = useBots();
   const { stats, loading: statsLoading, reload: reloadStats } = useStats();
+  const { data: dailyRepliesData, loading: dailyRepliesLoading, reload: reloadDailyReplies } = useDailyReplies();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingBot, setEditingBot] = useState<BotData | null>(null);
   const [botFilter, setBotFilter] = useState<BotFilter>('all');
@@ -53,6 +56,7 @@ function App() {
   const handleRefresh = () => {
     reloadBots();
     reloadStats();
+    reloadDailyReplies();
     botApi.getGlobalPause().then(({ paused }) => setGlobalPause(paused));
   };
 
@@ -244,14 +248,6 @@ function App() {
           </Grid>
           <Grid item xs={12} sm={6} md={3}>
             <StatsCard
-              title="アクティブ会話"
-              value={statsLoading ? '...' : stats?.conversation_stats?.active_conversations || 0}
-              icon={People}
-              color="success"
-            />
-          </Grid>
-          <Grid item xs={12} sm={6} md={3}>
-            <StatsCard
               title="ベクトル化済"
               value={statsLoading ? '...' : stats?.rag_stats?.vectorized_events || 0}
               subtitle={`/ ${stats?.rag_stats?.total_events || 0} イベント`}
@@ -269,6 +265,13 @@ function App() {
             />
           </Grid>
         </Grid>
+
+        {/* グラフ */}
+        {!dailyRepliesLoading && (
+          <Box sx={{ mb: 5 }}>
+            <ReplyTrendChart data={dailyRepliesData} bots={bots} />
+          </Box>
+        )}
 
         {/* Bot管理 */}
         <Box sx={{ mb: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>

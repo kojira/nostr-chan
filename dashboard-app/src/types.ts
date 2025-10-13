@@ -35,7 +35,6 @@ export interface ReplyStats {
 }
 
 export interface ConversationStats {
-  active_conversations: number;
   unique_users: number;
   rate_limited_users: number;
 }

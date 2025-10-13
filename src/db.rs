@@ -220,6 +220,38 @@ pub fn update_person_status(conn: &Connection, pubkey: &str, status: i32) -> Res
     Ok(())
 }
 
+// ========== Analytics ==========
+
+/// Bot毎の日別投稿数を取得（過去N日分）
+pub fn get_bot_daily_reply_counts(conn: &Connection, days: i64) -> Result<Vec<(String, String, i64)>> {
+    let cutoff_time = Utc::now().timestamp() - (days * 24 * 60 * 60);
+    
+    let mut stmt = conn.prepare(
+        "SELECT 
+            cl.bot_pubkey,
+            date(cl.logged_at, 'unixepoch') as date,
+            COUNT(*) as count
+         FROM conversation_logs cl
+         WHERE cl.is_bot_message = 1
+         AND cl.logged_at >= ?
+         GROUP BY cl.bot_pubkey, date
+         ORDER BY date ASC"
+    )?;
+    
+    let results = stmt.query_map(params![cutoff_time], |row| {
+        Ok((
+            row.get::<_, String>(0)?, // bot_pubkey
+            row.get::<_, String>(1)?, // date (YYYY-MM-DD)
+            row.get::<_, i64>(2)?,    // count
+        ))
+    })?
+    .collect::<Result<Vec<_>>>()?;
+    
+    Ok(results)
+}
+
+// ========== System Settings ==========
+
 // システム設定の取得
 pub fn get_system_setting(conn: &Connection, key: &str) -> Result<Option<String>> {
     let result = conn.query_row(
@@ -1059,12 +1091,6 @@ pub fn get_dashboard_stats(conn: &Connection) -> Result<DashboardStats> {
     ).unwrap_or(0);
     
     // 会話統計
-    let active_conversations: u32 = conn.query_row(
-        "SELECT COUNT(DISTINCT user_pubkey) FROM conversation_logs WHERE timestamp >= ?",
-        params![now - 3600], // 過去1時間
-        |row| row.get(0)
-    ).unwrap_or(0);
-    
     let unique_users: u32 = conn.query_row(
         "SELECT COUNT(DISTINCT user_pubkey) FROM conversation_logs",
         [],
@@ -1116,7 +1142,6 @@ pub fn get_dashboard_stats(conn: &Connection) -> Result<DashboardStats> {
         replies_week,
         replies_month,
         replies_total,
-        active_conversations,
         unique_users,
         rate_limited_users,
         vectorized_events,
@@ -1133,7 +1158,6 @@ pub struct DashboardStats {
     pub replies_week: u32,
     pub replies_month: u32,
     pub replies_total: u32,
-    pub active_conversations: u32,
     pub unique_users: u32,
     pub rate_limited_users: u32,
     pub vectorized_events: u32,
