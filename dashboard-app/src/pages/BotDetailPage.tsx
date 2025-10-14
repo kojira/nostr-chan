@@ -26,6 +26,7 @@ export const BotDetailPage = () => {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(25);
   const [searchText, setSearchText] = useState('');
+  const [debouncedSearchText, setDebouncedSearchText] = useState('');
   const [sortBy, setSortBy] = useState<'created_at' | 'content'>('created_at');
   const [sortOrder, setSortOrder] = useState<'ASC' | 'DESC'>('DESC');
   const [jsonDialogOpen, setJsonDialogOpen] = useState(false);
@@ -33,11 +34,21 @@ export const BotDetailPage = () => {
 
   const bot = bots.find(b => b.pubkey === pubkey);
 
+  // 検索テキストのデバウンス
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchText(searchText);
+      setPage(0); // 検索時はページをリセット
+    }, 500); // 500ms待機
+
+    return () => clearTimeout(timer);
+  }, [searchText]);
+
   useEffect(() => {
     if (pubkey) {
       loadReplies();
     }
-  }, [pubkey, page, rowsPerPage, searchText, sortBy, sortOrder]);
+  }, [pubkey, page, rowsPerPage, debouncedSearchText, sortBy, sortOrder]);
 
   const loadReplies = async () => {
     try {
@@ -50,8 +61,8 @@ export const BotDetailPage = () => {
         sort_order: sortOrder,
       });
       
-      if (searchText) {
-        params.append('search', searchText);
+      if (debouncedSearchText) {
+        params.append('search', debouncedSearchText);
       }
 
       const response = await fetch(`/api/bots/${pubkey}/replies?${params}`);
@@ -84,7 +95,6 @@ export const BotDetailPage = () => {
 
   const handleSearchChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     setSearchText(event.target.value);
-    setPage(0); // 検索時はページをリセット
   };
 
   const handleChangePage = (_event: unknown, newPage: number) => {
