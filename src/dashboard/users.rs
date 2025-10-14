@@ -26,12 +26,22 @@ pub async fn get_kind0_handler(
 ) -> Result<Json<UserKind0>, StatusCode> {
     let conn = db::connect().map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     
-    // eventsテーブルからkind0情報を取得
+    // 1. まずKind 0イベント自体を探す（kind=0）
     let mut stmt = conn.prepare(
-        "SELECT kind0_content FROM events WHERE pubkey = ? AND kind0_content IS NOT NULL LIMIT 1"
+        "SELECT content FROM events WHERE pubkey = ? AND kind = 0 ORDER BY created_at DESC LIMIT 1"
     ).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     
     let kind0_content: Option<String> = stmt.query_row([&pubkey], |row| row.get(0)).ok();
+    
+    // 2. Kind 0イベントが見つからない場合、他のイベントのkind0_contentを見る（キャッシュ）
+    let kind0_content = if kind0_content.is_none() {
+        let mut stmt2 = conn.prepare(
+            "SELECT kind0_content FROM events WHERE pubkey = ? AND kind0_content IS NOT NULL LIMIT 1"
+        ).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        stmt2.query_row([&pubkey], |row| row.get(0)).ok()
+    } else {
+        kind0_content
+    };
     
     // hex pubkeyをnpubに変換
     let npub = match nostr_sdk::PublicKey::from_hex(&pubkey) {
