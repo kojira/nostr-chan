@@ -468,7 +468,13 @@ async fn process_event(
             &event.content,
             50,
         ).await {
-            Ok(ctx) => Some(ctx),
+            Ok(ctx) => {
+                if ctx.is_empty() {
+                    None
+                } else {
+                    Some(ctx)
+                }
+            },
             Err(e) => {
                 eprintln!("[Worker] コンテキスト準備エラー: {}", e);
                 None
