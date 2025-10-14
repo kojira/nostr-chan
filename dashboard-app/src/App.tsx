@@ -1,27 +1,28 @@
 import { useState, useEffect } from 'react';
+import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
 import {
-  Container,
-  Typography,
   Box,
   Button,
   AppBar,
   Toolbar,
+  Typography,
   Switch,
   CircularProgress,
 } from '@mui/material';
 import { SmartToy, Refresh } from '@mui/icons-material';
-import { StatisticsSection } from './sections/StatisticsSection';
-import { BotsSection } from './sections/BotsSection';
-import { FollowerCacheSection } from './sections/FollowerCacheSection';
+import { DashboardPage } from './pages/DashboardPage';
+import { BotsPage } from './pages/BotsPage';
+import { FollowerCachePage } from './pages/FollowerCachePage';
 import { useBots } from './hooks/useBots';
 import { useStats } from './hooks/useStats';
 import { useDailyReplies } from './hooks/useDailyReplies';
 import { botApi } from './api/botApi';
 
-function App() {
-  const { bots, loading: botsLoading, reload: reloadBots } = useBots();
-  const { stats, loading: statsLoading, reload: reloadStats } = useStats();
-  const { data: dailyRepliesData, loading: dailyRepliesLoading, reload: reloadDailyReplies } = useDailyReplies();
+function AppContent() {
+  const location = useLocation();
+  const { loading: botsLoading, reload: reloadBots } = useBots();
+  const { loading: statsLoading, reload: reloadStats } = useStats();
+  const { reload: reloadDailyReplies } = useDailyReplies();
   const [globalPause, setGlobalPause] = useState(false);
   const [pauseLoading, setPauseLoading] = useState(false);
 
@@ -56,6 +57,9 @@ function App() {
       setPauseLoading(false);
     }
   };
+
+  // トップページ以外では更新ボタンを非表示
+  const showRefreshButton = location.pathname === '/';
 
   if (botsLoading || statsLoading) {
     return (
@@ -111,38 +115,41 @@ function App() {
             <Typography variant="body2" fontWeight="medium">
               {globalPause ? '⏸️ 一時停止中' : '▶️ 稼働中'}
             </Typography>
-            <Button
-              variant="outlined"
-              startIcon={<Refresh />}
-              onClick={handleRefresh}
-              sx={{
-                color: 'white',
-                borderColor: 'rgba(255,255,255,0.3)',
-                '&:hover': {
-                  borderColor: 'white',
-                  bgcolor: 'rgba(255,255,255,0.1)',
-                },
-              }}
-            >
-              更新
-            </Button>
+            {showRefreshButton && (
+              <Button
+                variant="outlined"
+                startIcon={<Refresh />}
+                onClick={handleRefresh}
+                sx={{
+                  color: 'white',
+                  borderColor: 'rgba(255,255,255,0.3)',
+                  '&:hover': {
+                    borderColor: 'white',
+                    bgcolor: 'rgba(255,255,255,0.1)',
+                  },
+                }}
+              >
+                更新
+              </Button>
+            )}
           </Box>
         </Toolbar>
       </AppBar>
 
-      <Container maxWidth="xl" sx={{ py: 4 }}>
-        <StatisticsSection 
-          stats={stats} 
-          dailyRepliesData={dailyRepliesData}
-          bots={bots}
-          dailyRepliesLoading={dailyRepliesLoading}
-        />
-        
-        <BotsSection bots={bots} onRefresh={handleRefresh} />
-        
-        <FollowerCacheSection />
-      </Container>
+      <Routes>
+        <Route path="/" element={<DashboardPage />} />
+        <Route path="/bots" element={<BotsPage />} />
+        <Route path="/follower-cache" element={<FollowerCachePage />} />
+      </Routes>
     </Box>
+  );
+}
+
+function App() {
+  return (
+    <BrowserRouter>
+      <AppContent />
+    </BrowserRouter>
   );
 }
 

@@ -47,19 +47,19 @@ export const botApi = {
     return res.json();
   },
 
-  async getGlobalPause(): Promise<{ paused: boolean }> {
+  async getGlobalPause(): Promise<boolean> {
     const res = await fetch('/api/global-pause');
-    return res.json();
+    const data = await res.json();
+    return data.paused;
   },
 
-  async setGlobalPause(paused: boolean): Promise<{ paused: boolean }> {
+  async setGlobalPause(paused: boolean): Promise<void> {
     const res = await fetch('/api/global-pause', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ paused }),
     });
     if (!res.ok) throw new Error('設定に失敗しました');
-    return res.json();
   },
 
   async getDailyReplies(): Promise<{ data: Record<string, Array<{ date: string; count: number }>> }> {
