@@ -131,6 +131,10 @@ pub async fn start_dashboard(
         .route("/api/bots/:pubkey/toggle", post(toggle_bot_handler))
         .route("/api/bots/:pubkey/kind0", get(fetch_kind0_handler))
         .route("/api/bots/:pubkey/post", post(post_as_bot_handler))
+        .route("/api/follower-cache", get(list_follower_cache_handler))
+        .route("/api/follower-cache", delete(clear_follower_cache_handler))
+        .route("/api/follower-cache/:user_pubkey/:bot_pubkey", put(update_follower_cache_handler))
+        .route("/api/follower-cache/:user_pubkey/:bot_pubkey", delete(delete_follower_cache_handler))
         .route("/api/global-pause", get(get_global_pause_handler))
         .route("/api/global-pause", post(set_global_pause_handler))
         .route("/api/analytics/daily-replies", get(daily_replies_handler))
@@ -646,5 +650,90 @@ async fn fetch_kind0_handler(
             "content": "" 
         })))
     }
+}
+
+/// フォロワーキャッシュ一覧
+#[derive(Debug, Serialize)]
+struct FollowerCacheEntry {
+    user_pubkey: String,
+    bot_pubkey: String,
+    is_follower: bool,
+    cached_at: i64,
+}
+
+async fn list_follower_cache_handler(
+    State(_state): State<DashboardState>,
+) -> Result<Json<Vec<FollowerCacheEntry>>, StatusCode> {
+    let conn = db::connect().map_err(|e| {
+        eprintln!("DB接続エラー: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+    
+    let caches = db::get_all_follower_cache(&conn).map_err(|e| {
+        eprintln!("フォロワーキャッシュ取得エラー: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+    
+    let entries = caches.into_iter().map(|(user_pubkey, bot_pubkey, is_follower, cached_at)| {
+        FollowerCacheEntry {
+            user_pubkey,
+            bot_pubkey,
+            is_follower,
+            cached_at,
+        }
+    }).collect();
+    
+    Ok(Json(entries))
+}
+
+/// フォロワーキャッシュ全削除
+async fn clear_follower_cache_handler(
+    State(_state): State<DashboardState>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let conn = db::connect().map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    
+    let deleted = db::clear_follower_cache(&conn).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    
+    println!("🗑️ フォロワーキャッシュを全削除しました ({}件)", deleted);
+    
+    Ok(Json(serde_json::json!({ 
+        "deleted": deleted 
+    })))
+}
+
+/// フォロワーキャッシュ更新
+#[derive(Debug, Deserialize)]
+struct UpdateFollowerCacheRequest {
+    is_follower: bool,
+}
+
+async fn update_follower_cache_handler(
+    State(_state): State<DashboardState>,
+    Path((user_pubkey, bot_pubkey)): Path<(String, String)>,
+    Json(req): Json<UpdateFollowerCacheRequest>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let conn = db::connect().map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    
+    db::update_follower_cache(&conn, &user_pubkey, &bot_pubkey, req.is_follower)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    
+    Ok(Json(serde_json::json!({ 
+        "success": true 
+    })))
+}
+
+/// フォロワーキャッシュ個別削除
+async fn delete_follower_cache_handler(
+    State(_state): State<DashboardState>,
+    Path((user_pubkey, bot_pubkey)): Path<(String, String)>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let conn = db::connect().map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    
+    let deleted = db::delete_user_follower_cache(&conn, &user_pubkey, &bot_pubkey)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    
+    Ok(Json(serde_json::json!({ 
+        "deleted": deleted 
+    })))
 }
 

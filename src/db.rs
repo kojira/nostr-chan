@@ -427,6 +427,32 @@ pub fn delete_user_follower_cache(conn: &Connection, user_pubkey: &str, bot_pubk
     Ok(deleted)
 }
 
+pub fn get_all_follower_cache(conn: &Connection) -> Result<Vec<(String, String, bool, i64)>> {
+    let mut stmt = conn.prepare(
+        "SELECT user_pubkey, bot_pubkey, is_follower, cached_at FROM follower_cache ORDER BY cached_at DESC"
+    )?;
+    
+    let results = stmt.query_map([], |row| {
+        Ok((
+            row.get::<_, String>(0)?,
+            row.get::<_, String>(1)?,
+            row.get::<_, i64>(2)? == 1,
+            row.get::<_, i64>(3)?,
+        ))
+    })?
+    .collect::<Result<Vec<_>>>()?;
+    
+    Ok(results)
+}
+
+pub fn update_follower_cache(conn: &Connection, user_pubkey: &str, bot_pubkey: &str, is_follower: bool) -> Result<()> {
+    conn.execute(
+        "UPDATE follower_cache SET is_follower = ?, cached_at = ? WHERE user_pubkey = ? AND bot_pubkey = ?",
+        params![if is_follower { 1 } else { 0 }, Utc::now().timestamp(), user_pubkey, bot_pubkey],
+    )?;
+    Ok(())
+}
+
 // Kind 0 cache functions
 #[allow(dead_code)]
 pub fn get_kind0_cache(conn: &Connection, pubkey: &str, ttl: i64) -> Result<Option<String>> {
