@@ -7,10 +7,14 @@ Nostr-chan is a bot that lives on Nostr.
 ```sh
 git clone https://github.com/kojira/nostr-chan.git
 cd nostr-chan
-cp .env.example .env
+cp config.yml.example config.yml
+
+# Create cache directories
+mkdir -p .cache/huggingface
+mkdir -p .gemini
 ```
 
-Change the contents of `.env` according to the environment.
+Change the contents of `config.yml` according to the environment.
 ```
 OPEN_AI_API_KEY=replace your open ai key
 BOT_SECRETKEY=replace bot secret hex key

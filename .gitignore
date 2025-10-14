@@ -131,3 +131,7 @@ dmypy.json
 # Local configuration and database files
 config.yml
 *.db
+
+# Cache directories
+.cache/
+.gemini/
