@@ -26,7 +26,8 @@ export const BotDetailPage = () => {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(25);
   const [searchText, setSearchText] = useState('');
-  const [debouncedSearchText, setDebouncedSearchText] = useState('');
+  const [actualSearchText, setActualSearchText] = useState('');
+  const [isComposing, setIsComposing] = useState(false);
   const [sortBy, setSortBy] = useState<'created_at' | 'content'>('created_at');
   const [sortOrder, setSortOrder] = useState<'ASC' | 'DESC'>('DESC');
   const [jsonDialogOpen, setJsonDialogOpen] = useState(false);
@@ -34,21 +35,11 @@ export const BotDetailPage = () => {
 
   const bot = bots.find(b => b.pubkey === pubkey);
 
-  // 検索テキストのデバウンス
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedSearchText(searchText);
-      setPage(0); // 検索時はページをリセット
-    }, 500); // 500ms待機
-
-    return () => clearTimeout(timer);
-  }, [searchText]);
-
   useEffect(() => {
     if (pubkey) {
       loadReplies();
     }
-  }, [pubkey, page, rowsPerPage, debouncedSearchText, sortBy, sortOrder]);
+  }, [pubkey, page, rowsPerPage, actualSearchText, sortBy, sortOrder]);
 
   const loadReplies = async () => {
     try {
@@ -61,8 +52,8 @@ export const BotDetailPage = () => {
         sort_order: sortOrder,
       });
       
-      if (debouncedSearchText) {
-        params.append('search', debouncedSearchText);
+      if (actualSearchText) {
+        params.append('search', actualSearchText);
       }
 
       const response = await fetch(`/api/bots/${pubkey}/replies?${params}`);
@@ -94,7 +85,24 @@ export const BotDetailPage = () => {
   };
 
   const handleSearchChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    setSearchText(event.target.value);
+    const value = event.target.value;
+    setSearchText(value);
+    // 日本語入力中でなければ即座に検索実行
+    if (!isComposing) {
+      setActualSearchText(value);
+      setPage(0);
+    }
+  };
+
+  const handleCompositionStart = () => {
+    setIsComposing(true);
+  };
+
+  const handleCompositionEnd = (event: React.CompositionEvent<HTMLInputElement>) => {
+    setIsComposing(false);
+    const value = (event.target as HTMLInputElement).value;
+    setActualSearchText(value);
+    setPage(0);
   };
 
   const handleChangePage = (_event: unknown, newPage: number) => {
@@ -162,6 +170,8 @@ export const BotDetailPage = () => {
             size="small"
             value={searchText}
             onChange={handleSearchChange}
+            onCompositionStart={handleCompositionStart}
+            onCompositionEnd={handleCompositionEnd}
             sx={{ minWidth: 200, flex: 1 }}
             placeholder="本文で検索..."
           />
