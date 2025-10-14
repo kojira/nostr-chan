@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { 
   Container, Box, Typography, IconButton, Paper, Button, Table, TableBody, 
-  TableCell, TableContainer, TableHead, TableRow, Chip, Tooltip, TablePagination 
+  TableCell, TableContainer, TableHead, TableRow, Chip, Tooltip, TablePagination,
+  TextField, InputAdornment, MenuItem, Select, FormControl, InputLabel
 } from '@mui/material';
-import { ArrowBack, Delete, DeleteSweep, People } from '@mui/icons-material';
+import { ArrowBack, Delete, DeleteSweep, People, Search, FilterList } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 
 interface FollowerCache {
@@ -21,6 +22,9 @@ export const FollowerCachePage = () => {
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(25);
+  const [userFilter, setUserFilter] = useState('');
+  const [botFilter, setBotFilter] = useState('');
+  const [followFilter, setFollowFilter] = useState<'all' | 'following' | 'not-following'>('all');
 
   const loadCaches = async () => {
     try {
@@ -85,7 +89,44 @@ export const FollowerCachePage = () => {
     return new Date(timestamp * 1000).toLocaleString('ja-JP');
   };
 
-  const paginatedCaches = caches.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
+  // フィルタ処理
+  const filteredCaches = useMemo(() => {
+    return caches.filter(cache => {
+      // ユーザー名フィルタ
+      if (userFilter) {
+        const userName = cache.user_name?.toLowerCase() || '';
+        const userPubkey = cache.user_pubkey.toLowerCase();
+        const searchTerm = userFilter.toLowerCase();
+        if (!userName.includes(searchTerm) && !userPubkey.includes(searchTerm)) {
+          return false;
+        }
+      }
+
+      // Bot名フィルタ
+      if (botFilter) {
+        const botName = cache.bot_name?.toLowerCase() || '';
+        const botPubkey = cache.bot_pubkey.toLowerCase();
+        const searchTerm = botFilter.toLowerCase();
+        if (!botName.includes(searchTerm) && !botPubkey.includes(searchTerm)) {
+          return false;
+        }
+      }
+
+      // フォロー状態フィルタ
+      if (followFilter === 'following' && !cache.is_follower) return false;
+      if (followFilter === 'not-following' && cache.is_follower) return false;
+
+      return true;
+    });
+  }, [caches, userFilter, botFilter, followFilter]);
+
+  // ページネーション
+  const paginatedCaches = filteredCaches.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
+
+  // フィルタ変更時にページをリセット
+  useEffect(() => {
+    setPage(0);
+  }, [userFilter, botFilter, followFilter]);
 
   return (
     <Container maxWidth="xl" sx={{ py: 4 }}>
@@ -105,7 +146,7 @@ export const FollowerCachePage = () => {
             <Typography variant="h6" fontWeight="bold">
               フォロワーキャッシュ一覧
             </Typography>
-            <Chip label={`${caches.length}件`} size="small" color="primary" />
+            <Chip label={`${filteredCaches.length} / ${caches.length}件`} size="small" color="primary" />
           </Box>
           <Button
             variant="outlined"
@@ -116,6 +157,68 @@ export const FollowerCachePage = () => {
           >
             全削除
           </Button>
+        </Box>
+
+        {/* フィルタUI */}
+        <Box sx={{ display: 'flex', gap: 2, mb: 3, flexWrap: 'wrap' }}>
+          <TextField
+            size="small"
+            placeholder="ユーザー名またはPubkeyで検索..."
+            value={userFilter}
+            onChange={(e) => setUserFilter(e.target.value)}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <Search fontSize="small" />
+                </InputAdornment>
+              ),
+            }}
+            sx={{ minWidth: 300 }}
+          />
+          <TextField
+            size="small"
+            placeholder="Bot名またはPubkeyで検索..."
+            value={botFilter}
+            onChange={(e) => setBotFilter(e.target.value)}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <Search fontSize="small" />
+                </InputAdornment>
+              ),
+            }}
+            sx={{ minWidth: 300 }}
+          />
+          <FormControl size="small" sx={{ minWidth: 180 }}>
+            <InputLabel>フォロー状態</InputLabel>
+            <Select
+              value={followFilter}
+              onChange={(e) => setFollowFilter(e.target.value as typeof followFilter)}
+              label="フォロー状態"
+              startAdornment={
+                <InputAdornment position="start">
+                  <FilterList fontSize="small" />
+                </InputAdornment>
+              }
+            >
+              <MenuItem value="all">すべて</MenuItem>
+              <MenuItem value="following">フォロー中のみ</MenuItem>
+              <MenuItem value="not-following">未フォローのみ</MenuItem>
+            </Select>
+          </FormControl>
+          {(userFilter || botFilter || followFilter !== 'all') && (
+            <Button
+              size="small"
+              variant="outlined"
+              onClick={() => {
+                setUserFilter('');
+                setBotFilter('');
+                setFollowFilter('all');
+              }}
+            >
+              フィルタクリア
+            </Button>
+          )}
         </Box>
 
         {loading ? (
@@ -202,7 +305,7 @@ export const FollowerCachePage = () => {
             </TableContainer>
             <TablePagination
               component="div"
-              count={caches.length}
+              count={filteredCaches.length}
               page={page}
               onPageChange={(_, newPage) => setPage(newPage)}
               rowsPerPage={rowsPerPage}
