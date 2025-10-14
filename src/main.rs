@@ -322,8 +322,18 @@ async fn process_event(
     // personsを取得
     let persons = db::get_all_persons(&conn)?;
     
-    // メンション判定
-    let person_op = util::extract_mention(persons.clone(), &event)?;
+    // 有効なBotのみをフィルタ（status == 0）
+    let active_persons: Vec<db::Person> = persons.iter()
+        .filter(|p| p.status == 0)
+        .cloned()
+        .collect();
+    
+    if active_persons.is_empty() {
+        return Ok(());
+    }
+    
+    // メンション判定（有効なBotのみ）
+    let person_op = util::extract_mention(active_persons.clone(), &event)?;
     let has_mention = person_op.is_some();
     
     // エアリプは日本語のみ
@@ -331,15 +341,27 @@ async fn process_event(
         return Ok(());
     }
     
-    // 確率判定
-    let (mut should_post, _) = util::judge_post(&config, persons.clone(), &event)?;
+    // 確率判定（有効なBotのみ）
+    let (mut should_post, _) = util::judge_post(&config, active_persons.clone(), &event)?;
     
     // Personを決定
     let person = if let Some(p) = person_op {
         p
     } else {
-        db::get_random_person(&conn)?
+        // ランダム選択も有効なBotから
+        if active_persons.is_empty() {
+            return Ok(());
+        }
+        use rand::seq::SliceRandom;
+        let mut rng = rand::thread_rng();
+        active_persons.choose(&mut rng).unwrap().clone()
     };
+    
+    // Botのステータスチェック（無効化されていたらスキップ）
+    if person.status != 0 {
+        println!("🚫 Bot無効化中のため、返信をスキップ: {} ({})", person.pubkey, event.id);
+        return Ok(());
+    }
     
     // メンションの場合は必ず返信
     if has_mention {
@@ -397,7 +419,7 @@ async fn process_event(
         let mentioned_pubkeys = db::extract_mentioned_pubkeys(&event_json).ok();
         let thread_root_id = db::extract_thread_root_id(&event_json).ok().flatten();
         
-        let all_bot_pubkeys: Vec<String> = persons.iter().map(|p| p.pubkey.clone()).collect();
+        let all_bot_pubkeys: Vec<String> = active_persons.iter().map(|p| p.pubkey.clone()).collect();
         let is_bot_conversation = if let Some(ref pks) = mentioned_pubkeys {
             db::detect_bot_conversation(pks, &all_bot_pubkeys)
         } else {
