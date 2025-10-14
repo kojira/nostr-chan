@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, useLocation, useNavigate } from 'react-router-dom';
 import {
   Box,
   Button,
@@ -26,6 +26,7 @@ import { botApi } from './api/botApi';
 
 function AppContent() {
   const location = useLocation();
+  const navigate = useNavigate();
   const { loading: botsLoading, reload: reloadBots } = useBots();
   const { loading: statsLoading, reload: reloadStats } = useStats();
   const { reload: reloadDailyReplies } = useDailyReplies();
@@ -87,9 +88,16 @@ function AppContent() {
       >
         <Toolbar>
           <SmartToy sx={{ mr: 2, fontSize: 32 }} />
-          <Box>
+          <Box 
+            onClick={() => navigate('/')}
+            sx={{ 
+              cursor: 'pointer',
+              '&:hover': { opacity: 0.8 },
+              transition: 'opacity 0.2s'
+            }}
+          >
             <Typography variant="h6" fontWeight="bold">
-              Nostr Bot Dashboard
+              📊 Nostr Bot Dashboard
             </Typography>
             <Typography variant="caption" sx={{ opacity: 0.9 }}>
               Bot管理コンソール
