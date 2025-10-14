@@ -11,6 +11,7 @@ import { useBots } from '../hooks/useBots';
 
 interface UserKind0 {
   pubkey: string;
+  npub: string;
   name: string | null;
   display_name: string | null;
   picture: string | null;
@@ -40,6 +41,7 @@ const ParticipantAvatar = ({ pubkey, onClick }: { pubkey: string; onClick: () =>
         const response = await fetch(`/api/users/${pubkey}/kind0`);
         if (response.ok) {
           const data = await response.json();
+          console.log('Kind0データ:', pubkey.substring(0, 8), data);
           setKind0(data);
         }
       } catch (error) {
@@ -315,14 +317,9 @@ export const BotSummariesPage = () => {
     }
   };
 
-  const hexToNpub = (hex: string): string => {
-    try {
-      // nostr-sdk互換のnpub変換（簡易実装）
-      // 実際のnpub変換にはnostr-toolsライブラリが必要
-      return `npub1${hex.substring(0, 8)}...`;
-    } catch {
-      return hex;
-    }
+  // バックエンドから取得したnpubを使用
+  const getNpub = (): string => {
+    return selectedUserKind0?.npub || selectedUserPubkey;
   };
 
   const handleCopyToClipboard = (text: string) => {
@@ -591,9 +588,9 @@ export const BotSummariesPage = () => {
                     flex: 1,
                   }}
                 >
-                  {hexToNpub(selectedUserPubkey)}
+                  {getNpub()}
                 </Typography>
-                <Button size="small" onClick={() => handleCopyToClipboard(hexToNpub(selectedUserPubkey))}>
+                <Button size="small" onClick={() => handleCopyToClipboard(getNpub())}>
                   コピー
                 </Button>
               </Box>
