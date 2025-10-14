@@ -455,13 +455,16 @@ async fn daily_replies_handler(
     
     // Bot別にグループ化してJSON形式に変換
     use std::collections::HashMap;
-    let mut bot_data: HashMap<String, Vec<(String, i64)>> = HashMap::new();
+    let mut bot_data: HashMap<String, Vec<serde_json::Value>> = HashMap::new();
     
     for (bot_pubkey, date, count) in results {
         bot_data
             .entry(bot_pubkey)
             .or_insert_with(Vec::new)
-            .push((date, count));
+            .push(serde_json::json!({
+                "date": date,
+                "count": count
+            }));
     }
     
     Ok(Json(serde_json::json!({ "data": bot_data })))
