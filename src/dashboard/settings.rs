@@ -328,6 +328,45 @@ pub async fn set_relay_settings_handler(
 }
 
 // ============================================================
+// ブラックリスト設定
+// ============================================================
+
+/// ブラックリスト設定の取得
+pub async fn get_blacklist_settings_handler(
+    State(_state): State<DashboardState>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let conn = db::connect().map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    
+    let blacklist = db::get_system_setting(&conn, "blacklist")
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+        .unwrap_or_default();
+    
+    Ok(Json(serde_json::json!({
+        "blacklist": blacklist.split(',').filter(|s| !s.is_empty()).collect::<Vec<_>>(),
+    })))
+}
+
+/// ブラックリスト設定の保存
+pub async fn set_blacklist_settings_handler(
+    State(_state): State<DashboardState>,
+    Json(req): Json<serde_json::Value>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let conn = db::connect().map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    
+    if let Some(blacklist) = req["blacklist"].as_array() {
+        let blacklist_pubkeys: Vec<String> = blacklist.iter()
+            .filter_map(|v| v.as_str())
+            .map(|s| s.to_string())
+            .collect();
+        db::set_system_setting(&conn, "blacklist", &blacklist_pubkeys.join(","))
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        println!("🚫 ブラックリスト更新: {}件", blacklist_pubkeys.len());
+    }
+    
+    Ok(Json(serde_json::json!({ "success": true })))
+}
+
+// ============================================================
 // ヘルパー関数
 // ============================================================
 
