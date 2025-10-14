@@ -90,6 +90,49 @@ export const FollowerCachePage = () => {
     }
   };
 
+  const handleClearFiltered = async () => {
+    if (filteredCaches.length === 0) {
+      alert('削除対象がありません');
+      return;
+    }
+    
+    const message = `フィルタ中の ${filteredCaches.length} 件のキャッシュを削除しますか？`;
+    if (!confirm(message)) return;
+
+    try {
+      let successCount = 0;
+      let errorCount = 0;
+
+      for (const cache of filteredCaches) {
+        try {
+          const response = await fetch(
+            `/api/follower-cache/${encodeURIComponent(cache.user_pubkey)}/${encodeURIComponent(cache.bot_pubkey)}`,
+            { method: 'DELETE' }
+          );
+          if (response.ok) {
+            successCount++;
+          } else {
+            errorCount++;
+          }
+        } catch (error) {
+          console.error('削除エラー:', error);
+          errorCount++;
+        }
+      }
+
+      loadCaches();
+      
+      if (errorCount === 0) {
+        alert(`✅ ${successCount}件のキャッシュを削除しました`);
+      } else {
+        alert(`⚠️ ${successCount}件削除、${errorCount}件失敗しました`);
+      }
+    } catch (error) {
+      console.error('フィルタ削除エラー:', error);
+      alert('❌ 削除に失敗しました');
+    }
+  };
+
   const formatDate = (timestamp: number) => {
     return new Date(timestamp * 1000).toLocaleString('ja-JP');
   };
@@ -163,15 +206,28 @@ export const FollowerCachePage = () => {
             </Typography>
             <Chip label={`${filteredCaches.length} / ${caches.length}件`} size="small" color="primary" />
           </Box>
-          <Button
-            variant="outlined"
-            color="error"
-            startIcon={<DeleteSweep />}
-            onClick={handleClearAll}
-            disabled={caches.length === 0}
-          >
-            全削除
-          </Button>
+          <Box sx={{ display: 'flex', gap: 1 }}>
+            {filteredCaches.length < caches.length && (
+              <Button
+                variant="outlined"
+                color="warning"
+                startIcon={<Delete />}
+                onClick={handleClearFiltered}
+                disabled={filteredCaches.length === 0}
+              >
+                フィルタ中を削除 ({filteredCaches.length})
+              </Button>
+            )}
+            <Button
+              variant="outlined"
+              color="error"
+              startIcon={<DeleteSweep />}
+              onClick={handleClearAll}
+              disabled={caches.length === 0}
+            >
+              全削除
+            </Button>
+          </Box>
         </Box>
 
         {/* フィルタUI */}
