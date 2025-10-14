@@ -305,7 +305,7 @@ pub fn build_japanese_timeline_for_air_reply(
     // 日本語のイベントを取得
     let mut stmt = conn.prepare(
         "SELECT id, event_id, event_json, pubkey, kind, content, created_at, received_at,
-                kind0_name, kind0_content, is_japanese, embedding, event_type
+                kind0_name, is_japanese, embedding, event_type
          FROM events
          WHERE is_japanese = 1 AND event_type = 'air_reply'
          ORDER BY created_at DESC
@@ -323,10 +323,9 @@ pub fn build_japanese_timeline_for_air_reply(
             created_at: row.get(6)?,
             received_at: row.get(7)?,
             kind0_name: row.get(8)?,
-            kind0_content: row.get(9)?,
-            is_japanese: row.get::<_, i32>(10)? != 0,
-            embedding: row.get(11)?,
-            event_type: row.get(12)?,
+            is_japanese: row.get::<_, i32>(9)? != 0,
+            embedding: row.get(10)?,
+            event_type: row.get(11)?,
         })
     })?
     .collect::<Result<Vec<_>, _>>()?;

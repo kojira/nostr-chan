@@ -34,7 +34,7 @@ pub async fn process_event(
                 let pubkey = event.pubkey.to_string();
                 tokio::spawn(async move {
                     if let Ok(name) = util::get_user_name(&pubkey).await {
-                        let _ = db::update_event_kind0(&conn_clone, &event_id, Some(&name), None);
+                        let _ = db::update_event_kind0_name(&conn_clone, &event_id, Some(&name));
                     }
                 });
                 let _ = event_ref_id;

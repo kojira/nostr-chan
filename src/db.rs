@@ -167,6 +167,9 @@ pub(crate) fn connect() -> Result<Connection> {
     // マイグレーション: Personsテーブルにair_reply_single_ratioカラムを追加
     migrate_add_air_reply_single_ratio(&conn)?;
     
+    // マイグレーション: eventsテーブルからkind0_contentカラムを削除
+    migrate_remove_kind0_content(&conn)?;
+    
     Ok(conn)
 }
 
@@ -188,6 +191,68 @@ fn migrate_add_air_reply_single_ratio(conn: &Connection) -> Result<()> {
             [],
         )?;
         println!("✅ マイグレーション完了: air_reply_single_ratio (デフォルト: 30%)");
+    }
+    
+    Ok(())
+}
+
+/// eventsテーブルからkind0_contentカラムを削除するマイグレーション
+fn migrate_remove_kind0_content(conn: &Connection) -> Result<()> {
+    // カラムが存在するかチェック
+    let column_exists: bool = conn
+        .query_row(
+            "SELECT COUNT(*) FROM pragma_table_info('events') WHERE name='kind0_content'",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap_or(0) > 0;
+    
+    if column_exists {
+        println!("🔄 マイグレーション: eventsテーブルからkind0_contentカラムを削除");
+        
+        // SQLiteではALTER TABLE DROP COLUMNが使えないので、テーブルを再作成する
+        // 1. 新しいテーブルを作成（kind0_contentなし）
+        conn.execute(
+            "CREATE TABLE events_new (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                event_id TEXT UNIQUE NOT NULL,
+                event_json TEXT NOT NULL,
+                pubkey TEXT NOT NULL,
+                kind INTEGER NOT NULL,
+                content TEXT NOT NULL,
+                created_at INTEGER NOT NULL,
+                received_at INTEGER NOT NULL,
+                kind0_name TEXT,
+                is_japanese INTEGER NOT NULL DEFAULT 0,
+                embedding BLOB,
+                event_type TEXT
+            )",
+            [],
+        )?;
+        
+        // 2. データをコピー（kind0_content以外）
+        conn.execute(
+            "INSERT INTO events_new 
+             SELECT id, event_id, event_json, pubkey, kind, content, created_at, received_at, 
+                    kind0_name, is_japanese, embedding, event_type
+             FROM events",
+            [],
+        )?;
+        
+        // 3. 古いテーブルを削除
+        conn.execute("DROP TABLE events", [])?;
+        
+        // 4. 新しいテーブルをリネーム
+        conn.execute("ALTER TABLE events_new RENAME TO events", [])?;
+        
+        // 5. インデックスを再作成
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_events_pubkey ON events(pubkey)", [])?;
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_events_kind ON events(kind)", [])?;
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_events_created_at ON events(created_at DESC)", [])?;
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_events_is_japanese ON events(is_japanese)", [])?;
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_events_event_type ON events(event_type)", [])?;
+        
+        println!("✅ マイグレーション完了: kind0_contentカラムを削除（データは保持）");
     }
     
     Ok(())
@@ -571,7 +636,6 @@ pub struct EventRecord {
     pub created_at: i64,
     pub received_at: i64,
     pub kind0_name: Option<String>,
-    pub kind0_content: Option<String>,
     pub is_japanese: bool,
     pub embedding: Option<Vec<u8>>,
     pub event_type: Option<String>,
@@ -613,7 +677,7 @@ pub fn insert_event(
 pub fn get_event_by_event_id(conn: &Connection, event_id: &str) -> Result<Option<EventRecord>> {
     let mut stmt = conn.prepare(
         "SELECT id, event_id, event_json, pubkey, kind, content, created_at, received_at, 
-                kind0_name, kind0_content, is_japanese, embedding, event_type 
+                kind0_name, is_japanese, embedding, event_type 
          FROM events WHERE event_id = ?"
     )?;
     
@@ -630,27 +694,25 @@ pub fn get_event_by_event_id(conn: &Connection, event_id: &str) -> Result<Option
             created_at: row.get(6)?,
             received_at: row.get(7)?,
             kind0_name: row.get(8)?,
-            kind0_content: row.get(9)?,
-            is_japanese: row.get::<_, i32>(10)? != 0,
-            embedding: row.get(11)?,
-            event_type: row.get(12)?,
+            is_japanese: row.get::<_, i32>(9)? != 0,
+            embedding: row.get(10)?,
+            event_type: row.get(11)?,
         }))
     } else {
         Ok(None)
     }
 }
 
-/// イベントのkind0情報を更新
+/// イベントのkind0情報を更新（kind0_name のみ）
 #[allow(dead_code)]
-pub fn update_event_kind0(
+pub fn update_event_kind0_name(
     conn: &Connection,
     event_id: &str,
     kind0_name: Option<&str>,
-    kind0_content: Option<&str>,
 ) -> Result<()> {
     conn.execute(
-        "UPDATE events SET kind0_name = ?, kind0_content = ? WHERE event_id = ?",
-        params![kind0_name, kind0_content, event_id],
+        "UPDATE events SET kind0_name = ? WHERE event_id = ?",
+        params![kind0_name, event_id],
     )?;
     Ok(())
 }
@@ -674,7 +736,7 @@ pub fn update_event_embedding(conn: &Connection, event_id: &str, embedding: &[f3
 pub fn get_events_without_embedding(conn: &Connection, limit: usize) -> Result<Vec<EventRecord>> {
     let mut stmt = conn.prepare(
         "SELECT id, event_id, event_json, pubkey, kind, content, created_at, received_at, 
-                kind0_name, kind0_content, is_japanese, embedding, event_type 
+                kind0_name, is_japanese, embedding, event_type 
          FROM events WHERE embedding IS NULL LIMIT ?"
     )?;
     
@@ -689,10 +751,9 @@ pub fn get_events_without_embedding(conn: &Connection, limit: usize) -> Result<V
             created_at: row.get(6)?,
             received_at: row.get(7)?,
             kind0_name: row.get(8)?,
-            kind0_content: row.get(9)?,
-            is_japanese: row.get::<_, i32>(10)? != 0,
-            embedding: row.get(11)?,
-            event_type: row.get(12)?,
+            is_japanese: row.get::<_, i32>(9)? != 0,
+            embedding: row.get(10)?,
+            event_type: row.get(11)?,
         })
     })?
     .collect::<Result<Vec<_>>>()?;
@@ -745,7 +806,7 @@ pub fn get_conversation_timeline(
 ) -> Result<Vec<EventRecord>> {
     let mut stmt = conn.prepare(
         "SELECT e.id, e.event_id, e.event_json, e.pubkey, e.kind, e.content, e.created_at, e.received_at,
-                e.kind0_name, e.kind0_content, e.is_japanese, e.embedding, e.event_type
+                e.kind0_name, e.is_japanese, e.embedding, e.event_type
          FROM events e
          INNER JOIN conversation_logs cl ON e.id = cl.event_ref_id
          WHERE cl.bot_pubkey = ?
@@ -764,10 +825,9 @@ pub fn get_conversation_timeline(
             created_at: row.get(6)?,
             received_at: row.get(7)?,
             kind0_name: row.get(8)?,
-            kind0_content: row.get(9)?,
-            is_japanese: row.get::<_, i32>(10)? != 0,
-            embedding: row.get(11)?,
-            event_type: row.get(12)?,
+            is_japanese: row.get::<_, i32>(9)? != 0,
+            embedding: row.get(10)?,
+            event_type: row.get(11)?,
         })
     })?
     .collect::<Result<Vec<_>>>()?;
