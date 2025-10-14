@@ -2,9 +2,10 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   Container, Box, Typography, IconButton, Paper, List, ListItem, ListItemText,
-  Chip, CircularProgress, Button
+  Chip, CircularProgress, Button, TextField, Select, MenuItem, FormControl,
+  InputLabel, TablePagination, Dialog, DialogTitle, DialogContent, DialogActions
 } from '@mui/material';
-import { ArrowBack, ChatBubble, Person, AccessTime } from '@mui/icons-material';
+import { ArrowBack, ChatBubble, Person, AccessTime, Code } from '@mui/icons-material';
 import { useBots } from '../hooks/useBots';
 
 interface BotReply {
@@ -13,6 +14,7 @@ interface BotReply {
   created_at: number;
   reply_to_event_id?: string;
   reply_to_user?: string;
+  event_json: string;
 }
 
 export const BotDetailPage = () => {
@@ -21,8 +23,13 @@ export const BotDetailPage = () => {
   const { bots } = useBots();
   const [replies, setReplies] = useState<BotReply[]>([]);
   const [loading, setLoading] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [hasMore, setHasMore] = useState(true);
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(25);
+  const [searchText, setSearchText] = useState('');
+  const [sortBy, setSortBy] = useState<'created_at' | 'content'>('created_at');
+  const [sortOrder, setSortOrder] = useState<'ASC' | 'DESC'>('DESC');
+  const [jsonDialogOpen, setJsonDialogOpen] = useState(false);
+  const [selectedJson, setSelectedJson] = useState<string>('');
 
   const bot = bots.find(b => b.pubkey === pubkey);
 
@@ -30,67 +37,77 @@ export const BotDetailPage = () => {
     if (pubkey) {
       loadReplies();
     }
-  }, [pubkey]);
+  }, [pubkey, page, rowsPerPage, searchText, sortBy, sortOrder]);
 
-  const loadReplies = async (offset = 0) => {
+  const loadReplies = async () => {
     try {
-      if (offset === 0) {
-        setLoading(true);
-      } else {
-        setLoadingMore(true);
+      setLoading(true);
+      const offset = page * rowsPerPage;
+      const params = new URLSearchParams({
+        limit: rowsPerPage.toString(),
+        offset: offset.toString(),
+        sort_by: sortBy,
+        sort_order: sortOrder,
+      });
+      
+      if (searchText) {
+        params.append('search', searchText);
       }
 
-      const response = await fetch(`/api/bots/${pubkey}/replies?limit=50&offset=${offset}`);
+      const response = await fetch(`/api/bots/${pubkey}/replies?${params}`);
       if (response.ok) {
         const data: BotReply[] = await response.json();
-        if (offset === 0) {
-          setReplies(data);
-        } else {
-          setReplies(prev => [...prev, ...data]);
-        }
-        setHasMore(data.length === 50);
+        setReplies(data);
       }
     } catch (error) {
       console.error('返信履歴の取得エラー:', error);
     } finally {
       setLoading(false);
-      setLoadingMore(false);
     }
   };
 
   const formatDate = (timestamp: number) => {
     const date = new Date(timestamp * 1000);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffMins = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMs / 3600000);
-    const diffDays = Math.floor(diffMs / 86400000);
-
-    if (diffMins < 1) return 'たった今';
-    if (diffMins < 60) return `${diffMins}分前`;
-    if (diffHours < 24) return `${diffHours}時間前`;
-    if (diffDays < 7) return `${diffDays}日前`;
-    
-    return date.toLocaleDateString('ja-JP', {
+    return date.toLocaleString('ja-JP', {
       year: 'numeric',
-      month: 'short',
-      day: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
       hour: '2-digit',
-      minute: '2-digit'
+      minute: '2-digit',
+      second: '2-digit',
     });
   };
 
   const getNoteLink = (eventId: string) => {
+    return `nostr:note1${eventId.substring(0, 8)}...`;
+  };
+
+  const handleSearchChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    setSearchText(event.target.value);
+    setPage(0); // 検索時はページをリセット
+  };
+
+  const handleChangePage = (_event: unknown, newPage: number) => {
+    setPage(newPage);
+  };
+
+  const handleChangeRowsPerPage = (event: React.ChangeEvent<HTMLInputElement>) => {
+    setRowsPerPage(parseInt(event.target.value, 10));
+    setPage(0);
+  };
+
+  const handleOpenJson = (jsonString: string) => {
     try {
-      // nostr-tools を使ってnote1形式に変換する場合はここで実装
-      // 簡易版: event IDをそのまま表示
-      return `nostr:note1${eventId.substring(0, 8)}...`;
+      const formatted = JSON.stringify(JSON.parse(jsonString), null, 2);
+      setSelectedJson(formatted);
+      setJsonDialogOpen(true);
     } catch {
-      return eventId;
+      setSelectedJson(jsonString);
+      setJsonDialogOpen(true);
     }
   };
 
-  if (loading) {
+  if (loading && replies.length === 0) {
     return (
       <Container maxWidth="lg" sx={{ py: 4, display: 'flex', justifyContent: 'center' }}>
         <CircularProgress />
@@ -109,7 +126,7 @@ export const BotDetailPage = () => {
   return (
     <Container maxWidth="lg" sx={{ py: 4 }}>
       {/* ヘッダー */}
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 4 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
         <IconButton onClick={() => navigate('/bots')} size="large">
           <ArrowBack />
         </IconButton>
@@ -124,23 +141,80 @@ export const BotDetailPage = () => {
             </Typography>
           </Box>
         </Box>
-        <Chip label={`${replies.length}件の返信`} color="primary" />
       </Box>
+
+      {/* フィルタとソート */}
+      <Paper sx={{ p: 2, mb: 2 }}>
+        <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
+          <TextField
+            label="検索"
+            variant="outlined"
+            size="small"
+            value={searchText}
+            onChange={handleSearchChange}
+            sx={{ minWidth: 200, flex: 1 }}
+            placeholder="本文で検索..."
+          />
+          <FormControl size="small" sx={{ minWidth: 150 }}>
+            <InputLabel>ソート</InputLabel>
+            <Select
+              value={sortBy}
+              label="ソート"
+              onChange={(e) => {
+                setSortBy(e.target.value as 'created_at' | 'content');
+                setPage(0);
+              }}
+            >
+              <MenuItem value="created_at">投稿日時</MenuItem>
+              <MenuItem value="content">本文</MenuItem>
+            </Select>
+          </FormControl>
+          <FormControl size="small" sx={{ minWidth: 120 }}>
+            <InputLabel>順序</InputLabel>
+            <Select
+              value={sortOrder}
+              label="順序"
+              onChange={(e) => {
+                setSortOrder(e.target.value as 'ASC' | 'DESC');
+                setPage(0);
+              }}
+            >
+              <MenuItem value="DESC">降順</MenuItem>
+              <MenuItem value="ASC">昇順</MenuItem>
+            </Select>
+          </FormControl>
+        </Box>
+      </Paper>
 
       {/* 返信一覧 */}
       {replies.length === 0 ? (
         <Paper sx={{ p: 4, textAlign: 'center' }}>
-          <Typography color="text.secondary">まだ返信がありません</Typography>
+          <Typography color="text.secondary">
+            {searchText ? '検索結果が見つかりません' : 'まだ返信がありません'}
+          </Typography>
         </Paper>
       ) : (
         <>
           <List>
             {replies.map((reply) => (
-              <Paper key={reply.event_id} sx={{ mb: 2, p: 2 }}>
+              <Paper 
+                key={reply.event_id} 
+                sx={{ 
+                  mb: 2, 
+                  p: 2,
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                  '&:hover': {
+                    bgcolor: 'action.hover',
+                    boxShadow: 2,
+                  }
+                }}
+                onClick={() => handleOpenJson(reply.event_json)}
+              >
                 <ListItem sx={{ flexDirection: 'column', alignItems: 'flex-start', p: 0 }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1, width: '100%' }}>
                     <AccessTime sx={{ fontSize: 16, color: 'text.secondary' }} />
-                    <Typography variant="caption" color="text.secondary">
+                    <Typography variant="caption" color="text.secondary" sx={{ fontFamily: 'monospace' }}>
                       {formatDate(reply.created_at)}
                     </Typography>
                     {reply.reply_to_user && (
@@ -151,6 +225,14 @@ export const BotDetailPage = () => {
                         </Typography>
                       </>
                     )}
+                    <Box sx={{ ml: 'auto' }}>
+                      <Chip 
+                        icon={<Code sx={{ fontSize: 14 }} />}
+                        label="JSON" 
+                        size="small" 
+                        variant="outlined"
+                      />
+                    </Box>
                   </Box>
                   <ListItemText
                     primary={reply.content}
@@ -168,20 +250,57 @@ export const BotDetailPage = () => {
             ))}
           </List>
 
-          {hasMore && (
-            <Box sx={{ display: 'flex', justifyContent: 'center', mt: 3 }}>
-              <Button
-                variant="outlined"
-                onClick={() => loadReplies(replies.length)}
-                disabled={loadingMore}
-              >
-                {loadingMore ? <CircularProgress size={24} /> : 'さらに読み込む'}
-              </Button>
-            </Box>
-          )}
+          <TablePagination
+            component="div"
+            count={-1} // 総数不明の場合は-1
+            page={page}
+            onPageChange={handleChangePage}
+            rowsPerPage={rowsPerPage}
+            onRowsPerPageChange={handleChangeRowsPerPage}
+            rowsPerPageOptions={[25, 50, 100]}
+            labelRowsPerPage="表示件数:"
+            labelDisplayedRows={({ from, to }) => `${from}–${to}`}
+          />
         </>
       )}
+
+      {/* JSON表示ダイアログ */}
+      <Dialog
+        open={jsonDialogOpen}
+        onClose={() => setJsonDialogOpen(false)}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>Event JSON</DialogTitle>
+        <DialogContent>
+          <Box
+            component="pre"
+            sx={{
+              bgcolor: 'grey.100',
+              p: 2,
+              borderRadius: 1,
+              overflow: 'auto',
+              fontFamily: 'monospace',
+              fontSize: '0.875rem',
+              whiteSpace: 'pre-wrap',
+              wordBreak: 'break-all',
+            }}
+          >
+            {selectedJson}
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setJsonDialogOpen(false)}>閉じる</Button>
+          <Button 
+            onClick={() => {
+              navigator.clipboard.writeText(selectedJson);
+            }}
+            variant="contained"
+          >
+            コピー
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Container>
   );
 };
-

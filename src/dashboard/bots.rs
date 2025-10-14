@@ -352,12 +352,16 @@ pub struct BotReply {
     pub created_at: i64,
     pub reply_to_event_id: Option<String>,
     pub reply_to_user: Option<String>,
+    pub event_json: String,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct ReplyQuery {
     pub limit: Option<i64>,
     pub offset: Option<i64>,
+    pub search: Option<String>,
+    pub sort_by: Option<String>,
+    pub sort_order: Option<String>,
 }
 
 /// Bot返信履歴取得
@@ -370,25 +374,48 @@ pub async fn get_bot_replies_handler(
     
     let limit = query.limit.unwrap_or(50);
     let offset = query.offset.unwrap_or(0);
+    let sort_by = query.sort_by.unwrap_or_else(|| "created_at".to_string());
+    let sort_order = query.sort_order.unwrap_or_else(|| "DESC".to_string());
     
-    // eventsテーブルからBotの返信を取得
-    // event_jsonからタグ情報を抽出
-    let query_str = r#"
-        SELECT 
-            event_id,
-            content,
-            created_at,
-            event_json
-        FROM events
-        WHERE pubkey = ?1 AND (event_type = 'bot_reply' OR event_type = 'bot_post')
-        ORDER BY created_at DESC
-        LIMIT ?2 OFFSET ?3
-    "#;
+    // ソートカラムのバリデーション
+    let sort_column = match sort_by.as_str() {
+        "created_at" => "created_at",
+        "content" => "content",
+        _ => "created_at",
+    };
     
-    let mut stmt = conn.prepare(query_str)
+    // ソート順のバリデーション
+    let order = match sort_order.to_uppercase().as_str() {
+        "ASC" => "ASC",
+        "DESC" => "DESC",
+        _ => "DESC",
+    };
+    
+    // WHERE句の構築
+    let mut where_clause = format!("pubkey = '{}' AND (event_type = 'bot_reply' OR event_type = 'bot_post')", pubkey);
+    
+    // 検索フィルタを追加
+    if let Some(search) = &query.search {
+        if !search.is_empty() {
+            let escaped_search = search.replace("'", "''");
+            where_clause.push_str(&format!(" AND content LIKE '%{}%'", escaped_search));
+        }
+    }
+    
+    // SQLクエリの構築
+    let query_str = format!(
+        "SELECT event_id, content, created_at, event_json 
+         FROM events 
+         WHERE {} 
+         ORDER BY {} {} 
+         LIMIT {} OFFSET {}",
+        where_clause, sort_column, order, limit, offset
+    );
+    
+    let mut stmt = conn.prepare(&query_str)
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     
-    let replies = stmt.query_map([&pubkey, &limit.to_string(), &offset.to_string()], |row| {
+    let replies = stmt.query_map([], |row| {
         let event_id: String = row.get(0)?;
         let content: String = row.get(1)?;
         let created_at: i64 = row.get(2)?;
@@ -426,6 +453,7 @@ pub async fn get_bot_replies_handler(
             created_at,
             reply_to_event_id,
             reply_to_user,
+            event_json,
         })
     })
     .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
