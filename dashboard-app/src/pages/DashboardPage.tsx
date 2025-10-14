@@ -81,8 +81,9 @@ export const DashboardPage = () => {
               <Paper
                 elevation={0}
                 sx={{
-                  p: 3,
+                  width: '100%',
                   height: '100%',
+                  p: 3,
                   display: 'flex',
                   flexDirection: 'column',
                   border: '1px solid',
