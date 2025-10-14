@@ -50,6 +50,8 @@ pub async fn start_dashboard(
         // 設定
         .route("/api/global-pause", get(settings::get_global_pause_handler))
         .route("/api/global-pause", post(settings::set_global_pause_handler))
+        .route("/api/settings/follower-cache-ttl", get(settings::get_follower_cache_ttl_handler))
+        .route("/api/settings/follower-cache-ttl", post(settings::set_follower_cache_ttl_handler))
         .with_state(state);
 
     // 静的ファイル配信 + APIルート

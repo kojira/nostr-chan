@@ -24,6 +24,17 @@ pub struct TimelinePost {
 }
 
 
+/// システム設定をconfig.ymlの値で初期化（DBに値がない場合のみ）
+fn initialize_system_settings(conn: &rusqlite::Connection, config: &config::AppConfig) -> Result<(), Box<dyn std::error::Error>> {
+    // フォロワーキャッシュTTL
+    if db::get_system_setting(conn, "follower_cache_ttl")?.is_none() {
+        db::set_system_setting(conn, "follower_cache_ttl", &config.bot.follower_cache_ttl.to_string())?;
+        println!("⚙️ フォロワーキャッシュTTLをconfig.ymlから初期化: {}秒", config.bot.follower_cache_ttl);
+    }
+    
+    Ok(())
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     dotenv().ok();
@@ -31,6 +42,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let file = File::open("../config.yml")?;
     let config: config::AppConfig = serde_yaml::from_reader(file)?;
     let conn = db::connect()?;
+    
+    // システム設定をconfig.ymlの値で初期化（DBに値がない場合のみ）
+    initialize_system_settings(&conn, &config)?;
     
     // ダッシュボード用のBot情報を共有
     let bot_info = Arc::new(RwLock::new(dashboard::BotInfo {

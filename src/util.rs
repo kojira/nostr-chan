@@ -19,7 +19,11 @@ pub async fn is_follower(user_pubkey: &str, bot_secret_key: &str) -> Result<bool
   
   // Check cache first
   let conn = db::connect()?;
-  let ttl = config.bot.follower_cache_ttl;
+  // DBから設定を取得、なければconfig.ymlの値を使用
+  let ttl = match db::get_system_setting(&conn, "follower_cache_ttl")? {
+    Some(value) => value.parse::<i64>().unwrap_or(config.bot.follower_cache_ttl),
+    None => config.bot.follower_cache_ttl,
+  };
   if let Some((cached_result, remaining)) = db::get_follower_cache(&conn, user_pubkey, &bot_pubkey_str, ttl)? {
     println!("Follower cache hit: remaining {}s ({}h {}m)", 
       remaining, remaining / 3600, (remaining % 3600) / 60);

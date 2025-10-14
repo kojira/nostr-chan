@@ -1,5 +1,5 @@
 import { Container, Paper, Typography, Box, Button, Grid } from '@mui/material';
-import { SmartToy, People, ChevronRight } from '@mui/icons-material';
+import { SmartToy, People, ChevronRight, Settings } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { StatisticsSection } from '../sections/StatisticsSection';
 import { useStats } from '../hooks/useStats';
@@ -26,6 +26,13 @@ export const DashboardPage = () => {
       icon: People,
       path: '/follower-cache',
       color: '#764ba2',
+    },
+    {
+      title: 'システム設定',
+      description: 'キャッシュTTLなどの設定',
+      icon: Settings,
+      path: '/settings',
+      color: '#43e97b',
     },
   ];
 
