@@ -68,3 +68,206 @@ pub async fn set_follower_cache_ttl_handler(
     Ok(Json(serde_json::json!({ "ttl_seconds": ttl_seconds })))
 }
 
+// ============================================================
+// Bot動作設定
+// ============================================================
+
+/// Bot動作設定の取得
+pub async fn get_bot_behavior_settings_handler(
+    State(_state): State<DashboardState>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let conn = db::connect().map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    
+    let reaction_percent = get_setting_i64(&conn, "reaction_percent", 50)?;
+    let reaction_freq = get_setting_i64(&conn, "reaction_freq", 600)?;
+    let timeline_size = get_setting_i64(&conn, "timeline_size", 50)?;
+    
+    Ok(Json(serde_json::json!({
+        "reaction_percent": reaction_percent,
+        "reaction_freq": reaction_freq,
+        "timeline_size": timeline_size
+    })))
+}
+
+/// Bot動作設定の保存
+pub async fn set_bot_behavior_settings_handler(
+    State(_state): State<DashboardState>,
+    Json(req): Json<serde_json::Value>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let conn = db::connect().map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    
+    if let Some(reaction_percent) = req["reaction_percent"].as_i64() {
+        if reaction_percent < 0 || reaction_percent > 100 {
+            return Err(StatusCode::BAD_REQUEST);
+        }
+        db::set_system_setting(&conn, "reaction_percent", &reaction_percent.to_string())
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        println!("🎲 リアクション確率: {}%", reaction_percent);
+    }
+    
+    if let Some(reaction_freq) = req["reaction_freq"].as_i64() {
+        if reaction_freq < 1 {
+            return Err(StatusCode::BAD_REQUEST);
+        }
+        db::set_system_setting(&conn, "reaction_freq", &reaction_freq.to_string())
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        println!("⏱️ リアクション頻度: {}秒", reaction_freq);
+    }
+    
+    if let Some(timeline_size) = req["timeline_size"].as_i64() {
+        if timeline_size < 1 || timeline_size > 1000 {
+            return Err(StatusCode::BAD_REQUEST);
+        }
+        db::set_system_setting(&conn, "timeline_size", &timeline_size.to_string())
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        println!("📜 タイムラインサイズ: {}", timeline_size);
+    }
+    
+    Ok(Json(serde_json::json!({ "success": true })))
+}
+
+// ============================================================
+// 会話制限設定
+// ============================================================
+
+/// 会話制限設定の取得
+pub async fn get_conversation_limit_settings_handler(
+    State(_state): State<DashboardState>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let conn = db::connect().map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    
+    let count = get_setting_i64(&conn, "conversation_limit_count", 5)?;
+    let minutes = get_setting_i64(&conn, "conversation_limit_minutes", 3)?;
+    
+    Ok(Json(serde_json::json!({
+        "count": count,
+        "minutes": minutes
+    })))
+}
+
+/// 会話制限設定の保存
+pub async fn set_conversation_limit_settings_handler(
+    State(_state): State<DashboardState>,
+    Json(req): Json<serde_json::Value>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let conn = db::connect().map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    
+    if let Some(count) = req["count"].as_i64() {
+        if count < 1 || count > 100 {
+            return Err(StatusCode::BAD_REQUEST);
+        }
+        db::set_system_setting(&conn, "conversation_limit_count", &count.to_string())
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        println!("💬 会話制限回数: {}回", count);
+    }
+    
+    if let Some(minutes) = req["minutes"].as_i64() {
+        if minutes < 1 || minutes > 1440 {
+            return Err(StatusCode::BAD_REQUEST);
+        }
+        db::set_system_setting(&conn, "conversation_limit_minutes", &minutes.to_string())
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        println!("⏰ 会話制限時間: {}分", minutes);
+    }
+    
+    Ok(Json(serde_json::json!({ "success": true })))
+}
+
+// ============================================================
+// RAG設定
+// ============================================================
+
+/// RAG設定の取得
+pub async fn get_rag_settings_handler(
+    State(_state): State<DashboardState>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let conn = db::connect().map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    
+    let threshold = match db::get_system_setting(&conn, "rag_similarity_threshold")
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)? {
+        Some(value) => value.parse::<f64>().unwrap_or(0.9),
+        None => 0.9,
+    };
+    
+    Ok(Json(serde_json::json!({
+        "similarity_threshold": threshold
+    })))
+}
+
+/// RAG設定の保存
+pub async fn set_rag_settings_handler(
+    State(_state): State<DashboardState>,
+    Json(req): Json<serde_json::Value>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let conn = db::connect().map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    
+    if let Some(threshold) = req["similarity_threshold"].as_f64() {
+        if threshold < 0.0 || threshold > 1.0 {
+            return Err(StatusCode::BAD_REQUEST);
+        }
+        db::set_system_setting(&conn, "rag_similarity_threshold", &threshold.to_string())
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        println!("🔍 RAG類似度閾値: {}", threshold);
+    }
+    
+    Ok(Json(serde_json::json!({ "success": true })))
+}
+
+// ============================================================
+// GPT設定
+// ============================================================
+
+/// GPT設定の取得
+pub async fn get_gpt_settings_handler(
+    State(_state): State<DashboardState>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let conn = db::connect().map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    
+    let answer_length = get_setting_i64(&conn, "gpt_answer_length", 100)?;
+    let timeout = get_setting_i64(&conn, "gpt_timeout", 60)?;
+    
+    Ok(Json(serde_json::json!({
+        "answer_length": answer_length,
+        "timeout": timeout
+    })))
+}
+
+/// GPT設定の保存
+pub async fn set_gpt_settings_handler(
+    State(_state): State<DashboardState>,
+    Json(req): Json<serde_json::Value>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let conn = db::connect().map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    
+    if let Some(answer_length) = req["answer_length"].as_i64() {
+        if answer_length < 10 || answer_length > 1000 {
+            return Err(StatusCode::BAD_REQUEST);
+        }
+        db::set_system_setting(&conn, "gpt_answer_length", &answer_length.to_string())
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        println!("📝 GPT回答長: {}文字", answer_length);
+    }
+    
+    if let Some(timeout) = req["timeout"].as_i64() {
+        if timeout < 10 || timeout > 300 {
+            return Err(StatusCode::BAD_REQUEST);
+        }
+        db::set_system_setting(&conn, "gpt_timeout", &timeout.to_string())
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        println!("⏱️ GPTタイムアウト: {}秒", timeout);
+    }
+    
+    Ok(Json(serde_json::json!({ "success": true })))
+}
+
+// ============================================================
+// ヘルパー関数
+// ============================================================
+
+fn get_setting_i64(conn: &rusqlite::Connection, key: &str, default: i64) -> Result<i64, StatusCode> {
+    match db::get_system_setting(conn, key).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)? {
+        Some(value) => Ok(value.parse::<i64>().unwrap_or(default)),
+        None => Ok(default),
+    }
+}
+

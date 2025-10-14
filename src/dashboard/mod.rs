@@ -52,6 +52,14 @@ pub async fn start_dashboard(
         .route("/api/global-pause", post(settings::set_global_pause_handler))
         .route("/api/settings/follower-cache-ttl", get(settings::get_follower_cache_ttl_handler))
         .route("/api/settings/follower-cache-ttl", post(settings::set_follower_cache_ttl_handler))
+        .route("/api/settings/bot-behavior", get(settings::get_bot_behavior_settings_handler))
+        .route("/api/settings/bot-behavior", post(settings::set_bot_behavior_settings_handler))
+        .route("/api/settings/conversation-limit", get(settings::get_conversation_limit_settings_handler))
+        .route("/api/settings/conversation-limit", post(settings::set_conversation_limit_settings_handler))
+        .route("/api/settings/rag", get(settings::get_rag_settings_handler))
+        .route("/api/settings/rag", post(settings::set_rag_settings_handler))
+        .route("/api/settings/gpt", get(settings::get_gpt_settings_handler))
+        .route("/api/settings/gpt", post(settings::set_gpt_settings_handler))
         .with_state(state);
 
     // 静的ファイル配信 + APIルート

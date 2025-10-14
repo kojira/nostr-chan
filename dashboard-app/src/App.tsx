@@ -13,6 +13,10 @@ import { SmartToy, Refresh } from '@mui/icons-material';
 import { DashboardPage } from './pages/DashboardPage';
 import { BotsPage } from './pages/BotsPage';
 import { FollowerCachePage } from './pages/FollowerCachePage';
+import { BotBehaviorSettingsPage } from './pages/BotBehaviorSettingsPage';
+import { ConversationLimitSettingsPage } from './pages/ConversationLimitSettingsPage';
+import { RagSettingsPage } from './pages/RagSettingsPage';
+import { GptSettingsPage } from './pages/GptSettingsPage';
 import { useBots } from './hooks/useBots';
 import { useStats } from './hooks/useStats';
 import { useDailyReplies } from './hooks/useDailyReplies';
@@ -140,6 +144,10 @@ function AppContent() {
         <Route path="/" element={<DashboardPage />} />
         <Route path="/bots" element={<BotsPage />} />
         <Route path="/follower-cache" element={<FollowerCachePage />} />
+        <Route path="/settings/bot-behavior" element={<BotBehaviorSettingsPage />} />
+        <Route path="/settings/conversation-limit" element={<ConversationLimitSettingsPage />} />
+        <Route path="/settings/rag" element={<RagSettingsPage />} />
+        <Route path="/settings/gpt" element={<GptSettingsPage />} />
       </Routes>
     </Box>
   );

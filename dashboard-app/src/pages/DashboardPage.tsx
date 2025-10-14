@@ -1,5 +1,5 @@
 import { Container, Paper, Typography, Box, Button, Grid } from '@mui/material';
-import { SmartToy, People, ChevronRight } from '@mui/icons-material';
+import { SmartToy, People, ChevronRight, Speed, Chat, Search, Psychology } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { StatisticsSection } from '../sections/StatisticsSection';
 import { useStats } from '../hooks/useStats';
@@ -29,6 +29,37 @@ export const DashboardPage = () => {
     },
   ];
 
+  const settingsCards = [
+    {
+      title: 'Bot動作設定',
+      description: 'リアクション確率・頻度・タイムライン',
+      icon: Speed,
+      path: '/settings/bot-behavior',
+      color: '#f093fb',
+    },
+    {
+      title: '会話制限設定',
+      description: '連続会話の制限回数・時間',
+      icon: Chat,
+      path: '/settings/conversation-limit',
+      color: '#4facfe',
+    },
+    {
+      title: 'RAG検索設定',
+      description: '意味検索の類似度閾値',
+      icon: Search,
+      path: '/settings/rag',
+      color: '#43e97b',
+    },
+    {
+      title: 'GPT設定',
+      description: '回答長・タイムアウト',
+      icon: Psychology,
+      path: '/settings/gpt',
+      color: '#fa709a',
+    },
+  ];
+
   if (statsLoading) {
     return null;
   }
@@ -42,13 +73,14 @@ export const DashboardPage = () => {
         dailyRepliesLoading={dailyRepliesLoading}
       />
 
-      <Box sx={{ mb: 3 }}>
+      {/* 管理機能 */}
+      <Box sx={{ mb: 5 }}>
         <Typography variant="h5" fontWeight="bold" mb={2}>
           管理機能
         </Typography>
         <Grid container spacing={2}>
           {managementCards.map((card) => (
-            <Grid item xs={12} sm={6} md={4} key={card.path}>
+            <Grid item xs={12} sm={6} key={card.path}>
               <Paper
                 elevation={0}
                 sx={{
@@ -74,6 +106,46 @@ export const DashboardPage = () => {
                   {card.title}
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
+                  {card.description}
+                </Typography>
+              </Paper>
+            </Grid>
+          ))}
+        </Grid>
+      </Box>
+
+      {/* システム設定 */}
+      <Box sx={{ mb: 3 }}>
+        <Typography variant="h5" fontWeight="bold" mb={2}>
+          システム設定
+        </Typography>
+        <Grid container spacing={2}>
+          {settingsCards.map((card) => (
+            <Grid item xs={12} sm={6} md={3} key={card.path}>
+              <Paper
+                elevation={0}
+                sx={{
+                  p: 3,
+                  border: '1px solid',
+                  borderColor: 'divider',
+                  borderRadius: 2,
+                  cursor: 'pointer',
+                  transition: 'all 0.3s',
+                  '&:hover': {
+                    transform: 'translateY(-4px)',
+                    boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
+                    borderColor: card.color,
+                  },
+                }}
+                onClick={() => navigate(card.path)}
+              >
+                <Box sx={{ display: 'flex', justifyContent: 'center', mb: 2 }}>
+                  <card.icon sx={{ fontSize: 48, color: card.color }} />
+                </Box>
+                <Typography variant="h6" fontWeight="bold" mb={0.5} textAlign="center">
+                  {card.title}
+                </Typography>
+                <Typography variant="body2" color="text.secondary" textAlign="center">
                   {card.description}
                 </Typography>
               </Paper>
