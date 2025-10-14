@@ -82,6 +82,9 @@ export const DashboardPage = () => {
                 elevation={0}
                 sx={{
                   p: 3,
+                  height: '100%',
+                  display: 'flex',
+                  flexDirection: 'column',
                   border: '1px solid',
                   borderColor: 'divider',
                   borderRadius: 2,
@@ -95,13 +98,13 @@ export const DashboardPage = () => {
                 }}
                 onClick={() => navigate(card.path)}
               >
-                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
-                  <card.icon sx={{ fontSize: 40, color: card.color }} />
-                  <ChevronRight sx={{ color: 'text.secondary' }} />
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1.5 }}>
+                  <card.icon sx={{ fontSize: 24, color: card.color }} />
+                  <Typography variant="h6" fontWeight="bold" sx={{ flex: 1 }}>
+                    {card.title}
+                  </Typography>
+                  <ChevronRight sx={{ color: 'text.secondary', fontSize: 20 }} />
                 </Box>
-                <Typography variant="h6" fontWeight="bold" mb={0.5}>
-                  {card.title}
-                </Typography>
                 <Typography variant="body2" color="text.secondary">
                   {card.description}
                 </Typography>
