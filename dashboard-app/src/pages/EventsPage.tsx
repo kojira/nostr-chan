@@ -21,8 +21,15 @@ import {
   Tooltip,
   CircularProgress,
   SelectChangeEvent,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Button,
+  Snackbar,
+  Alert,
 } from '@mui/material';
-import { Search, FilterList, CheckCircle, Cancel } from '@mui/icons-material';
+import { Search, FilterList, CheckCircle, Cancel, Visibility, Delete, DeleteSweep } from '@mui/icons-material';
 import { VectorizedEvent, EventsResponse } from '../types';
 
 export const EventsPage = () => {
@@ -44,6 +51,15 @@ export const EventsPage = () => {
   
   // 日本語入力制御
   const [isComposing, setIsComposing] = useState(false);
+  
+  // JSON表示ダイアログ
+  const [jsonDialogOpen, setJsonDialogOpen] = useState(false);
+  const [selectedEventJson, setSelectedEventJson] = useState('');
+  
+  // スナックバー
+  const [snackbarOpen, setSnackbarOpen] = useState(false);
+  const [snackbarMessage, setSnackbarMessage] = useState('');
+  const [snackbarSeverity, setSnackbarSeverity] = useState<'success' | 'error'>('success');
 
   const fetchEvents = async () => {
     if (initialLoading) {
@@ -100,6 +116,84 @@ export const EventsPage = () => {
   const truncateText = (text: string, maxLength: number = 100) => {
     if (text.length <= maxLength) return text;
     return text.substring(0, maxLength) + '...';
+  };
+
+  const handleViewJson = async (event: VectorizedEvent) => {
+    try {
+      // イベントのJSONを取得（event_jsonフィールドがあればそれを使用、なければ構築）
+      const eventJson = event.event_json || JSON.stringify(event, null, 2);
+      setSelectedEventJson(eventJson);
+      setJsonDialogOpen(true);
+    } catch (error) {
+      console.error('Failed to show JSON:', error);
+      setSnackbarMessage('JSONの表示に失敗しました');
+      setSnackbarSeverity('error');
+      setSnackbarOpen(true);
+    }
+  };
+
+  const handleDelete = async (eventId: number) => {
+    if (!confirm('このイベントを削除しますか？')) return;
+    
+    try {
+      const response = await fetch(`/api/events/${eventId}`, {
+        method: 'DELETE',
+      });
+      
+      if (response.ok) {
+        setSnackbarMessage('イベントを削除しました');
+        setSnackbarSeverity('success');
+        setSnackbarOpen(true);
+        fetchEvents();
+      } else {
+        throw new Error('削除に失敗しました');
+      }
+    } catch (error) {
+      console.error('Failed to delete event:', error);
+      setSnackbarMessage('削除に失敗しました');
+      setSnackbarSeverity('error');
+      setSnackbarOpen(true);
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    const hasFilters = search || hasEmbedding !== 'all' || isJapanese !== 'all' || eventType;
+    
+    if (!hasFilters) {
+      alert('フィルターを設定してください。全件削除を防ぐため、フィルターなしの一括削除はできません。');
+      return;
+    }
+    
+    const message = `現在のフィルター条件に一致する${total}件のイベントを削除しますか？この操作は取り消せません。`;
+    if (!confirm(message)) return;
+    
+    try {
+      const response = await fetch('/api/events/bulk-delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          search: search || undefined,
+          has_embedding: hasEmbedding === 'all' ? undefined : hasEmbedding === 'true',
+          is_japanese: isJapanese === 'all' ? undefined : isJapanese === 'true',
+          event_type: eventType || undefined,
+        }),
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setSnackbarMessage(data.message || '一括削除しました');
+        setSnackbarSeverity('success');
+        setSnackbarOpen(true);
+        fetchEvents();
+      } else {
+        throw new Error('一括削除に失敗しました');
+      }
+    } catch (error) {
+      console.error('Failed to bulk delete:', error);
+      setSnackbarMessage('一括削除に失敗しました');
+      setSnackbarSeverity('error');
+      setSnackbarOpen(true);
+    }
   };
 
   return (
@@ -214,11 +308,20 @@ export const EventsPage = () => {
           </FormControl>
         </Box>
         
-        {/* 統計情報 */}
-        <Box sx={{ mb: 2 }}>
+        {/* 統計情報と一括削除 */}
+        <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <Typography variant="body2" color="text.secondary">
             全 {total.toLocaleString()} 件中 {events.length} 件表示
           </Typography>
+          <Button
+            variant="outlined"
+            color="error"
+            startIcon={<DeleteSweep />}
+            onClick={handleBulkDelete}
+            disabled={total === 0}
+          >
+            フィルター条件で一括削除
+          </Button>
         </Box>
         
         {/* テーブル */}
@@ -240,18 +343,19 @@ export const EventsPage = () => {
                   <TableCell align="center">日本語</TableCell>
                   <TableCell align="center">ベクトル</TableCell>
                   <TableCell>タイプ</TableCell>
+                  <TableCell align="center">操作</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
                 {loading && !initialLoading ? (
                   <TableRow>
-                    <TableCell colSpan={9} align="center" sx={{ py: 4 }}>
+                    <TableCell colSpan={10} align="center" sx={{ py: 4 }}>
                       <CircularProgress size={24} />
                     </TableCell>
                   </TableRow>
                 ) : events.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={9} align="center" sx={{ py: 4 }}>
+                    <TableCell colSpan={10} align="center" sx={{ py: 4 }}>
                       イベントが見つかりませんでした
                     </TableCell>
                   </TableRow>
@@ -309,6 +413,18 @@ export const EventsPage = () => {
                           <Chip label={event.event_type} size="small" variant="outlined" />
                         )}
                       </TableCell>
+                      <TableCell align="center">
+                        <Tooltip title="JSON表示">
+                          <IconButton size="small" onClick={() => handleViewJson(event)}>
+                            <Visibility fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                        <Tooltip title="削除">
+                          <IconButton size="small" color="error" onClick={() => handleDelete(event.id)}>
+                            <Delete fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      </TableCell>
                     </TableRow>
                   ))
                 )}
@@ -331,6 +447,56 @@ export const EventsPage = () => {
           </Box>
         )}
       </Paper>
+
+      {/* JSONダイアログ */}
+      <Dialog 
+        open={jsonDialogOpen} 
+        onClose={() => setJsonDialogOpen(false)}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>Event JSON</DialogTitle>
+        <DialogContent>
+          <Box 
+            component="pre" 
+            sx={{ 
+              bgcolor: '#1e1e1e', 
+              color: '#d4d4d4', 
+              p: 2, 
+              borderRadius: 1,
+              overflow: 'auto',
+              maxHeight: '60vh',
+              fontSize: '0.875rem',
+              fontFamily: 'monospace',
+            }}
+          >
+            {selectedEventJson}
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => {
+            navigator.clipboard.writeText(selectedEventJson);
+            setSnackbarMessage('JSONをコピーしました');
+            setSnackbarSeverity('success');
+            setSnackbarOpen(true);
+          }}>
+            コピー
+          </Button>
+          <Button onClick={() => setJsonDialogOpen(false)}>閉じる</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* スナックバー */}
+      <Snackbar
+        open={snackbarOpen}
+        autoHideDuration={3000}
+        onClose={() => setSnackbarOpen(false)}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert onClose={() => setSnackbarOpen(false)} severity={snackbarSeverity}>
+          {snackbarMessage}
+        </Alert>
+      </Snackbar>
     </Container>
   );
 };

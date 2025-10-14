@@ -55,6 +55,8 @@ pub async fn start_dashboard(
         .route("/api/users/:pubkey/kind0", get(users::get_kind0_handler))
         // イベント一覧
         .route("/api/events", get(events::list_events_handler))
+        .route("/api/events/:id", delete(events::delete_event_handler))
+        .route("/api/events/bulk-delete", post(events::bulk_delete_events_handler))
         // フォロワーキャッシュ
         .route("/api/follower-cache", get(follower_cache::list_follower_cache_handler))
         .route("/api/follower-cache", delete(follower_cache::clear_follower_cache_handler))

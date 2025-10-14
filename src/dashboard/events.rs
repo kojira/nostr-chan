@@ -1,5 +1,5 @@
 use axum::{
-    extract::{State, Query},
+    extract::{State, Query, Path},
     response::Json,
     http::StatusCode,
 };
@@ -32,6 +32,7 @@ pub struct VectorizedEvent {
     pub is_japanese: bool,
     pub has_embedding: bool,
     pub event_type: Option<String>,
+    pub event_json: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -122,7 +123,7 @@ pub async fn list_events_handler(
         // イベントを取得
         let query_sql = format!(
             "SELECT id, event_id, pubkey, kind, content, created_at, received_at, 
-                    kind0_name, is_japanese, embedding, event_type
+                    kind0_name, is_japanese, embedding, event_type, event_json
              FROM events{}
              ORDER BY {} {}
              LIMIT ? OFFSET ?",
@@ -150,6 +151,7 @@ pub async fn list_events_handler(
                 is_japanese: row.get::<_, i32>(8)? != 0,
                 has_embedding: row.get::<_, Option<Vec<u8>>>(9)?.is_some(),
                 event_type: row.get(10)?,
+                event_json: row.get(11)?,
             })
         }).ok()?
         .collect::<Result<Vec<_>, _>>().ok()?;
@@ -174,6 +176,114 @@ pub async fn list_events_handler(
             page_size,
             total_pages: 0,
         })),
+    }
+}
+
+/// 特定のイベントを削除
+pub async fn delete_event_handler(
+    State(_state): State<DashboardState>,
+    Path(event_id): Path<i64>,
+) -> StatusCode {
+    let result = tokio::task::spawn_blocking(move || {
+        let conn = db::connect().ok()?;
+        conn.execute("DELETE FROM events WHERE id = ?", [event_id]).ok()?;
+        Some(())
+    }).await;
+    
+    match result {
+        Ok(Some(_)) => StatusCode::OK,
+        _ => StatusCode::INTERNAL_SERVER_ERROR,
+    }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct BulkDeleteRequest {
+    pub search: Option<String>,
+    pub has_embedding: Option<bool>,
+    pub is_japanese: Option<bool>,
+    pub event_type: Option<String>,
+}
+
+/// フィルター条件に一致するイベントを一括削除
+pub async fn bulk_delete_events_handler(
+    State(_state): State<DashboardState>,
+    Json(request): Json<BulkDeleteRequest>,
+) -> (StatusCode, Json<serde_json::Value>) {
+    let search = request.search.clone();
+    let has_embedding = request.has_embedding;
+    let is_japanese = request.is_japanese;
+    let event_type = request.event_type.clone();
+    
+    let result = tokio::task::spawn_blocking(move || {
+        let conn = db::connect().ok()?;
+        
+        // WHERE句の構築
+        let mut where_clauses = Vec::new();
+        let mut params: Vec<Box<dyn rusqlite::ToSql>> = Vec::new();
+        
+        if let Some(search_text) = &search {
+            where_clauses.push("(content LIKE ? OR kind0_name LIKE ? OR event_id LIKE ? OR pubkey LIKE ?)");
+            let search_pattern = format!("%{}%", search_text);
+            params.push(Box::new(search_pattern.clone()));
+            params.push(Box::new(search_pattern.clone()));
+            params.push(Box::new(search_pattern.clone()));
+            params.push(Box::new(search_pattern));
+        }
+        
+        if let Some(has_emb) = has_embedding {
+            if has_emb {
+                where_clauses.push("embedding IS NOT NULL");
+            } else {
+                where_clauses.push("embedding IS NULL");
+            }
+        }
+        
+        if let Some(is_jp) = is_japanese {
+            where_clauses.push("is_japanese = ?");
+            params.push(Box::new(if is_jp { 1 } else { 0 }));
+        }
+        
+        if let Some(ev_type) = &event_type {
+            if !ev_type.is_empty() {
+                where_clauses.push("event_type = ?");
+                params.push(Box::new(ev_type.clone()));
+            }
+        }
+        
+        let where_clause = if where_clauses.is_empty() {
+            String::new()
+        } else {
+            format!(" WHERE {}", where_clauses.join(" AND "))
+        };
+        
+        // 削除前に件数を取得
+        let count_sql = format!("SELECT COUNT(*) FROM events{}", where_clause);
+        let mut count_stmt = conn.prepare(&count_sql).ok()?;
+        let param_refs: Vec<&dyn rusqlite::ToSql> = params.iter().map(|p| p.as_ref()).collect();
+        let count: usize = count_stmt.query_row(&param_refs[..], |row| row.get(0)).ok()?;
+        
+        // 削除実行
+        let delete_sql = format!("DELETE FROM events{}", where_clause);
+        let mut delete_stmt = conn.prepare(&delete_sql).ok()?;
+        delete_stmt.execute(&param_refs[..]).ok()?;
+        
+        Some(count)
+    }).await;
+    
+    match result {
+        Ok(Some(deleted_count)) => (
+            StatusCode::OK,
+            Json(serde_json::json!({
+                "deleted_count": deleted_count,
+                "message": format!("{}件のイベントを削除しました", deleted_count)
+            }))
+        ),
+        _ => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({
+                "error": "削除に失敗しました"
+            }))
+        ),
     }
 }
 

@@ -67,6 +67,7 @@ export interface VectorizedEvent {
   is_japanese: boolean;
   has_embedding: boolean;
   event_type: string | null;
+  event_json?: string; // JSONとして取得する場合
 }
 
 export interface EventsResponse {
