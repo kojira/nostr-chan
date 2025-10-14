@@ -1,0 +1,101 @@
+mod types;
+mod stats;
+mod bots;
+mod follower_cache;
+mod settings;
+
+pub use types::{DashboardState, BotInfo};
+
+use axum::{
+    routing::{get, post, put, delete},
+    response::IntoResponse,
+    Router,
+};
+use tower_http::services::ServeDir;
+use std::sync::Arc;
+use std::time::Instant;
+use tokio::sync::RwLock;
+
+/// ダッシュボードサーバーを起動
+pub async fn start_dashboard(
+    port: u16,
+    db_path: String,
+    bot_info: Arc<RwLock<BotInfo>>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let state = DashboardState {
+        db_path,
+        start_time: Arc::new(Instant::now()),
+        bot_info,
+    };
+
+    // APIルート
+    let api_router = Router::new()
+        // 統計
+        .route("/api/stats", get(stats::stats_handler))
+        .route("/api/analytics/daily-replies", get(stats::daily_replies_handler))
+        // Bot管理
+        .route("/api/bots", get(bots::list_bots_handler))
+        .route("/api/bots", post(bots::create_bot_handler))
+        .route("/api/bots/generate-key", get(bots::generate_key_handler))
+        .route("/api/bots/:pubkey", put(bots::update_bot_handler))
+        .route("/api/bots/:pubkey", delete(bots::delete_bot_handler))
+        .route("/api/bots/:pubkey/toggle", post(bots::toggle_bot_handler))
+        .route("/api/bots/:pubkey/kind0", get(bots::fetch_kind0_handler))
+        .route("/api/bots/:pubkey/post", post(bots::post_as_bot_handler))
+        // フォロワーキャッシュ
+        .route("/api/follower-cache", get(follower_cache::list_follower_cache_handler))
+        .route("/api/follower-cache", delete(follower_cache::clear_follower_cache_handler))
+        .route("/api/follower-cache/:user_pubkey/:bot_pubkey", put(follower_cache::update_follower_cache_handler))
+        .route("/api/follower-cache/:user_pubkey/:bot_pubkey", delete(follower_cache::delete_follower_cache_handler))
+        // 設定
+        .route("/api/global-pause", get(settings::get_global_pause_handler))
+        .route("/api/global-pause", post(settings::set_global_pause_handler))
+        .with_state(state);
+
+    // 静的ファイル配信 + APIルート
+    // プロジェクトルートからの絶対パス（CARGO_MANIFEST_DIRを使用）
+    let manifest_dir = env!("CARGO_MANIFEST_DIR");
+    let dashboard_dir = format!("{}/dashboard", manifest_dir);
+    let assets_dir = format!("{}/dashboard/assets", manifest_dir);
+    
+    println!("📂 Dashboard directory: {}", dashboard_dir);
+    println!("📂 Assets directory: {}", assets_dir);
+    
+    // ディレクトリの存在確認（デバッグ用）
+    if std::path::Path::new(&dashboard_dir).exists() {
+        println!("✅ Dashboard directory exists");
+    } else {
+        println!("❌ Dashboard directory NOT found!");
+    }
+    
+    if std::path::Path::new(&assets_dir).exists() {
+        println!("✅ Assets directory exists");
+    } else {
+        println!("❌ Assets directory NOT found!");
+    }
+
+    let app = Router::new()
+        .merge(api_router)
+        .route("/", get(|| async {
+            let manifest_dir = env!("CARGO_MANIFEST_DIR");
+            let index_path = format!("{}/dashboard/index.html", manifest_dir);
+            match tokio::fs::read_to_string(&index_path).await {
+                Ok(content) => axum::response::Html(content).into_response(),
+                Err(e) => {
+                    eprintln!("index.htmlの読み込みエラー: {}", e);
+                    (axum::http::StatusCode::NOT_FOUND, "index.html not found").into_response()
+                }
+            }
+        }))
+        .nest_service("/assets", ServeDir::new(assets_dir))
+        .fallback_service(ServeDir::new(dashboard_dir));
+
+    let addr = format!("127.0.0.1:{}", port);
+    println!("🌐 Dashboard server starting on http://{}", addr);
+    
+    let listener = tokio::net::TcpListener::bind(&addr).await?;
+    axum::serve(listener, app).await?;
+
+    Ok(())
+}
+
