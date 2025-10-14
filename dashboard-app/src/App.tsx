@@ -13,7 +13,6 @@ import { SmartToy, Refresh } from '@mui/icons-material';
 import { DashboardPage } from './pages/DashboardPage';
 import { BotsPage } from './pages/BotsPage';
 import { FollowerCachePage } from './pages/FollowerCachePage';
-import { SettingsPage } from './pages/SettingsPage';
 import { useBots } from './hooks/useBots';
 import { useStats } from './hooks/useStats';
 import { useDailyReplies } from './hooks/useDailyReplies';
@@ -141,7 +140,6 @@ function AppContent() {
         <Route path="/" element={<DashboardPage />} />
         <Route path="/bots" element={<BotsPage />} />
         <Route path="/follower-cache" element={<FollowerCachePage />} />
-        <Route path="/settings" element={<SettingsPage />} />
       </Routes>
     </Box>
   );

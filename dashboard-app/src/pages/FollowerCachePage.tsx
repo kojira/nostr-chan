@@ -5,7 +5,7 @@ import {
   TextField, InputAdornment, MenuItem, Select, FormControl, InputLabel, Dialog,
   DialogTitle, DialogContent, DialogActions
 } from '@mui/material';
-import { ArrowBack, Delete, DeleteSweep, People, Search, FilterList, ContentCopy } from '@mui/icons-material';
+import { ArrowBack, Delete, DeleteSweep, People, Search, FilterList, ContentCopy, Settings, Save, Schedule } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 
 interface FollowerCache {
@@ -30,6 +30,9 @@ export const FollowerCachePage = () => {
   const [followFilter, setFollowFilter] = useState<'all' | 'following' | 'not-following'>('all');
   const [idDialogOpen, setIdDialogOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<{ hex: string; npub: string; name?: string } | null>(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [ttlSeconds, setTtlSeconds] = useState(86400);
+  const [savingSettings, setSavingSettings] = useState(false);
 
   const loadCaches = async () => {
     try {
@@ -46,7 +49,20 @@ export const FollowerCachePage = () => {
 
   useEffect(() => {
     loadCaches();
+    loadSettings();
   }, []);
+
+  const loadSettings = async () => {
+    try {
+      const response = await fetch('/api/settings/follower-cache-ttl');
+      if (response.ok) {
+        const data = await response.json();
+        setTtlSeconds(data.ttl_seconds);
+      }
+    } catch (error) {
+      console.error('設定読み込みエラー:', error);
+    }
+  };
 
   const handleToggleFollower = async (userPubkey: string, botPubkey: string, currentStatus: boolean) => {
     try {
@@ -147,6 +163,42 @@ export const FollowerCachePage = () => {
     alert('クリップボードにコピーしました');
   };
 
+  const handleSaveSettings = async () => {
+    if (ttlSeconds < 60 || ttlSeconds > 604800) {
+      alert('有効時間は60秒以上604800秒(7日間)以下で設定してください');
+      return;
+    }
+
+    setSavingSettings(true);
+    try {
+      const response = await fetch('/api/settings/follower-cache-ttl', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ttl_seconds: ttlSeconds }),
+      });
+
+      if (response.ok) {
+        alert('✅ 設定を保存しました');
+        setSettingsOpen(false);
+      } else {
+        alert('❌ 設定の保存に失敗しました');
+      }
+    } catch (error) {
+      console.error('保存エラー:', error);
+      alert('❌ 設定の保存に失敗しました');
+    } finally {
+      setSavingSettings(false);
+    }
+  };
+
+  const getHoursDisplay = () => {
+    const hours = ttlSeconds / 3600;
+    if (hours >= 24) {
+      return `${(hours / 24).toFixed(1)}日`;
+    }
+    return `${hours.toFixed(1)}時間`;
+  };
+
   // フィルタ処理
   const filteredCaches = useMemo(() => {
     return caches.filter(cache => {
@@ -207,6 +259,13 @@ export const FollowerCachePage = () => {
             <Chip label={`${filteredCaches.length} / ${caches.length}件`} size="small" color="primary" />
           </Box>
           <Box sx={{ display: 'flex', gap: 1 }}>
+            <Button
+              variant="outlined"
+              startIcon={<Settings />}
+              onClick={() => setSettingsOpen(true)}
+            >
+              設定
+            </Button>
             {filteredCaches.length < caches.length && (
               <Button
                 variant="outlined"
@@ -448,6 +507,77 @@ export const FollowerCachePage = () => {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setIdDialogOpen(false)}>閉じる</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* 設定ダイアログ */}
+      <Dialog open={settingsOpen} onClose={() => setSettingsOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Settings />
+            フォロワーキャッシュ設定
+          </Box>
+        </DialogTitle>
+        <DialogContent>
+          <Box sx={{ mt: 2 }}>
+            <TextField
+              label="キャッシュ有効時間（秒）"
+              type="number"
+              value={ttlSeconds}
+              onChange={(e) => setTtlSeconds(parseInt(e.target.value) || 0)}
+              fullWidth
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <Schedule />
+                  </InputAdornment>
+                ),
+                endAdornment: (
+                  <InputAdornment position="end">
+                    <Typography variant="caption" color="text.secondary">
+                      ≈ {getHoursDisplay()}
+                    </Typography>
+                  </InputAdornment>
+                ),
+              }}
+              helperText="最小: 60秒 / 最大: 604800秒 (7日間)"
+            />
+            
+            <Box sx={{ display: 'flex', gap: 1, mt: 2, flexWrap: 'wrap' }}>
+              <Button variant="outlined" onClick={() => setTtlSeconds(3600)} size="small">
+                1時間
+              </Button>
+              <Button variant="outlined" onClick={() => setTtlSeconds(21600)} size="small">
+                6時間
+              </Button>
+              <Button variant="outlined" onClick={() => setTtlSeconds(86400)} size="small">
+                24時間
+              </Button>
+              <Button variant="outlined" onClick={() => setTtlSeconds(604800)} size="small">
+                7日間
+              </Button>
+            </Box>
+
+            <Paper sx={{ mt: 2, p: 2, bgcolor: 'grey.50' }}>
+              <Typography variant="caption" color="text.secondary">
+                💡 フォロワーキャッシュはフォロワー判定の結果を一定時間保存します。
+                長くすればリレーへの問い合わせが減りますが、フォロー状態の変更が反映されるまで時間がかかります。
+              </Typography>
+            </Paper>
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setSettingsOpen(false)}>
+            キャンセル
+          </Button>
+          <Button 
+            onClick={handleSaveSettings} 
+            variant="contained" 
+            startIcon={<Save />}
+            disabled={savingSettings || ttlSeconds < 60 || ttlSeconds > 604800}
+          >
+            {savingSettings ? '保存中...' : '保存'}
+          </Button>
         </DialogActions>
       </Dialog>
     </Container>
