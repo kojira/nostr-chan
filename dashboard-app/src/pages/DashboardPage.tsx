@@ -1,7 +1,7 @@
 import { Container, Paper, Typography, Box, Button, Grid } from '@mui/material';
 import { SmartToy, People, ChevronRight, Speed, Chat, Search, Psychology } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
-import { StatisticsSection } from '../sections/StatisticsSection';
+import { StatisticsSection, ReplyTrendSection } from '../sections/StatisticsSection';
 import { useStats } from '../hooks/useStats';
 import { useDailyReplies } from '../hooks/useDailyReplies';
 import { useBots } from '../hooks/useBots';
@@ -111,6 +111,13 @@ export const DashboardPage = () => {
           ))}
         </Box>
       </Box>
+
+      {/* Bot返信推移 - 最下部 */}
+      <ReplyTrendSection 
+        dailyRepliesData={dailyRepliesData}
+        bots={bots}
+        dailyRepliesLoading={dailyRepliesLoading}
+      />
     </Container>
   );
 };
