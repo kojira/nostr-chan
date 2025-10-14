@@ -27,9 +27,6 @@ export const DashboardPage = () => {
       path: '/follower-cache',
       color: '#764ba2',
     },
-  ];
-
-  const settingsCards = [
     {
       title: 'Bot動作設定',
       description: 'リアクション確率・頻度・タイムライン',
@@ -74,13 +71,13 @@ export const DashboardPage = () => {
       />
 
       {/* 管理機能 */}
-      <Box sx={{ mb: 5 }}>
+      <Box sx={{ mb: 3 }}>
         <Typography variant="h5" fontWeight="bold" mb={2}>
           管理機能
         </Typography>
         <Grid container spacing={2}>
           {managementCards.map((card) => (
-            <Grid item xs={12} sm={6} key={card.path}>
+            <Grid item xs={12} sm={6} md={4} key={card.path}>
               <Paper
                 elevation={0}
                 sx={{
@@ -106,46 +103,6 @@ export const DashboardPage = () => {
                   {card.title}
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
-                  {card.description}
-                </Typography>
-              </Paper>
-            </Grid>
-          ))}
-        </Grid>
-      </Box>
-
-      {/* システム設定 */}
-      <Box sx={{ mb: 3 }}>
-        <Typography variant="h5" fontWeight="bold" mb={2}>
-          システム設定
-        </Typography>
-        <Grid container spacing={2}>
-          {settingsCards.map((card) => (
-            <Grid item xs={12} sm={6} md={3} key={card.path}>
-              <Paper
-                elevation={0}
-                sx={{
-                  p: 3,
-                  border: '1px solid',
-                  borderColor: 'divider',
-                  borderRadius: 2,
-                  cursor: 'pointer',
-                  transition: 'all 0.3s',
-                  '&:hover': {
-                    transform: 'translateY(-4px)',
-                    boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
-                    borderColor: card.color,
-                  },
-                }}
-                onClick={() => navigate(card.path)}
-              >
-                <Box sx={{ display: 'flex', justifyContent: 'center', mb: 2 }}>
-                  <card.icon sx={{ fontSize: 48, color: card.color }} />
-                </Box>
-                <Typography variant="h6" fontWeight="bold" mb={0.5} textAlign="center">
-                  {card.title}
-                </Typography>
-                <Typography variant="body2" color="text.secondary" textAlign="center">
                   {card.description}
                 </Typography>
               </Paper>
