@@ -331,7 +331,7 @@ pub async fn set_relay_settings_handler(
 // ブラックリスト設定
 // ============================================================
 
-/// ブラックリスト設定の取得
+/// ブラックリスト設定の取得（kind 0情報付き）
 pub async fn get_blacklist_settings_handler(
     State(_state): State<DashboardState>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
@@ -341,9 +341,56 @@ pub async fn get_blacklist_settings_handler(
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
         .unwrap_or_default();
     
+    let pubkeys: Vec<&str> = blacklist.split(',').filter(|s| !s.is_empty()).collect();
+    
+    // 各pubkeyのkind 0情報を取得
+    let mut entries = Vec::new();
+    for pubkey in pubkeys {
+        let name = match get_user_name_from_events(&conn, pubkey) {
+            Ok(Some(n)) => n,
+            _ => format!("{}...", &pubkey[..8]),
+        };
+        
+        let picture = get_user_picture_from_events(&conn, pubkey).ok().flatten();
+        
+        entries.push(serde_json::json!({
+            "pubkey": pubkey,
+            "name": name,
+            "picture": picture,
+        }));
+    }
+    
     Ok(Json(serde_json::json!({
-        "blacklist": blacklist.split(',').filter(|s| !s.is_empty()).collect::<Vec<_>>(),
+        "blacklist": entries,
     })))
+}
+
+/// eventsテーブルからユーザー名を取得
+fn get_user_name_from_events(conn: &rusqlite::Connection, pubkey: &str) -> Result<Option<String>, rusqlite::Error> {
+    let mut stmt = conn.prepare(
+        "SELECT kind0_name FROM events WHERE pubkey = ? AND kind0_name IS NOT NULL LIMIT 1"
+    )?;
+    
+    let mut rows = stmt.query([pubkey])?;
+    if let Some(row) = rows.next()? {
+        Ok(row.get(0)?)
+    } else {
+        Ok(None)
+    }
+}
+
+/// eventsテーブルからユーザーアイコンを取得
+fn get_user_picture_from_events(conn: &rusqlite::Connection, pubkey: &str) -> Result<Option<String>, rusqlite::Error> {
+    let mut stmt = conn.prepare(
+        "SELECT kind0_picture FROM events WHERE pubkey = ? AND kind0_picture IS NOT NULL LIMIT 1"
+    )?;
+    
+    let mut rows = stmt.query([pubkey])?;
+    if let Some(row) = rows.next()? {
+        Ok(row.get(0)?)
+    } else {
+        Ok(None)
+    }
 }
 
 /// ブラックリスト設定の保存
@@ -354,9 +401,15 @@ pub async fn set_blacklist_settings_handler(
     let conn = db::connect().map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     
     if let Some(blacklist) = req["blacklist"].as_array() {
+        // pubkeyのみを抽出（オブジェクトまたは文字列から）
         let blacklist_pubkeys: Vec<String> = blacklist.iter()
-            .filter_map(|v| v.as_str())
-            .map(|s| s.to_string())
+            .filter_map(|v| {
+                if let Some(obj) = v.as_object() {
+                    obj.get("pubkey").and_then(|p| p.as_str()).map(|s| s.to_string())
+                } else {
+                    v.as_str().map(|s| s.to_string())
+                }
+            })
             .collect();
         db::set_system_setting(&conn, "blacklist", &blacklist_pubkeys.join(","))
             .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;

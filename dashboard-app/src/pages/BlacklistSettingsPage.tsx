@@ -1,16 +1,23 @@
 import { useState, useEffect } from 'react';
 import {
   Container, Box, Typography, IconButton, Paper, Button, TextField,
-  List, ListItem, ListItemText, ListItemSecondaryAction, Chip
+  List, ListItem, ListItemText, ListItemSecondaryAction, Chip, Avatar, ListItemAvatar
 } from '@mui/material';
-import { ArrowBack, Save, Block, Add, Delete } from '@mui/icons-material';
+import { ArrowBack, Save, Block, Add, Delete, Person } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
+import { nip19 } from 'nostr-tools';
+
+interface BlacklistEntry {
+  pubkey: string;
+  name: string;
+  picture?: string;
+}
 
 export const BlacklistSettingsPage = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [blacklist, setBlacklist] = useState<string[]>([]);
+  const [blacklist, setBlacklist] = useState<BlacklistEntry[]>([]);
   const [newPubkey, setNewPubkey] = useState('');
 
   useEffect(() => {
@@ -28,6 +35,26 @@ export const BlacklistSettingsPage = () => {
       console.error('設定読み込みエラー:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const convertNpubToHex = (input: string): string | null => {
+    try {
+      // npub形式かどうかをチェック
+      if (input.startsWith('npub1')) {
+        const decoded = nip19.decode(input);
+        if (decoded.type === 'npub') {
+          return decoded.data;
+        }
+      }
+      // hex形式の場合はそのまま返す
+      if (/^[0-9a-fA-F]{64}$/.test(input)) {
+        return input.toLowerCase();
+      }
+      return null;
+    } catch (error) {
+      console.error('npub変換エラー:', error);
+      return null;
     }
   };
 
@@ -55,27 +82,32 @@ export const BlacklistSettingsPage = () => {
     }
   };
 
-  const addPubkey = (pubkey: string) => {
-    if (pubkey.length !== 64) {
-      alert('公開鍵は64文字の16進数である必要があります');
+  const addPubkey = (input: string) => {
+    const hexPubkey = convertNpubToHex(input);
+    
+    if (!hexPubkey) {
+      alert('公開鍵は64文字の16進数、またはnpub1形式で入力してください');
       return;
     }
 
-    if (!/^[0-9a-fA-F]{64}$/.test(pubkey)) {
-      alert('公開鍵は16進数（0-9, a-f）のみで構成される必要があります');
-      return;
-    }
-
-    if (!blacklist.includes(pubkey)) {
-      setBlacklist([...blacklist, pubkey]);
-      setNewPubkey('');
-    } else {
+    if (blacklist.some(entry => entry.pubkey === hexPubkey)) {
       alert('この公開鍵は既にブラックリストに登録されています');
+      return;
     }
+
+    // 新しいエントリを追加（名前とアイコンは後で更新される）
+    const newEntry: BlacklistEntry = {
+      pubkey: hexPubkey,
+      name: `${hexPubkey.substring(0, 8)}...`,
+      picture: undefined,
+    };
+    
+    setBlacklist([...blacklist, newEntry]);
+    setNewPubkey('');
   };
 
   const removePubkey = (pubkey: string) => {
-    setBlacklist(blacklist.filter(p => p !== pubkey));
+    setBlacklist(blacklist.filter(entry => entry.pubkey !== pubkey));
   };
 
   if (loading) {
@@ -120,18 +152,35 @@ export const BlacklistSettingsPage = () => {
         </Typography>
 
         <List>
-          {blacklist.map((pubkey, index) => (
+          {blacklist.map((entry, index) => (
             <ListItem key={index} sx={{ bgcolor: 'grey.50', mb: 1, borderRadius: 1 }}>
+              <ListItemAvatar>
+                <Avatar src={entry.picture} sx={{ bgcolor: 'primary.main' }}>
+                  {entry.picture ? null : <Person />}
+                </Avatar>
+              </ListItemAvatar>
               <ListItemText 
-                primary={pubkey} 
-                primaryTypographyProps={{ 
-                  fontFamily: 'monospace',
-                  fontSize: '0.875rem',
-                  sx: { wordBreak: 'break-all' }
-                }} 
+                primary={
+                  <Box>
+                    <Typography variant="subtitle2" fontWeight="bold">
+                      {entry.name}
+                    </Typography>
+                    <Typography 
+                      variant="caption" 
+                      sx={{ 
+                        fontFamily: 'monospace',
+                        color: 'text.secondary',
+                        wordBreak: 'break-all',
+                        display: 'block',
+                      }}
+                    >
+                      {entry.pubkey}
+                    </Typography>
+                  </Box>
+                }
               />
               <ListItemSecondaryAction>
-                <IconButton edge="end" onClick={() => removePubkey(pubkey)} size="small" color="error">
+                <IconButton edge="end" onClick={() => removePubkey(entry.pubkey)} size="small" color="error">
                   <Delete />
                 </IconButton>
               </ListItemSecondaryAction>
@@ -148,19 +197,19 @@ export const BlacklistSettingsPage = () => {
           <TextField
             fullWidth
             size="small"
-            placeholder="64文字の16進数公開鍵"
+            placeholder="公開鍵（hex形式 または npub1...）"
             value={newPubkey}
-            onChange={(e) => setNewPubkey(e.target.value.toLowerCase())}
-            onKeyPress={(e) => e.key === 'Enter' && addPubkey(newPubkey)}
+            onChange={(e) => setNewPubkey(e.target.value.trim())}
+            onKeyPress={(e) => e.key === 'Enter' && newPubkey && addPubkey(newPubkey)}
             inputProps={{
-              style: { fontFamily: 'monospace' }
+              style: { fontFamily: 'monospace', fontSize: '0.875rem' }
             }}
           />
           <Button
             variant="outlined"
             startIcon={<Add />}
             onClick={() => addPubkey(newPubkey)}
-            disabled={!newPubkey || newPubkey.length !== 64}
+            disabled={!newPubkey}
           >
             追加
           </Button>
@@ -174,8 +223,9 @@ export const BlacklistSettingsPage = () => {
         </Typography>
         <Typography variant="body2" component="div">
           <ul style={{ margin: 0, paddingLeft: 20 }}>
-            <li>公開鍵は64文字の16進数（0-9, a-f）で入力してください</li>
-            <li>npub形式の場合は、16進数に変換してから入力してください</li>
+            <li>公開鍵は <strong>64文字の16進数</strong>（例: 1234abcd...）、または <strong>npub1形式</strong>（例: npub1...）で入力できます</li>
+            <li>npub形式で入力した場合、自動的に16進数に変換されます</li>
+            <li>ユーザー名とアイコンは、過去の投稿情報から自動取得されます</li>
             <li>ブラックリストに登録されたユーザーからの投稿は、Botが一切反応しなくなります</li>
             <li>設定は保存後すぐに反映されます（再起動不要）</li>
           </ul>
