@@ -8,6 +8,9 @@ services:
     volumes:
       - "./:/var/bot/"
       - "${HOME}/.gemini:/root/.gemini"
+      - "${HOME}/.cache/huggingface:/root/.cache/huggingface"
+    ports:
+      - "5555:5555"
     tty: true
     working_dir: /var/bot/src
     command: bash -c "cargo run"
