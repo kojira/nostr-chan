@@ -75,30 +75,28 @@ export const DashboardPage = () => {
         <Typography variant="h5" fontWeight="bold" mb={2}>
           管理機能
         </Typography>
-        <Grid container spacing={2}>
+        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(3, 1fr)' }, gap: 2 }}>
           {managementCards.map((card) => (
-            <Grid item xs={12} sm={6} md={4} key={card.path}>
-              <Paper
-                elevation={0}
-                sx={{
-                  width: '100%',
-                  height: '100%',
-                  p: 3,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  border: '1px solid',
-                  borderColor: 'divider',
-                  borderRadius: 2,
-                  cursor: 'pointer',
-                  transition: 'all 0.3s',
-                  '&:hover': {
-                    transform: 'translateY(-4px)',
-                    boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
-                    borderColor: card.color,
-                  },
-                }}
-                onClick={() => navigate(card.path)}
-              >
+            <Paper
+              key={card.path}
+              elevation={0}
+              sx={{
+                p: 3,
+                display: 'flex',
+                flexDirection: 'column',
+                border: '1px solid',
+                borderColor: 'divider',
+                borderRadius: 2,
+                cursor: 'pointer',
+                transition: 'all 0.3s',
+                '&:hover': {
+                  transform: 'translateY(-4px)',
+                  boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
+                  borderColor: card.color,
+                },
+              }}
+              onClick={() => navigate(card.path)}
+            >
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1.5 }}>
                   <card.icon sx={{ fontSize: 24, color: card.color }} />
                   <Typography variant="h6" fontWeight="bold" sx={{ flex: 1 }}>
@@ -110,9 +108,8 @@ export const DashboardPage = () => {
                   {card.description}
                 </Typography>
               </Paper>
-            </Grid>
           ))}
-        </Grid>
+        </Box>
       </Box>
     </Container>
   );
