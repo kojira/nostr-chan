@@ -569,7 +569,7 @@ export const BotSummariesPage = () => {
                 <Typography variant="caption" color="text.secondary" fontWeight="bold">
                   自己紹介:
                 </Typography>
-                <Typography variant="body2" sx={{ mt: 0.5 }}>
+                <Typography variant="body2" sx={{ mt: 0.5, whiteSpace: 'pre-wrap' }}>
                   {selectedUserKind0.about}
                 </Typography>
               </Box>
