@@ -3,9 +3,9 @@ import { useParams, useNavigate } from 'react-router-dom';
 import {
   Container, Box, Typography, IconButton, Paper, TextField, Select, MenuItem,
   FormControl, InputLabel, TablePagination, Button, Dialog, DialogTitle,
-  DialogContent, DialogActions, List, ListItem, ListItemText, Chip
+  DialogContent, DialogActions, List, ListItem, ListItemText, Chip, Snackbar, Alert
 } from '@mui/material';
-import { ArrowBack, Summarize, Edit, Delete, Save, Cancel, AccessTime } from '@mui/icons-material';
+import { ArrowBack, Summarize, Edit, Delete, Save, Cancel, AccessTime, DeleteSweep } from '@mui/icons-material';
 import { useBots } from '../hooks/useBots';
 
 interface Summary {
@@ -38,6 +38,13 @@ export const BotSummariesPage = () => {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editingSummary, setEditingSummary] = useState<Summary | null>(null);
   const [editFormData, setEditFormData] = useState({ summary: '', user_input: '' });
+  
+  // スナックバー
+  const [snackbar, setSnackbar] = useState({
+    open: false,
+    message: '',
+    severity: 'success' as 'success' | 'error' | 'info' | 'warning',
+  });
 
   const bot = bots.find(b => b.pubkey === pubkey);
 
@@ -138,12 +145,25 @@ export const BotSummariesPage = () => {
       if (response.ok) {
         setEditDialogOpen(false);
         loadSummaries();
+        setSnackbar({
+          open: true,
+          message: '要約を更新しました',
+          severity: 'success',
+        });
       } else {
-        alert('更新に失敗しました');
+        setSnackbar({
+          open: true,
+          message: '更新に失敗しました',
+          severity: 'error',
+        });
       }
     } catch (error) {
       console.error('更新エラー:', error);
-      alert('更新エラーが発生しました');
+      setSnackbar({
+        open: true,
+        message: '更新エラーが発生しました',
+        severity: 'error',
+      });
     }
   };
 
@@ -157,12 +177,64 @@ export const BotSummariesPage = () => {
 
       if (response.ok) {
         loadSummaries();
+        setSnackbar({
+          open: true,
+          message: '要約を削除しました',
+          severity: 'success',
+        });
       } else {
-        alert('削除に失敗しました');
+        setSnackbar({
+          open: true,
+          message: '削除に失敗しました',
+          severity: 'error',
+        });
       }
     } catch (error) {
       console.error('削除エラー:', error);
-      alert('削除エラーが発生しました');
+      setSnackbar({
+        open: true,
+        message: '削除エラーが発生しました',
+        severity: 'error',
+      });
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    const message = actualSearchText
+      ? `フィルタ条件に一致する要約を全て削除しますか？\n（検索: "${actualSearchText}"）`
+      : 'このBotの要約を全て削除しますか？';
+    
+    if (!confirm(message)) return;
+    
+    try {
+      const response = await fetch(`/api/bots/${pubkey}/summaries/bulk-delete`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ search: actualSearchText || null }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        loadSummaries();
+        setSnackbar({
+          open: true,
+          message: `${data.deleted_count}件の要約を削除しました`,
+          severity: 'success',
+        });
+      } else {
+        setSnackbar({
+          open: true,
+          message: '一括削除に失敗しました',
+          severity: 'error',
+        });
+      }
+    } catch (error) {
+      console.error('一括削除エラー:', error);
+      setSnackbar({
+        open: true,
+        message: '一括削除エラーが発生しました',
+        severity: 'error',
+      });
     }
   };
 
@@ -246,6 +318,16 @@ export const BotSummariesPage = () => {
               <MenuItem value="ASC">昇順</MenuItem>
             </Select>
           </FormControl>
+          <Button
+            variant="outlined"
+            color="error"
+            size="small"
+            startIcon={<DeleteSweep />}
+            onClick={handleBulkDelete}
+            sx={{ minWidth: 150 }}
+          >
+            {actualSearchText ? 'フィルタ削除' : '全件削除'}
+          </Button>
         </Box>
       </Paper>
 
@@ -365,6 +447,23 @@ export const BotSummariesPage = () => {
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* スナックバー */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={4000}
+        onClose={() => setSnackbar({ ...snackbar, open: false })}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert
+          onClose={() => setSnackbar({ ...snackbar, open: false })}
+          severity={snackbar.severity}
+          variant="filled"
+          sx={{ width: '100%' }}
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </Container>
   );
 };

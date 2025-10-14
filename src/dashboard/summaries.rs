@@ -161,3 +161,51 @@ pub async fn delete_summary_handler(
     Ok(Json(serde_json::json!({ "success": true })))
 }
 
+#[derive(Debug, Deserialize)]
+pub struct DeleteBulkRequest {
+    pub search: Option<String>,
+}
+
+/// Bot要約一括削除（全件またはフィルタ後）
+pub async fn delete_summaries_bulk_handler(
+    State(_state): State<DashboardState>,
+    Path(pubkey): Path<String>,
+    Json(req): Json<DeleteBulkRequest>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let conn = db::connect().map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    
+    // WHERE句の構築
+    let mut where_clause = format!("bot_pubkey = '{}'", pubkey);
+    
+    // 検索フィルタを追加
+    if let Some(search) = &req.search {
+        if !search.is_empty() {
+            let escaped_search = search.replace("'", "''");
+            where_clause.push_str(&format!(
+                " AND (summary LIKE '%{}%' OR user_input LIKE '%{}%')",
+                escaped_search, escaped_search
+            ));
+        }
+    }
+    
+    // SQLクエリの構築
+    let delete_query = format!(
+        "DELETE FROM conversation_summaries WHERE {}",
+        where_clause
+    );
+    
+    let deleted_count = conn.execute(&delete_query, [])
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    
+    if req.search.is_some() && req.search.as_ref().unwrap().is_empty() == false {
+        println!("🗑️ Bot {} のフィルタ後要約 {}件を削除しました", pubkey, deleted_count);
+    } else {
+        println!("🗑️ Bot {} の全要約 {}件を削除しました", pubkey, deleted_count);
+    }
+    
+    Ok(Json(serde_json::json!({ 
+        "success": true,
+        "deleted_count": deleted_count
+    })))
+}
+

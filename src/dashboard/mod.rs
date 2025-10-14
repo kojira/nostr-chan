@@ -46,6 +46,7 @@ pub async fn start_dashboard(
         .route("/api/bots/:pubkey/post", post(bots::post_as_bot_handler))
         .route("/api/bots/:pubkey/replies", get(bots::get_bot_replies_handler))
         .route("/api/bots/:pubkey/summaries", get(summaries::list_summaries_handler))
+        .route("/api/bots/:pubkey/summaries/bulk-delete", post(summaries::delete_summaries_bulk_handler))
         .route("/api/summaries/:id", put(summaries::update_summary_handler))
         .route("/api/summaries/:id", delete(summaries::delete_summary_handler))
         // フォロワーキャッシュ
