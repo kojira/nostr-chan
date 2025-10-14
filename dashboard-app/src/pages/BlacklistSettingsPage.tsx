@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import {
   Container, Box, Typography, IconButton, Paper, Button, TextField,
-  List, ListItem, ListItemText, ListItemSecondaryAction, Chip, Avatar, ListItemAvatar
+  List, ListItem, ListItemText, ListItemSecondaryAction, Chip, Avatar, ListItemAvatar,
+  Snackbar, Alert
 } from '@mui/material';
 import { ArrowBack, Save, Block, Add, Delete, Person } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
@@ -28,6 +29,11 @@ export const BlacklistSettingsPage = () => {
   const [saving, setSaving] = useState(false);
   const [blacklist, setBlacklist] = useState<BlacklistEntry[]>([]);
   const [newPubkey, setNewPubkey] = useState('');
+  const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({
+    open: false,
+    message: '',
+    severity: 'success',
+  });
 
   useEffect(() => {
     loadSettings();
@@ -79,13 +85,25 @@ export const BlacklistSettingsPage = () => {
       });
 
       if (response.ok) {
-        alert('✅ 設定を保存しました');
+        setSnackbar({
+          open: true,
+          message: '設定を保存しました',
+          severity: 'success',
+        });
       } else {
-        alert('❌ 設定の保存に失敗しました');
+        setSnackbar({
+          open: true,
+          message: '設定の保存に失敗しました',
+          severity: 'error',
+        });
       }
     } catch (error) {
       console.error('保存エラー:', error);
-      alert('❌ 設定の保存に失敗しました');
+      setSnackbar({
+        open: true,
+        message: '設定の保存に失敗しました',
+        severity: 'error',
+      });
     } finally {
       setSaving(false);
     }
@@ -95,12 +113,20 @@ export const BlacklistSettingsPage = () => {
     const hexPubkey = convertNpubToHex(input);
     
     if (!hexPubkey) {
-      alert('公開鍵は64文字の16進数、またはnpub1形式で入力してください');
+      setSnackbar({
+        open: true,
+        message: '公開鍵は64文字の16進数、またはnpub1形式で入力してください',
+        severity: 'error',
+      });
       return;
     }
 
     if (blacklist.some(entry => entry.pubkey === hexPubkey)) {
-      alert('この公開鍵は既にブラックリストに登録されています');
+      setSnackbar({
+        open: true,
+        message: 'この公開鍵は既にブラックリストに登録されています',
+        severity: 'error',
+      });
       return;
     }
 
@@ -113,6 +139,11 @@ export const BlacklistSettingsPage = () => {
     
     setBlacklist([...blacklist, newEntry]);
     setNewPubkey('');
+    setSnackbar({
+      open: true,
+      message: 'ブラックリストに追加しました',
+      severity: 'success',
+    });
   };
 
   const removePubkey = (pubkey: string) => {
@@ -253,6 +284,23 @@ export const BlacklistSettingsPage = () => {
           </ul>
         </Typography>
       </Paper>
+
+      {/* Snackbar通知 */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={4000}
+        onClose={() => setSnackbar({ ...snackbar, open: false })}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert
+          onClose={() => setSnackbar({ ...snackbar, open: false })}
+          severity={snackbar.severity}
+          variant="filled"
+          sx={{ width: '100%' }}
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </Container>
   );
 };
