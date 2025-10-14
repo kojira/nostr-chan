@@ -1,5 +1,6 @@
 import { Card, CardContent, Typography, Box, Chip, IconButton, Tooltip, Avatar, Dialog, DialogTitle, DialogContent, DialogActions, TextField, Button } from '@mui/material';
-import { CheckCircle, Cancel, PlayArrow, Pause, Edit, Delete, SmartToy, Send } from '@mui/icons-material';
+import { CheckCircle, Cancel, PlayArrow, Pause, Edit, Delete, SmartToy, Send, ChatBubble } from '@mui/icons-material';
+import { useNavigate } from 'react-router-dom';
 import type { BotData } from '../types';
 import { useMemo, useState } from 'react';
 
@@ -11,6 +12,7 @@ interface BotCardProps {
 }
 
 export const BotCard = ({ bot, onEdit, onDelete, onToggle }: BotCardProps) => {
+  const navigate = useNavigate();
   const isActive = bot.status === 0;
   const [postDialogOpen, setPostDialogOpen] = useState(false);
   const [postContent, setPostContent] = useState('');
@@ -132,6 +134,23 @@ export const BotCard = ({ bot, onEdit, onDelete, onToggle }: BotCardProps) => {
           </Box>
           
           <Box sx={{ display: 'flex', gap: 0.5 }}>
+            <Tooltip title="返信履歴">
+              <IconButton 
+                onClick={() => navigate(`/bots/${bot.pubkey}`)}
+                sx={{
+                  color: 'text.secondary',
+                  bgcolor: 'rgba(0, 0, 0, 0.04)',
+                  '&:hover': {
+                    bgcolor: 'rgba(33, 150, 243, 0.08)',
+                    color: '#2196f3',
+                  },
+                  transition: 'all 0.2s',
+                }}
+                size="small"
+              >
+                <ChatBubble fontSize="small" />
+              </IconButton>
+            </Tooltip>
             <Tooltip title="投稿">
               <IconButton 
                 onClick={() => setPostDialogOpen(true)}

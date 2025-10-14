@@ -43,6 +43,7 @@ pub async fn start_dashboard(
         .route("/api/bots/:pubkey/toggle", post(bots::toggle_bot_handler))
         .route("/api/bots/:pubkey/kind0", get(bots::fetch_kind0_handler))
         .route("/api/bots/:pubkey/post", post(bots::post_as_bot_handler))
+        .route("/api/bots/:pubkey/replies", get(bots::get_bot_replies_handler))
         // フォロワーキャッシュ
         .route("/api/follower-cache", get(follower_cache::list_follower_cache_handler))
         .route("/api/follower-cache", delete(follower_cache::clear_follower_cache_handler))

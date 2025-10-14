@@ -1,10 +1,11 @@
 use axum::{
-    extract::{State, Path},
+    extract::{State, Path, Query},
     response::Json,
     http::StatusCode,
 };
 use super::types::{DashboardState, BotData, BotRequest};
 use crate::db;
+use serde::{Deserialize, Serialize};
 
 /// Bot一覧取得
 pub async fn list_bots_handler(
@@ -342,5 +343,64 @@ pub async fn post_as_bot_handler(
 #[derive(Debug, serde::Deserialize)]
 pub struct PostRequest {
     pub content: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct BotReply {
+    pub event_id: String,
+    pub content: String,
+    pub created_at: i64,
+    pub reply_to_event_id: Option<String>,
+    pub reply_to_user: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ReplyQuery {
+    pub limit: Option<i64>,
+    pub offset: Option<i64>,
+}
+
+/// Bot返信履歴取得
+pub async fn get_bot_replies_handler(
+    State(_state): State<DashboardState>,
+    Path(pubkey): Path<String>,
+    Query(query): Query<ReplyQuery>,
+) -> Result<Json<Vec<BotReply>>, StatusCode> {
+    let conn = db::connect().map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    
+    let limit = query.limit.unwrap_or(50);
+    let offset = query.offset.unwrap_or(0);
+    
+    // eventsテーブルからBotの返信を取得
+    let query_str = r#"
+        SELECT 
+            event_id,
+            content,
+            created_at,
+            reply_to_event_id,
+            reply_to_user
+        FROM events
+        WHERE pubkey = ?1 AND event_type = 'bot_reply'
+        ORDER BY created_at DESC
+        LIMIT ?2 OFFSET ?3
+    "#;
+    
+    let mut stmt = conn.prepare(query_str)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    
+    let replies = stmt.query_map([&pubkey, &limit.to_string(), &offset.to_string()], |row| {
+        Ok(BotReply {
+            event_id: row.get(0)?,
+            content: row.get(1)?,
+            created_at: row.get(2)?,
+            reply_to_event_id: row.get(3)?,
+            reply_to_user: row.get(4)?,
+        })
+    })
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+    .collect::<Result<Vec<_>, _>>()
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    
+    Ok(Json(replies))
 }
 
