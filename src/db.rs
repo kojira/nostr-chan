@@ -211,7 +211,15 @@ fn migrate_remove_kind0_content(conn: &Connection) -> Result<()> {
         println!("🔄 マイグレーション: eventsテーブルからkind0_contentカラムを削除");
         
         // SQLiteではALTER TABLE DROP COLUMNが使えないので、テーブルを再作成する
-        // 1. 新しいテーブルを作成（kind0_contentなし）
+        // 外部キー制約があるため、慎重に処理する
+        
+        // 1. 外部キー制約を一時的に無効化
+        conn.execute("PRAGMA foreign_keys = OFF", [])?;
+        
+        // 2. トランザクション開始
+        conn.execute("BEGIN TRANSACTION", [])?;
+        
+        // 3. 新しいテーブルを作成（kind0_contentなし）
         conn.execute(
             "CREATE TABLE events_new (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -230,7 +238,7 @@ fn migrate_remove_kind0_content(conn: &Connection) -> Result<()> {
             [],
         )?;
         
-        // 2. データをコピー（kind0_content以外）
+        // 4. データをコピー（kind0_content以外）
         conn.execute(
             "INSERT INTO events_new 
              SELECT id, event_id, event_json, pubkey, kind, content, created_at, received_at, 
@@ -239,18 +247,24 @@ fn migrate_remove_kind0_content(conn: &Connection) -> Result<()> {
             [],
         )?;
         
-        // 3. 古いテーブルを削除
+        // 5. 古いテーブルを削除
         conn.execute("DROP TABLE events", [])?;
         
-        // 4. 新しいテーブルをリネーム
+        // 6. 新しいテーブルをリネーム
         conn.execute("ALTER TABLE events_new RENAME TO events", [])?;
         
-        // 5. インデックスを再作成
+        // 7. インデックスを再作成
         conn.execute("CREATE INDEX IF NOT EXISTS idx_events_pubkey ON events(pubkey)", [])?;
         conn.execute("CREATE INDEX IF NOT EXISTS idx_events_kind ON events(kind)", [])?;
         conn.execute("CREATE INDEX IF NOT EXISTS idx_events_created_at ON events(created_at DESC)", [])?;
         conn.execute("CREATE INDEX IF NOT EXISTS idx_events_is_japanese ON events(is_japanese)", [])?;
         conn.execute("CREATE INDEX IF NOT EXISTS idx_events_event_type ON events(event_type)", [])?;
+        
+        // 8. トランザクションコミット
+        conn.execute("COMMIT", [])?;
+        
+        // 9. 外部キー制約を再度有効化
+        conn.execute("PRAGMA foreign_keys = ON", [])?;
         
         println!("✅ マイグレーション完了: kind0_contentカラムを削除（データは保持）");
     }
