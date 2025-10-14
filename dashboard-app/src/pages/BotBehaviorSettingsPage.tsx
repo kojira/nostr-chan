@@ -122,7 +122,7 @@ export const BotBehaviorSettingsPage = () => {
         />
         <Paper sx={{ mt: 2, p: 2, bgcolor: 'grey.50' }}>
           <Typography variant="caption" color="text.secondary">
-            💡 Botがメンションに反応する確率です。高いほど頻繁に返信します。
+            💡 Botがエアリプ（タイムライン投稿への自発的な返信）を行う確率です。メンションへは常に100%反応します。
           </Typography>
         </Paper>
       </Paper>
