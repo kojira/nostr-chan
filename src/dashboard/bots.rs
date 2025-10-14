@@ -372,15 +372,15 @@ pub async fn get_bot_replies_handler(
     let offset = query.offset.unwrap_or(0);
     
     // eventsテーブルからBotの返信を取得
+    // event_jsonからタグ情報を抽出
     let query_str = r#"
         SELECT 
             event_id,
             content,
             created_at,
-            reply_to_event_id,
-            reply_to_user
+            event_json
         FROM events
-        WHERE pubkey = ?1 AND event_type = 'bot_reply'
+        WHERE pubkey = ?1 AND (event_type = 'bot_reply' OR event_type = 'bot_post')
         ORDER BY created_at DESC
         LIMIT ?2 OFFSET ?3
     "#;
@@ -389,12 +389,43 @@ pub async fn get_bot_replies_handler(
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     
     let replies = stmt.query_map([&pubkey, &limit.to_string(), &offset.to_string()], |row| {
+        let event_id: String = row.get(0)?;
+        let content: String = row.get(1)?;
+        let created_at: i64 = row.get(2)?;
+        let event_json: String = row.get(3)?;
+        
+        // event_jsonからタグ情報を抽出
+        let (reply_to_event_id, reply_to_user) = if let Ok(json_value) = serde_json::from_str::<serde_json::Value>(&event_json) {
+            let mut reply_event_id = None;
+            let mut reply_user = None;
+            
+            if let Some(tags) = json_value["tags"].as_array() {
+                for tag in tags {
+                    if let Some(tag_array) = tag.as_array() {
+                        if tag_array.len() >= 2 {
+                            if let Some(tag_type) = tag_array[0].as_str() {
+                                if tag_type == "e" {
+                                    reply_event_id = tag_array[1].as_str().map(|s| s.to_string());
+                                } else if tag_type == "p" {
+                                    reply_user = tag_array[1].as_str().map(|s| s.to_string());
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            
+            (reply_event_id, reply_user)
+        } else {
+            (None, None)
+        };
+        
         Ok(BotReply {
-            event_id: row.get(0)?,
-            content: row.get(1)?,
-            created_at: row.get(2)?,
-            reply_to_event_id: row.get(3)?,
-            reply_to_user: row.get(4)?,
+            event_id,
+            content,
+            created_at,
+            reply_to_event_id,
+            reply_to_user,
         })
     })
     .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
