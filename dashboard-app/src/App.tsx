@@ -17,6 +17,7 @@ import { BotBehaviorSettingsPage } from './pages/BotBehaviorSettingsPage';
 import { ConversationLimitSettingsPage } from './pages/ConversationLimitSettingsPage';
 import { RagSettingsPage } from './pages/RagSettingsPage';
 import { GptSettingsPage } from './pages/GptSettingsPage';
+import { RelaySettingsPage } from './pages/RelaySettingsPage';
 import { useBots } from './hooks/useBots';
 import { useStats } from './hooks/useStats';
 import { useDailyReplies } from './hooks/useDailyReplies';
@@ -148,6 +149,7 @@ function AppContent() {
         <Route path="/settings/conversation-limit" element={<ConversationLimitSettingsPage />} />
         <Route path="/settings/rag" element={<RagSettingsPage />} />
         <Route path="/settings/gpt" element={<GptSettingsPage />} />
+        <Route path="/settings/relay" element={<RelaySettingsPage />} />
       </Routes>
     </Box>
   );

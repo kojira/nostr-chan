@@ -60,6 +60,8 @@ pub async fn start_dashboard(
         .route("/api/settings/rag", post(settings::set_rag_settings_handler))
         .route("/api/settings/gpt", get(settings::get_gpt_settings_handler))
         .route("/api/settings/gpt", post(settings::set_gpt_settings_handler))
+        .route("/api/settings/relay", get(settings::get_relay_settings_handler))
+        .route("/api/settings/relay", post(settings::set_relay_settings_handler))
         .with_state(state);
 
     // 静的ファイル配信 + APIルート

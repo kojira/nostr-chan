@@ -72,6 +72,23 @@ fn initialize_system_settings(conn: &rusqlite::Connection, config: &config::AppC
         println!("⚙️ GPTタイムアウト: {}秒", config.gpt.timeout);
     }
     
+    // リレー設定
+    if db::get_system_setting(conn, "relay_write")?.is_none() {
+        let write_relays = config.relay_servers.write.join(",");
+        db::set_system_setting(conn, "relay_write", &write_relays)?;
+        println!("⚙️ 書き込みリレー: {}", write_relays);
+    }
+    if db::get_system_setting(conn, "relay_read")?.is_none() {
+        let read_relays = config.relay_servers.read.join(",");
+        db::set_system_setting(conn, "relay_read", &read_relays)?;
+        println!("⚙️ 読み込みリレー: {}", read_relays);
+    }
+    if db::get_system_setting(conn, "relay_search")?.is_none() {
+        let search_relays = config.relay_servers.search.join(",");
+        db::set_system_setting(conn, "relay_search", &search_relays)?;
+        println!("⚙️ 検索リレー: {}", search_relays);
+    }
+    
     Ok(())
 }
 

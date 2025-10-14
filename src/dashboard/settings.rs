@@ -261,6 +261,73 @@ pub async fn set_gpt_settings_handler(
 }
 
 // ============================================================
+// リレー設定
+// ============================================================
+
+/// リレー設定の取得
+pub async fn get_relay_settings_handler(
+    State(_state): State<DashboardState>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let conn = db::connect().map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    
+    let write_relays = db::get_system_setting(&conn, "relay_write")
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+        .unwrap_or_default();
+    let read_relays = db::get_system_setting(&conn, "relay_read")
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+        .unwrap_or_default();
+    let search_relays = db::get_system_setting(&conn, "relay_search")
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+        .unwrap_or_default();
+    
+    Ok(Json(serde_json::json!({
+        "write": write_relays.split(',').filter(|s| !s.is_empty()).collect::<Vec<_>>(),
+        "read": read_relays.split(',').filter(|s| !s.is_empty()).collect::<Vec<_>>(),
+        "search": search_relays.split(',').filter(|s| !s.is_empty()).collect::<Vec<_>>(),
+    })))
+}
+
+/// リレー設定の保存
+pub async fn set_relay_settings_handler(
+    State(_state): State<DashboardState>,
+    Json(req): Json<serde_json::Value>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let conn = db::connect().map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    
+    if let Some(write) = req["write"].as_array() {
+        let write_relays: Vec<String> = write.iter()
+            .filter_map(|v| v.as_str())
+            .map(|s| s.to_string())
+            .collect();
+        db::set_system_setting(&conn, "relay_write", &write_relays.join(","))
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        println!("📡 書き込みリレー更新: {}", write_relays.join(", "));
+    }
+    
+    if let Some(read) = req["read"].as_array() {
+        let read_relays: Vec<String> = read.iter()
+            .filter_map(|v| v.as_str())
+            .map(|s| s.to_string())
+            .collect();
+        db::set_system_setting(&conn, "relay_read", &read_relays.join(","))
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        println!("📡 読み込みリレー更新: {}", read_relays.join(", "));
+    }
+    
+    if let Some(search) = req["search"].as_array() {
+        let search_relays: Vec<String> = search.iter()
+            .filter_map(|v| v.as_str())
+            .map(|s| s.to_string())
+            .collect();
+        db::set_system_setting(&conn, "relay_search", &search_relays.join(","))
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        println!("📡 検索リレー更新: {}", search_relays.join(", "));
+    }
+    
+    Ok(Json(serde_json::json!({ "success": true })))
+}
+
+// ============================================================
 // ヘルパー関数
 // ============================================================
 

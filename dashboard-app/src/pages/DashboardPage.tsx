@@ -1,5 +1,5 @@
 import { Container, Paper, Typography, Box, Button, Grid } from '@mui/material';
-import { SmartToy, People, ChevronRight, Speed, Chat, Search, Psychology } from '@mui/icons-material';
+import { SmartToy, People, ChevronRight, Speed, Chat, Search, Psychology, Wifi } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { StatisticsSection, ReplyTrendSection } from '../sections/StatisticsSection';
 import { useStats } from '../hooks/useStats';
@@ -54,6 +54,13 @@ export const DashboardPage = () => {
       icon: Psychology,
       path: '/settings/gpt',
       color: '#fa709a',
+    },
+    {
+      title: 'リレー設定',
+      description: '書き込み・読み込み・検索リレー',
+      icon: Wifi,
+      path: '/settings/relay',
+      color: '#38ef7d',
     },
   ];
 
