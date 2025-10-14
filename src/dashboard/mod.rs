@@ -5,6 +5,7 @@ mod follower_cache;
 mod settings;
 mod summaries;
 mod users;
+mod events;
 
 pub use types::{DashboardState, BotInfo};
 
@@ -52,6 +53,8 @@ pub async fn start_dashboard(
         .route("/api/summaries/:id", delete(summaries::delete_summary_handler))
         // ユーザー情報
         .route("/api/users/:pubkey/kind0", get(users::get_kind0_handler))
+        // イベント一覧
+        .route("/api/events", get(events::list_events_handler))
         // フォロワーキャッシュ
         .route("/api/follower-cache", get(follower_cache::list_follower_cache_handler))
         .route("/api/follower-cache", delete(follower_cache::clear_follower_cache_handler))

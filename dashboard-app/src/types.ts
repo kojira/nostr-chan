@@ -55,3 +55,25 @@ export interface ErrorEntry {
   message: string;
 }
 
+export interface VectorizedEvent {
+  id: number;
+  event_id: string;
+  pubkey: string;
+  kind: number;
+  content: string;
+  created_at: number;
+  received_at: number;
+  kind0_name: string | null;
+  is_japanese: boolean;
+  has_embedding: boolean;
+  event_type: string | null;
+}
+
+export interface EventsResponse {
+  events: VectorizedEvent[];
+  total: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
+}
+
