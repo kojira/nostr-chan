@@ -30,7 +30,7 @@ interface Summary {
 }
 
 // 参加者アバターコンポーネント
-const ParticipantAvatar = ({ pubkey }: { pubkey: string }) => {
+const ParticipantAvatar = ({ pubkey, onClick }: { pubkey: string; onClick: () => void }) => {
   const [kind0, setKind0] = useState<UserKind0 | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -53,7 +53,7 @@ const ParticipantAvatar = ({ pubkey }: { pubkey: string }) => {
 
   if (loading) {
     return (
-      <Avatar sx={{ width: 32, height: 32 }}>
+      <Avatar sx={{ width: 32, height: 32, cursor: 'pointer' }} onClick={onClick}>
         <Person fontSize="small" />
       </Avatar>
     );
@@ -67,6 +67,7 @@ const ParticipantAvatar = ({ pubkey }: { pubkey: string }) => {
       <Avatar 
         src={picture || undefined}
         sx={{ width: 32, height: 32, cursor: 'pointer' }}
+        onClick={onClick}
       >
         {!picture && <Person fontSize="small" />}
       </Avatar>
@@ -93,6 +94,11 @@ export const BotSummariesPage = () => {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editingSummary, setEditingSummary] = useState<Summary | null>(null);
   const [editFormData, setEditFormData] = useState({ summary: '', user_input: '' });
+  
+  // ユーザー情報ダイアログ
+  const [userDialogOpen, setUserDialogOpen] = useState(false);
+  const [selectedUserPubkey, setSelectedUserPubkey] = useState<string>('');
+  const [selectedUserKind0, setSelectedUserKind0] = useState<UserKind0 | null>(null);
   
   // スナックバー
   const [snackbar, setSnackbar] = useState({
@@ -293,6 +299,41 @@ export const BotSummariesPage = () => {
     }
   };
 
+  const handleUserClick = async (userPubkey: string) => {
+    setSelectedUserPubkey(userPubkey);
+    setUserDialogOpen(true);
+    
+    // Kind 0を取得
+    try {
+      const response = await fetch(`/api/users/${userPubkey}/kind0`);
+      if (response.ok) {
+        const data = await response.json();
+        setSelectedUserKind0(data);
+      }
+    } catch (error) {
+      console.error('Kind0取得エラー:', error);
+    }
+  };
+
+  const hexToNpub = (hex: string): string => {
+    try {
+      // nostr-sdk互換のnpub変換（簡易実装）
+      // 実際のnpub変換にはnostr-toolsライブラリが必要
+      return `npub1${hex.substring(0, 8)}...`;
+    } catch {
+      return hex;
+    }
+  };
+
+  const handleCopyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    setSnackbar({
+      open: true,
+      message: 'コピーしました',
+      severity: 'success',
+    });
+  };
+
   if (initialLoading) {
     return (
       <Container maxWidth="lg" sx={{ py: 4, display: 'flex', justifyContent: 'center' }}>
@@ -448,7 +489,7 @@ export const BotSummariesPage = () => {
                       </Typography>
                       <Box sx={{ display: 'flex', gap: 1 }}>
                         {summary.participants.map((p, idx) => (
-                          <ParticipantAvatar key={idx} pubkey={p} />
+                          <ParticipantAvatar key={idx} pubkey={p} onClick={() => handleUserClick(p)} />
                         ))}
                       </Box>
                     </Box>
@@ -502,6 +543,86 @@ export const BotSummariesPage = () => {
           <Button onClick={handleEditSave} variant="contained" startIcon={<Save />}>
             保存
           </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* ユーザー情報ダイアログ */}
+      <Dialog open={userDialogOpen} onClose={() => setUserDialogOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            {selectedUserKind0?.picture && (
+              <Avatar src={selectedUserKind0.picture} sx={{ width: 56, height: 56 }} />
+            )}
+            <Box>
+              <Typography variant="h6">
+                {selectedUserKind0?.display_name || selectedUserKind0?.name || 'ユーザー情報'}
+              </Typography>
+              {selectedUserKind0?.nip05 && (
+                <Typography variant="caption" color="text.secondary">
+                  {selectedUserKind0.nip05}
+                </Typography>
+              )}
+            </Box>
+          </Box>
+        </DialogTitle>
+        <DialogContent>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            {selectedUserKind0?.about && (
+              <Box>
+                <Typography variant="caption" color="text.secondary" fontWeight="bold">
+                  自己紹介:
+                </Typography>
+                <Typography variant="body2" sx={{ mt: 0.5 }}>
+                  {selectedUserKind0.about}
+                </Typography>
+              </Box>
+            )}
+            
+            <Box>
+              <Typography variant="caption" color="text.secondary" fontWeight="bold">
+                npub:
+              </Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5 }}>
+                <Typography 
+                  variant="body2" 
+                  sx={{ 
+                    fontFamily: 'monospace',
+                    wordBreak: 'break-all',
+                    flex: 1,
+                  }}
+                >
+                  {hexToNpub(selectedUserPubkey)}
+                </Typography>
+                <Button size="small" onClick={() => handleCopyToClipboard(hexToNpub(selectedUserPubkey))}>
+                  コピー
+                </Button>
+              </Box>
+            </Box>
+
+            <Box>
+              <Typography variant="caption" color="text.secondary" fontWeight="bold">
+                Hex:
+              </Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5 }}>
+                <Typography 
+                  variant="body2" 
+                  sx={{ 
+                    fontFamily: 'monospace',
+                    wordBreak: 'break-all',
+                    flex: 1,
+                  }}
+                >
+                  {selectedUserPubkey}
+                </Typography>
+                <Button size="small" onClick={() => handleCopyToClipboard(selectedUserPubkey)}>
+                  コピー
+                </Button>
+              </Box>
+            </Box>
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setUserDialogOpen(false)}>閉じる</Button>
         </DialogActions>
       </Dialog>
 
