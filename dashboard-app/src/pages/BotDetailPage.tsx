@@ -23,6 +23,7 @@ export const BotDetailPage = () => {
   const { bots } = useBots();
   const [replies, setReplies] = useState<BotReply[]>([]);
   const [loading, setLoading] = useState(true);
+  const [initialLoading, setInitialLoading] = useState(true);
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(25);
   const [searchText, setSearchText] = useState('');
@@ -65,6 +66,7 @@ export const BotDetailPage = () => {
       console.error('返信履歴の取得エラー:', error);
     } finally {
       setLoading(false);
+      setInitialLoading(false);
     }
   };
 
@@ -125,7 +127,7 @@ export const BotDetailPage = () => {
     }
   };
 
-  if (loading && replies.length === 0) {
+  if (initialLoading) {
     return (
       <Container maxWidth="lg" sx={{ py: 4, display: 'flex', justifyContent: 'center' }}>
         <CircularProgress />
@@ -207,10 +209,14 @@ export const BotDetailPage = () => {
       </Paper>
 
       {/* 返信一覧 */}
-      {replies.length === 0 ? (
+      {loading ? (
+        <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+          <CircularProgress size={40} />
+        </Box>
+      ) : replies.length === 0 ? (
         <Paper sx={{ p: 4, textAlign: 'center' }}>
           <Typography color="text.secondary">
-            {searchText ? '検索結果が見つかりません' : 'まだ返信がありません'}
+            {actualSearchText ? '検索結果が見つかりません' : 'まだ返信がありません'}
           </Typography>
         </Paper>
       ) : (
