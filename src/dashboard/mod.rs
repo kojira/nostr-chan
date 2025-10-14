@@ -8,7 +8,6 @@ pub use types::{DashboardState, BotInfo};
 
 use axum::{
     routing::{get, post, put, delete},
-    response::IntoResponse,
     Router,
 };
 use tower_http::services::ServeDir;
