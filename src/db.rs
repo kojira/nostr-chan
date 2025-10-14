@@ -207,19 +207,27 @@ fn migrate_remove_kind0_content(conn: &Connection) -> Result<()> {
         )
         .unwrap_or(0) > 0;
     
-    if column_exists {
-        println!("🔄 マイグレーション: eventsテーブルからkind0_contentカラムを削除");
+    if !column_exists {
+        return Ok(());
+    }
+    
+    println!("🔄 マイグレーション: eventsテーブルからkind0_contentカラムを削除");
+    
+    // SQLiteではALTER TABLE DROP COLUMNが使えないので、テーブルを再作成する
+    // 外部キー制約があるため、慎重に処理する
+    
+    // 1. 外部キー制約を一時的に無効化
+    conn.execute("PRAGMA foreign_keys = OFF", [])?;
+    
+    // 2. トランザクション開始
+    conn.execute("BEGIN TRANSACTION", [])?;
+    
+    // トランザクション内の処理（エラー時はロールバック）
+    let migration_result = (|| {
+        // 3. 前回の失敗で残っているかもしれないevents_newテーブルを削除
+        conn.execute("DROP TABLE IF EXISTS events_new", [])?;
         
-        // SQLiteではALTER TABLE DROP COLUMNが使えないので、テーブルを再作成する
-        // 外部キー制約があるため、慎重に処理する
-        
-        // 1. 外部キー制約を一時的に無効化
-        conn.execute("PRAGMA foreign_keys = OFF", [])?;
-        
-        // 2. トランザクション開始
-        conn.execute("BEGIN TRANSACTION", [])?;
-        
-        // 3. 新しいテーブルを作成（kind0_contentなし）
+        // 4. 新しいテーブルを作成（kind0_contentなし）
         conn.execute(
             "CREATE TABLE events_new (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -238,7 +246,7 @@ fn migrate_remove_kind0_content(conn: &Connection) -> Result<()> {
             [],
         )?;
         
-        // 4. データをコピー（kind0_content以外）
+        // 5. データをコピー（kind0_content以外）
         conn.execute(
             "INSERT INTO events_new 
              SELECT id, event_id, event_json, pubkey, kind, content, created_at, received_at, 
@@ -247,27 +255,38 @@ fn migrate_remove_kind0_content(conn: &Connection) -> Result<()> {
             [],
         )?;
         
-        // 5. 古いテーブルを削除
+        // 6. 古いテーブルを削除
         conn.execute("DROP TABLE events", [])?;
         
-        // 6. 新しいテーブルをリネーム
+        // 7. 新しいテーブルをリネーム
         conn.execute("ALTER TABLE events_new RENAME TO events", [])?;
         
-        // 7. インデックスを再作成
+        // 8. インデックスを再作成
         conn.execute("CREATE INDEX IF NOT EXISTS idx_events_pubkey ON events(pubkey)", [])?;
         conn.execute("CREATE INDEX IF NOT EXISTS idx_events_kind ON events(kind)", [])?;
         conn.execute("CREATE INDEX IF NOT EXISTS idx_events_created_at ON events(created_at DESC)", [])?;
         conn.execute("CREATE INDEX IF NOT EXISTS idx_events_is_japanese ON events(is_japanese)", [])?;
         conn.execute("CREATE INDEX IF NOT EXISTS idx_events_event_type ON events(event_type)", [])?;
         
-        // 8. トランザクションコミット
-        conn.execute("COMMIT", [])?;
-        
-        // 9. 外部キー制約を再度有効化
-        conn.execute("PRAGMA foreign_keys = ON", [])?;
-        
-        println!("✅ マイグレーション完了: kind0_contentカラムを削除（データは保持）");
+        Ok(())
+    })();
+    
+    // 9. トランザクションの結果に応じてコミットまたはロールバック
+    match migration_result {
+        Ok(_) => {
+            conn.execute("COMMIT", [])?;
+            println!("✅ マイグレーション完了: kind0_contentカラムを削除（データは保持）");
+        }
+        Err(e) => {
+            let _ = conn.execute("ROLLBACK", []);
+            println!("❌ マイグレーション失敗: {:?}", e);
+            println!("🔄 ロールバックしました（データは元の状態に戻りました）");
+            return Err(e);
+        }
     }
+    
+    // 10. 外部キー制約を再度有効化
+    conn.execute("PRAGMA foreign_keys = ON", [])?;
     
     Ok(())
 }
