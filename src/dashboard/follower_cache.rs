@@ -11,11 +11,20 @@ use crate::db;
 #[derive(Debug, Serialize)]
 pub struct FollowerCacheEntry {
     pub user_pubkey: String,
+    pub user_npub: String,
     pub user_name: Option<String>,
     pub bot_pubkey: String,
+    pub bot_npub: String,
     pub bot_name: Option<String>,
     pub is_follower: bool,
     pub cached_at: i64,
+}
+
+/// hex公開鍵をnpub形式に変換
+fn hex_to_npub(hex: &str) -> Result<String, Box<dyn std::error::Error>> {
+    use nostr_sdk::prelude::*;
+    let pubkey = PublicKey::from_hex(hex)?;
+    Ok(pubkey.to_bech32()?)
 }
 
 pub async fn list_follower_cache_handler(
@@ -37,7 +46,11 @@ pub async fn list_follower_cache_handler(
         StatusCode::INTERNAL_SERVER_ERROR
     })?;
     
-    let entries = caches.into_iter().map(|(user_pubkey, bot_pubkey, is_follower, cached_at)| {
+    let entries = caches.into_iter().filter_map(|(user_pubkey, bot_pubkey, is_follower, cached_at)| {
+        // npub形式に変換
+        let user_npub = hex_to_npub(&user_pubkey).ok()?;
+        let bot_npub = hex_to_npub(&bot_pubkey).ok()?;
+        
         // ユーザー名を取得（kind0_cacheから）
         let user_name = db::get_kind0_cache(&conn, &user_pubkey, i64::MAX)
             .ok()
@@ -56,14 +69,16 @@ pub async fn list_follower_cache_handler(
                     })
             });
         
-        FollowerCacheEntry {
+        Some(FollowerCacheEntry {
             user_pubkey,
+            user_npub,
             user_name,
             bot_pubkey,
+            bot_npub,
             bot_name,
             is_follower,
             cached_at,
-        }
+        })
     }).collect();
     
     Ok(Json(entries))

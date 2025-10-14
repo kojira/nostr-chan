@@ -2,15 +2,18 @@ import { useState, useEffect, useMemo } from 'react';
 import { 
   Container, Box, Typography, IconButton, Paper, Button, Table, TableBody, 
   TableCell, TableContainer, TableHead, TableRow, Chip, Tooltip, TablePagination,
-  TextField, InputAdornment, MenuItem, Select, FormControl, InputLabel
+  TextField, InputAdornment, MenuItem, Select, FormControl, InputLabel, Dialog,
+  DialogTitle, DialogContent, DialogActions
 } from '@mui/material';
-import { ArrowBack, Delete, DeleteSweep, People, Search, FilterList } from '@mui/icons-material';
+import { ArrowBack, Delete, DeleteSweep, People, Search, FilterList, ContentCopy } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 
 interface FollowerCache {
   user_pubkey: string;
+  user_npub: string;
   user_name?: string;
   bot_pubkey: string;
+  bot_npub: string;
   bot_name?: string;
   is_follower: boolean;
   cached_at: number;
@@ -25,6 +28,8 @@ export const FollowerCachePage = () => {
   const [userFilter, setUserFilter] = useState('');
   const [botFilter, setBotFilter] = useState('');
   const [followFilter, setFollowFilter] = useState<'all' | 'following' | 'not-following'>('all');
+  const [idDialogOpen, setIdDialogOpen] = useState(false);
+  const [selectedId, setSelectedId] = useState<{ hex: string; npub: string; name?: string } | null>(null);
 
   const loadCaches = async () => {
     try {
@@ -87,6 +92,16 @@ export const FollowerCachePage = () => {
 
   const formatDate = (timestamp: number) => {
     return new Date(timestamp * 1000).toLocaleString('ja-JP');
+  };
+
+  const handleIdClick = (hex: string, npub: string, name?: string) => {
+    setSelectedId({ hex, npub, name });
+    setIdDialogOpen(true);
+  };
+
+  const handleCopyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    alert('クリップボードにコピーしました');
   };
 
   // フィルタ処理
@@ -243,7 +258,10 @@ export const FollowerCachePage = () => {
                 <TableBody>
                   {paginatedCaches.map((cache) => (
                     <TableRow key={`${cache.user_pubkey}-${cache.bot_pubkey}`}>
-                      <TableCell>
+                      <TableCell 
+                        onClick={() => handleIdClick(cache.user_pubkey, cache.user_npub, cache.user_name)}
+                        sx={{ cursor: 'pointer', '&:hover': { bgcolor: 'action.hover' } }}
+                      >
                         {cache.user_name ? (
                           <Box>
                             <Typography variant="body2" fontWeight="bold">
@@ -259,7 +277,10 @@ export const FollowerCachePage = () => {
                           </Typography>
                         )}
                       </TableCell>
-                      <TableCell>
+                      <TableCell
+                        onClick={() => handleIdClick(cache.bot_pubkey, cache.bot_npub, cache.bot_name)}
+                        sx={{ cursor: 'pointer', '&:hover': { bgcolor: 'action.hover' } }}
+                      >
                         {cache.bot_name ? (
                           <Box>
                             <Typography variant="body2" fontWeight="bold">
@@ -320,6 +341,59 @@ export const FollowerCachePage = () => {
           </>
         )}
       </Paper>
+
+      {/* IDダイアログ */}
+      <Dialog open={idDialogOpen} onClose={() => setIdDialogOpen(false)} maxWidth="md" fullWidth>
+        <DialogTitle>
+          {selectedId?.name ? `${selectedId.name} の公開鍵` : '公開鍵'}
+        </DialogTitle>
+        <DialogContent>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
+            {/* HEX形式 */}
+            <Box>
+              <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                HEX形式
+              </Typography>
+              <Paper variant="outlined" sx={{ p: 2, bgcolor: 'grey.50', display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Typography variant="body2" sx={{ fontFamily: 'monospace', wordBreak: 'break-all', flex: 1 }}>
+                  {selectedId?.hex}
+                </Typography>
+                <Tooltip title="コピー">
+                  <IconButton 
+                    size="small" 
+                    onClick={() => selectedId?.hex && handleCopyToClipboard(selectedId.hex)}
+                  >
+                    <ContentCopy fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+              </Paper>
+            </Box>
+
+            {/* NPUB形式 */}
+            <Box>
+              <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                NPUB形式
+              </Typography>
+              <Paper variant="outlined" sx={{ p: 2, bgcolor: 'grey.50', display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Typography variant="body2" sx={{ fontFamily: 'monospace', wordBreak: 'break-all', flex: 1 }}>
+                  {selectedId?.npub}
+                </Typography>
+                <Tooltip title="コピー">
+                  <IconButton 
+                    size="small" 
+                    onClick={() => selectedId?.npub && handleCopyToClipboard(selectedId.npub)}
+                  >
+                    <ContentCopy fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+              </Paper>
+            </Box>
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setIdDialogOpen(false)}>閉じる</Button>
+        </DialogActions>
+      </Dialog>
     </Container>
   );
 };
