@@ -1,5 +1,5 @@
 import { Container, Paper, Typography, Box, Button, Grid } from '@mui/material';
-import { SmartToy, People, ChevronRight, Speed, Chat, Search, Psychology, Wifi } from '@mui/icons-material';
+import { SmartToy, People, ChevronRight, Speed, Chat, Search, Psychology, Wifi, Block } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { StatisticsSection, ReplyTrendSection } from '../sections/StatisticsSection';
 import { useStats } from '../hooks/useStats';
@@ -61,6 +61,13 @@ export const DashboardPage = () => {
       icon: Wifi,
       path: '/settings/relay',
       color: '#38ef7d',
+    },
+    {
+      title: 'ブラックリスト',
+      description: '無視するユーザーの管理',
+      icon: Block,
+      path: '/settings/blacklist',
+      color: '#ff6b6b',
     },
   ];
 

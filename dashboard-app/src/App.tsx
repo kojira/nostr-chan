@@ -18,6 +18,7 @@ import { ConversationLimitSettingsPage } from './pages/ConversationLimitSettings
 import { RagSettingsPage } from './pages/RagSettingsPage';
 import { GptSettingsPage } from './pages/GptSettingsPage';
 import { RelaySettingsPage } from './pages/RelaySettingsPage';
+import { BlacklistSettingsPage } from './pages/BlacklistSettingsPage';
 import { useBots } from './hooks/useBots';
 import { useStats } from './hooks/useStats';
 import { useDailyReplies } from './hooks/useDailyReplies';
@@ -150,6 +151,7 @@ function AppContent() {
         <Route path="/settings/rag" element={<RagSettingsPage />} />
         <Route path="/settings/gpt" element={<GptSettingsPage />} />
         <Route path="/settings/relay" element={<RelaySettingsPage />} />
+        <Route path="/settings/blacklist" element={<BlacklistSettingsPage />} />
       </Routes>
     </Box>
   );
