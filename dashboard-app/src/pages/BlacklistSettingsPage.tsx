@@ -13,6 +13,15 @@ interface BlacklistEntry {
   picture?: string;
 }
 
+const hexToNpub = (hex: string): string => {
+  try {
+    return nip19.npubEncode(hex);
+  } catch (error) {
+    console.error('hex→npub変換エラー:', error);
+    return hex;
+  }
+};
+
 export const BlacklistSettingsPage = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
@@ -172,6 +181,19 @@ export const BlacklistSettingsPage = () => {
                         color: 'text.secondary',
                         wordBreak: 'break-all',
                         display: 'block',
+                        mb: 0.5,
+                      }}
+                    >
+                      {hexToNpub(entry.pubkey)}
+                    </Typography>
+                    <Typography 
+                      variant="caption" 
+                      sx={{ 
+                        fontFamily: 'monospace',
+                        color: 'text.disabled',
+                        wordBreak: 'break-all',
+                        display: 'block',
+                        fontSize: '0.7rem',
                       }}
                     >
                       {entry.pubkey}
