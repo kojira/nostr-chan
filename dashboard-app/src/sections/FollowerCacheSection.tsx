@@ -7,7 +7,9 @@ import { People, Delete, Edit, DeleteSweep } from '@mui/icons-material';
 
 interface FollowerCache {
   user_pubkey: string;
+  user_name?: string;
   bot_pubkey: string;
+  bot_name?: string;
   is_follower: boolean;
   cached_at: number;
 }
@@ -118,11 +120,37 @@ export const FollowerCacheSection = () => {
             <TableBody>
               {caches.map((cache) => (
                 <TableRow key={`${cache.user_pubkey}-${cache.bot_pubkey}`}>
-                  <TableCell sx={{ fontFamily: 'monospace', fontSize: '0.85rem' }}>
-                    {cache.user_pubkey.substring(0, 16)}...
+                  <TableCell>
+                    {cache.user_name ? (
+                      <Box>
+                        <Typography variant="body2" fontWeight="bold">
+                          {cache.user_name}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary" sx={{ fontFamily: 'monospace' }}>
+                          {cache.user_pubkey.substring(0, 16)}...
+                        </Typography>
+                      </Box>
+                    ) : (
+                      <Typography variant="body2" sx={{ fontFamily: 'monospace', fontSize: '0.85rem' }}>
+                        {cache.user_pubkey.substring(0, 16)}...
+                      </Typography>
+                    )}
                   </TableCell>
-                  <TableCell sx={{ fontFamily: 'monospace', fontSize: '0.85rem' }}>
-                    {cache.bot_pubkey.substring(0, 16)}...
+                  <TableCell>
+                    {cache.bot_name ? (
+                      <Box>
+                        <Typography variant="body2" fontWeight="bold">
+                          {cache.bot_name}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary" sx={{ fontFamily: 'monospace' }}>
+                          {cache.bot_pubkey.substring(0, 16)}...
+                        </Typography>
+                      </Box>
+                    ) : (
+                      <Typography variant="body2" sx={{ fontFamily: 'monospace', fontSize: '0.85rem' }}>
+                        {cache.bot_pubkey.substring(0, 16)}...
+                      </Typography>
+                    )}
                   </TableCell>
                   <TableCell align="center">
                     <Chip 

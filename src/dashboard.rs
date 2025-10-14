@@ -656,7 +656,9 @@ async fn fetch_kind0_handler(
 #[derive(Debug, Serialize)]
 struct FollowerCacheEntry {
     user_pubkey: String,
+    user_name: Option<String>,
     bot_pubkey: String,
+    bot_name: Option<String>,
     is_follower: bool,
     cached_at: i64,
 }
@@ -674,10 +676,36 @@ async fn list_follower_cache_handler(
         StatusCode::INTERNAL_SERVER_ERROR
     })?;
     
+    // Bot情報を取得
+    let persons = db::get_all_persons(&conn).map_err(|e| {
+        eprintln!("Bot情報取得エラー: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+    
     let entries = caches.into_iter().map(|(user_pubkey, bot_pubkey, is_follower, cached_at)| {
+        // ユーザー名を取得（kind0_cacheから）
+        let user_name = db::get_kind0_cache(&conn, &user_pubkey, i64::MAX)
+            .ok()
+            .flatten();
+        
+        // Bot名を取得（Persons.contentから）
+        let bot_name = persons.iter()
+            .find(|p| p.pubkey == bot_pubkey)
+            .and_then(|p| {
+                serde_json::from_str::<serde_json::Value>(&p.content)
+                    .ok()
+                    .and_then(|json| {
+                        json["display_name"].as_str()
+                            .or_else(|| json["name"].as_str())
+                            .map(|s| s.to_string())
+                    })
+            });
+        
         FollowerCacheEntry {
             user_pubkey,
+            user_name,
             bot_pubkey,
+            bot_name,
             is_follower,
             cached_at,
         }
