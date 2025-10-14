@@ -104,8 +104,10 @@ pub async fn start_dashboard(
         .nest_service("/assets", ServeDir::new(assets_dir))
         .fallback_service(ServeDir::new(dashboard_dir));
 
-    let addr = format!("127.0.0.1:{}", port);
+    let addr = format!("0.0.0.0:{}", port);
     println!("🌐 Dashboard server starting on http://{}", addr);
+    println!("   ローカルアクセス: http://127.0.0.1:{}", port);
+    println!("   ネットワークアクセス: http://<your-ip>:{}", port);
     
     let listener = tokio::net::TcpListener::bind(&addr).await?;
     axum::serve(listener, app).await?;
