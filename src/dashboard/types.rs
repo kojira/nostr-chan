@@ -108,6 +108,7 @@ pub struct BotData {
     pub prompt: String,
     pub content: String,
     pub status: i32,
+    pub air_reply_single_ratio: Option<i32>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -115,5 +116,6 @@ pub struct BotRequest {
     pub secretkey: String,
     pub prompt: String,
     pub content: String,
+    pub air_reply_single_ratio: Option<i32>,
 }
 

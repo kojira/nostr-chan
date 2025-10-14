@@ -4,12 +4,14 @@ export interface BotData {
   prompt: string;
   content: string;
   status: number; // 0: active, 1: inactive
+  air_reply_single_ratio?: number;
 }
 
 export interface BotRequest {
   secretkey: string;
   prompt: string;
   content: string;
+  air_reply_single_ratio?: number;
 }
 
 export interface Stats {

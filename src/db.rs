@@ -164,7 +164,33 @@ pub(crate) fn connect() -> Result<Connection> {
         [],
     )?;
     
+    // マイグレーション: Personsテーブルにair_reply_single_ratioカラムを追加
+    migrate_add_air_reply_single_ratio(&conn)?;
+    
     Ok(conn)
+}
+
+/// Personsテーブルにair_reply_single_ratioカラムを追加するマイグレーション
+fn migrate_add_air_reply_single_ratio(conn: &Connection) -> Result<()> {
+    // カラムが存在するかチェック
+    let column_exists: bool = conn
+        .query_row(
+            "SELECT COUNT(*) FROM pragma_table_info('Persons') WHERE name='air_reply_single_ratio'",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap_or(0) > 0;
+    
+    if !column_exists {
+        println!("🔄 マイグレーション: Personsテーブルにair_reply_single_ratioカラムを追加");
+        conn.execute(
+            "ALTER TABLE Persons ADD COLUMN air_reply_single_ratio INTEGER NOT NULL DEFAULT 30",
+            [],
+        )?;
+        println!("✅ マイグレーション完了: air_reply_single_ratio (デフォルト: 30%)");
+    }
+    
+    Ok(())
 }
 
 #[derive(Debug, Clone)]
@@ -181,6 +207,7 @@ pub struct Person {
     pub created_at: String,
     #[allow(dead_code)]
     pub updated_at: String,
+    pub air_reply_single_ratio: i32,
 }
 
 /// Botを追加
@@ -194,10 +221,10 @@ pub fn add_person(conn: &Connection, pubkey: &str, secretkey: &str, prompt: &str
 }
 
 /// Botを更新
-pub fn update_person(conn: &Connection, pubkey: &str, secretkey: &str, prompt: &str, content: &str) -> Result<()> {
+pub fn update_person(conn: &Connection, pubkey: &str, secretkey: &str, prompt: &str, content: &str, air_reply_single_ratio: i32) -> Result<()> {
     conn.execute(
-        "UPDATE Persons SET secretkey = ?, prompt = ?, content = ? WHERE pubkey = ?",
-        params![secretkey, prompt, content, pubkey],
+        "UPDATE Persons SET secretkey = ?, prompt = ?, content = ?, air_reply_single_ratio = ? WHERE pubkey = ?",
+        params![secretkey, prompt, content, air_reply_single_ratio, pubkey],
     )?;
     Ok(())
 }
@@ -298,6 +325,7 @@ pub fn get_all_persons(conn: &Connection) -> Result<Vec<Person>> {
                 content: row.get(5)?,
                 created_at: row.get(6)?,
                 updated_at: row.get(7)?,
+                air_reply_single_ratio: row.get(8).unwrap_or(30),
             })
         })?
         .collect::<Result<Vec<Person>, _>>()?;
@@ -318,6 +346,7 @@ pub fn get_person(conn: &Connection, pubkey: &str) -> Result<Person> {
                 content: row.get(5)?,
                 created_at: row.get(6)?,
                 updated_at: row.get(7)?,
+                air_reply_single_ratio: row.get(8).unwrap_or(30),
             })
         })?
         .next()
@@ -371,6 +400,7 @@ pub fn get_random_person(conn: &Connection) -> Result<Person> {
                 content: row.get(5)?,
                 created_at: row.get(6)?,
                 updated_at: row.get(7)?,
+                air_reply_single_ratio: row.get(8).unwrap_or(30),
             })
         })?
         .next()

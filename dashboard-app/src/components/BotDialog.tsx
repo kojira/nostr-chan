@@ -10,6 +10,7 @@ import {
   InputAdornment,
   IconButton,
   Typography,
+  Slider,
 } from '@mui/material';
 import { VpnKey, Psychology, Description, Save, Close, Add, Delete, CloudDownload, Casino } from '@mui/icons-material';
 import type { BotData, BotRequest } from '../types';
@@ -30,6 +31,7 @@ export const BotDialog = ({ open, bot, onClose, onSave }: BotDialogProps) => {
   const [formData, setFormData] = useState({
     secretkey: '',
     prompt: '',
+    air_reply_single_ratio: 30,
   });
   const [jsonFields, setJsonFields] = useState<JsonField[]>([{ key: '', value: '' }]);
   const [fetchingKind0, setFetchingKind0] = useState(false);
@@ -39,6 +41,7 @@ export const BotDialog = ({ open, bot, onClose, onSave }: BotDialogProps) => {
       setFormData({
         secretkey: bot.secretkey || '',
         prompt: bot.prompt || '',
+        air_reply_single_ratio: bot.air_reply_single_ratio !== undefined ? bot.air_reply_single_ratio : 30,
       });
       
       // contentをJSONとしてパースしてフィールドに展開
@@ -194,6 +197,53 @@ export const BotDialog = ({ open, bot, onClose, onSave }: BotDialogProps) => {
                 ),
               }}
             />
+            
+            <Box>
+              <Typography variant="subtitle2" gutterBottom>
+                エアリプモード設定（単一投稿 vs タイムライン全体）
+              </Typography>
+              <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 2 }}>
+                単一投稿: タイムラインから1つの投稿だけを見て返信<br />
+                タイムライン全体: 複数の投稿を見て文脈を理解して返信
+              </Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                <Typography variant="body2" sx={{ minWidth: '100px' }}>
+                  単一投稿
+                </Typography>
+                <Slider
+                  value={formData.air_reply_single_ratio}
+                  onChange={(_, newValue) => setFormData({ ...formData, air_reply_single_ratio: newValue as number })}
+                  min={0}
+                  max={100}
+                  step={5}
+                  marks={[
+                    { value: 0, label: '0%' },
+                    { value: 50, label: '50%' },
+                    { value: 100, label: '100%' },
+                  ]}
+                  valueLabelDisplay="on"
+                  sx={{ flex: 1 }}
+                />
+                <Typography variant="body2" sx={{ minWidth: '120px' }}>
+                  タイムライン全体
+                </Typography>
+              </Box>
+              <Box sx={{ display: 'flex', justifyContent: 'center', mt: 1 }}>
+                <TextField
+                  size="small"
+                  value={formData.air_reply_single_ratio}
+                  onChange={(e) => {
+                    const val = parseInt(e.target.value) || 0;
+                    setFormData({ ...formData, air_reply_single_ratio: Math.min(100, Math.max(0, val)) });
+                  }}
+                  type="number"
+                  InputProps={{
+                    endAdornment: <InputAdornment position="end">%</InputAdornment>,
+                  }}
+                  sx={{ width: '120px' }}
+                />
+              </Box>
+            </Box>
             
             <Box>
               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>

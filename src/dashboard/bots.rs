@@ -19,6 +19,7 @@ pub async fn list_bots_handler(
         prompt: p.prompt,
         content: p.content,
         status: p.status,
+        air_reply_single_ratio: Some(p.air_reply_single_ratio),
     }).collect();
     
     Ok(Json(bots))
@@ -56,6 +57,7 @@ pub async fn create_bot_handler(
         prompt: req.prompt,
         content: req.content,
         status: 0,
+        air_reply_single_ratio: req.air_reply_single_ratio,
     }))
 }
 
@@ -116,8 +118,10 @@ pub async fn update_bot_handler(
     let persons = db::get_all_persons(&conn).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     let existing = persons.iter().find(|p| p.pubkey == pubkey).ok_or(StatusCode::NOT_FOUND)?;
     
+    let air_reply_single_ratio = req.air_reply_single_ratio.unwrap_or(30);
+    
     // 更新
-    db::update_person(&conn, &pubkey, &req.secretkey, &req.prompt, &req.content)
+    db::update_person(&conn, &pubkey, &req.secretkey, &req.prompt, &req.content, air_reply_single_ratio)
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     
     Ok(Json(BotData {
@@ -126,6 +130,7 @@ pub async fn update_bot_handler(
         prompt: req.prompt,
         content: req.content,
         status: existing.status,
+        air_reply_single_ratio: Some(air_reply_single_ratio),
     }))
 }
 
@@ -164,6 +169,7 @@ pub async fn toggle_bot_handler(
         prompt: existing.prompt.clone(),
         content: existing.content.clone(),
         status: new_status,
+        air_reply_single_ratio: Some(existing.air_reply_single_ratio),
     }))
 }
 

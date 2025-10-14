@@ -220,11 +220,36 @@ pub async fn process_event(
             }
         }
     } else {
+        // エアリプモード: 単一投稿 vs タイムライン全体の判定
+        use rand::Rng;
+        let mut rng = rand::thread_rng();
+        let random_value: i32 = rng.gen_range(0..100);
+        let use_single_post = random_value < person.air_reply_single_ratio;
+        
         match conversation::build_japanese_timeline_for_air_reply(&conn, config.bot.timeline_size) {
             Ok(events) => {
                 if events.is_empty() {
                     None
+                } else if use_single_post {
+                    // 単一投稿モード: タイムラインから1つだけランダムに選択
+                    use rand::seq::SliceRandom;
+                    if let Some(selected_event) = events.choose(&mut rng) {
+                        let dt = chrono::Local.timestamp_opt(selected_event.created_at, 0).single().unwrap();
+                        let time_str = dt.format("%m/%d %H:%M").to_string();
+                        let display_name = selected_event.kind0_name.clone().unwrap_or_else(|| {
+                            if selected_event.pubkey.len() > 8 {
+                                format!("{}...", &selected_event.pubkey[..8])
+                            } else {
+                                selected_event.pubkey.clone()
+                            }
+                        });
+                        println!("[Worker] エアリプモード: 単一投稿 ({}%)", person.air_reply_single_ratio);
+                        Some(format!("【投稿】[{}] {}: {}", time_str, display_name, selected_event.content))
+                    } else {
+                        None
+                    }
                 } else {
+                    // タイムライン全体モード: 複数投稿を表示
                     let timeline_lines: Vec<String> = events.iter()
                         .enumerate()
                         .map(|(i, ev)| {
@@ -240,6 +265,7 @@ pub async fn process_event(
                             format!("{}. [{}] {}: {}", i + 1, time_str, display_name, ev.content)
                         })
                         .collect();
+                    println!("[Worker] エアリプモード: タイムライン全体 ({}%)", 100 - person.air_reply_single_ratio);
                     Some(format!("【タイムライン】\n{}", timeline_lines.join("\n")))
                 }
             }
