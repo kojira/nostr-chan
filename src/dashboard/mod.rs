@@ -90,17 +90,6 @@ pub async fn start_dashboard(
 
     let app = Router::new()
         .merge(api_router)
-        .route("/", get(|| async {
-            let manifest_dir = env!("CARGO_MANIFEST_DIR");
-            let index_path = format!("{}/dashboard/index.html", manifest_dir);
-            match tokio::fs::read_to_string(&index_path).await {
-                Ok(content) => axum::response::Html(content).into_response(),
-                Err(e) => {
-                    eprintln!("index.htmlの読み込みエラー: {}", e);
-                    (axum::http::StatusCode::NOT_FOUND, "index.html not found").into_response()
-                }
-            }
-        }))
         .nest_service("/assets", ServeDir::new(assets_dir))
         .fallback_service(ServeDir::new(dashboard_dir));
 
