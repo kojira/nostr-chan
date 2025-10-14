@@ -3,10 +3,20 @@ import { useParams, useNavigate } from 'react-router-dom';
 import {
   Container, Box, Typography, IconButton, Paper, TextField, Select, MenuItem,
   FormControl, InputLabel, TablePagination, Button, Dialog, DialogTitle,
-  DialogContent, DialogActions, List, ListItem, ListItemText, Chip, Snackbar, Alert
+  DialogContent, DialogActions, List, ListItem, ListItemText, Chip, Snackbar, Alert,
+  Avatar, Tooltip
 } from '@mui/material';
-import { ArrowBack, Summarize, Edit, Delete, Save, Cancel, AccessTime, DeleteSweep } from '@mui/icons-material';
+import { ArrowBack, Summarize, Edit, Delete, Save, Cancel, AccessTime, DeleteSweep, Person } from '@mui/icons-material';
 import { useBots } from '../hooks/useBots';
+
+interface UserKind0 {
+  pubkey: string;
+  name: string | null;
+  display_name: string | null;
+  picture: string | null;
+  about: string | null;
+  nip05: string | null;
+}
 
 interface Summary {
   id: number;
@@ -18,6 +28,51 @@ interface Summary {
   to_timestamp: number;
   created_at: number;
 }
+
+// 参加者アバターコンポーネント
+const ParticipantAvatar = ({ pubkey }: { pubkey: string }) => {
+  const [kind0, setKind0] = useState<UserKind0 | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchKind0 = async () => {
+      try {
+        const response = await fetch(`/api/users/${pubkey}/kind0`);
+        if (response.ok) {
+          const data = await response.json();
+          setKind0(data);
+        }
+      } catch (error) {
+        console.error('Kind0取得エラー:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchKind0();
+  }, [pubkey]);
+
+  if (loading) {
+    return (
+      <Avatar sx={{ width: 32, height: 32 }}>
+        <Person fontSize="small" />
+      </Avatar>
+    );
+  }
+
+  const name = kind0?.display_name || kind0?.name || `${pubkey.substring(0, 8)}...`;
+  const picture = kind0?.picture;
+
+  return (
+    <Tooltip title={name} arrow>
+      <Avatar 
+        src={picture || undefined}
+        sx={{ width: 32, height: 32, cursor: 'pointer' }}
+      >
+        {!picture && <Person fontSize="small" />}
+      </Avatar>
+    </Tooltip>
+  );
+};
 
 export const BotSummariesPage = () => {
   const { pubkey } = useParams<{ pubkey: string }>();
@@ -387,13 +442,15 @@ export const BotSummariesPage = () => {
                   </Box>
 
                   {summary.participants && summary.participants.length > 0 && (
-                    <Box sx={{ mt: 1 }}>
-                      <Typography variant="caption" color="text.secondary" fontWeight="bold" sx={{ mr: 1 }}>
+                    <Box sx={{ mt: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <Typography variant="caption" color="text.secondary" fontWeight="bold">
                         参加者:
                       </Typography>
-                      {summary.participants.map((p, idx) => (
-                        <Chip key={idx} label={p.substring(0, 8) + '...'} size="small" sx={{ mr: 0.5 }} />
-                      ))}
+                      <Box sx={{ display: 'flex', gap: 1 }}>
+                        {summary.participants.map((p, idx) => (
+                          <ParticipantAvatar key={idx} pubkey={p} />
+                        ))}
+                      </Box>
                     </Box>
                   )}
                 </ListItem>

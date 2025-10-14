@@ -4,6 +4,7 @@ mod bots;
 mod follower_cache;
 mod settings;
 mod summaries;
+mod users;
 
 pub use types::{DashboardState, BotInfo};
 
@@ -49,6 +50,8 @@ pub async fn start_dashboard(
         .route("/api/bots/:pubkey/summaries/bulk-delete", post(summaries::delete_summaries_bulk_handler))
         .route("/api/summaries/:id", put(summaries::update_summary_handler))
         .route("/api/summaries/:id", delete(summaries::delete_summary_handler))
+        // ユーザー情報
+        .route("/api/users/:pubkey/kind0", get(users::get_kind0_handler))
         // フォロワーキャッシュ
         .route("/api/follower-cache", get(follower_cache::list_follower_cache_handler))
         .route("/api/follower-cache", delete(follower_cache::clear_follower_cache_handler))
