@@ -9,6 +9,8 @@ pub use types::{DashboardState, BotInfo};
 use axum::{
     routing::{get, post, put, delete},
     Router,
+    response::{IntoResponse, Html},
+    http::StatusCode,
 };
 use tower_http::services::ServeDir;
 use std::sync::Arc;
@@ -87,10 +89,21 @@ pub async fn start_dashboard(
         println!("❌ Assets directory NOT found!");
     }
 
+    // SPAフォールバックハンドラ
+    let dashboard_dir_for_fallback = dashboard_dir.clone();
+    
     let app = Router::new()
         .merge(api_router)
         .nest_service("/assets", ServeDir::new(assets_dir))
-        .fallback_service(ServeDir::new(dashboard_dir));
+        .fallback(move || {
+            let index_path = format!("{}/index.html", dashboard_dir_for_fallback);
+            async move {
+                match tokio::fs::read_to_string(&index_path).await {
+                    Ok(content) => Html(content).into_response(),
+                    Err(_) => (StatusCode::NOT_FOUND, "index.html not found").into_response(),
+                }
+            }
+        });
 
     let addr = format!("0.0.0.0:{}", port);
     println!("🌐 Dashboard server starting on http://{}", addr);
