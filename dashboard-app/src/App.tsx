@@ -13,6 +13,7 @@ import { SmartToy, Refresh } from '@mui/icons-material';
 import { DashboardPage } from './pages/DashboardPage';
 import { BotsPage } from './pages/BotsPage';
 import { BotDetailPage } from './pages/BotDetailPage';
+import { BotSummariesPage } from './pages/BotSummariesPage';
 import { FollowerCachePage } from './pages/FollowerCachePage';
 import { BotBehaviorSettingsPage } from './pages/BotBehaviorSettingsPage';
 import { ConversationLimitSettingsPage } from './pages/ConversationLimitSettingsPage';
@@ -155,6 +156,7 @@ function AppContent() {
         <Route path="/" element={<DashboardPage />} />
         <Route path="/bots" element={<BotsPage />} />
         <Route path="/bots/:pubkey" element={<BotDetailPage />} />
+        <Route path="/bots/:pubkey/summaries" element={<BotSummariesPage />} />
         <Route path="/follower-cache" element={<FollowerCachePage />} />
         <Route path="/settings/bot-behavior" element={<BotBehaviorSettingsPage />} />
         <Route path="/settings/conversation-limit" element={<ConversationLimitSettingsPage />} />
