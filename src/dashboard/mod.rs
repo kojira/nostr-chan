@@ -7,6 +7,7 @@ mod summaries;
 mod users;
 mod events;
 mod impressions;
+mod mental_diary;
 
 pub use types::{DashboardState, BotInfo};
 
@@ -87,6 +88,10 @@ pub async fn start_dashboard(
         .route("/api/bots/:bot_pubkey/impressions/:user_pubkey", get(impressions::get_user_latest_impression_handler))
         .route("/api/bots/:bot_pubkey/impressions/:user_pubkey", put(impressions::update_user_impression_handler))
         .route("/api/bots/:bot_pubkey/impressions/:user_pubkey/history", get(impressions::get_user_impression_history_handler))
+        // Bot心境
+        .route("/api/bots/:bot_pubkey/mental-diary", get(mental_diary::get_bot_latest_mental_diary_handler))
+        .route("/api/bots/:bot_pubkey/mental-diary", put(mental_diary::update_bot_mental_diary_handler))
+        .route("/api/bots/:bot_pubkey/mental-diary/history", get(mental_diary::get_bot_mental_diary_history_handler))
         .with_state(state);
 
     // 静的ファイル配信 + APIルート

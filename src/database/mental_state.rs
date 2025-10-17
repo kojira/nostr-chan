@@ -206,16 +206,17 @@ pub fn get_bot_mental_state_history(
     conn: &Connection,
     bot_pubkey: &str,
     limit: usize,
+    offset: usize,
 ) -> Result<Vec<BotMentalStateRecord>> {
     let mut stmt = conn.prepare(
         "SELECT id, bot_pubkey, mental_state_json, created_at 
          FROM bot_mental_state 
          WHERE bot_pubkey = ? 
          ORDER BY created_at DESC 
-         LIMIT ?"
+         LIMIT ? OFFSET ?"
     )?;
     
-    let rows = stmt.query_map(params![bot_pubkey, limit], |row| {
+    let rows = stmt.query_map(params![bot_pubkey, limit, offset], |row| {
         Ok(BotMentalStateRecord {
             id: row.get(0)?,
             bot_pubkey: row.get(1)?,
