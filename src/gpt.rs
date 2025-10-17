@@ -8,7 +8,7 @@ use std::time::Duration;
 use std::env;
 use tokio::time::timeout;
 use openai_api_rs::v1::api::OpenAIClient;
-use openai_api_rs::v1::chat_completion::{self, ChatCompletionRequest};
+use openai_api_rs::v1::chat_completion::{self, chat_completion::ChatCompletionRequest};
 use chrono::{Local, TimeZone};
 use tiktoken_rs::o200k_base;
 use serde::{Deserialize, Serialize};
@@ -136,7 +136,6 @@ pub async fn call_gpt_with_category(prompt: &str, user_text: &str, bot_pubkey: &
 }
 
 /// GPT呼び出し（JSON mode、印象付き返信用）
-/// 注：openai_api_rsがJSON modeをネイティブサポートしていないため、プロンプトでJSON形式を強制
 pub async fn call_gpt_with_json_mode(prompt: &str, user_text: &str, bot_pubkey: &str, category: &str) -> Result<String, Box<dyn Error>> {
     const MAX_RETRIES: u32 = 3;
     const RETRY_DELAY_SECS: u64 = 3;
@@ -154,18 +153,12 @@ pub async fn call_gpt_with_json_mode(prompt: &str, user_text: &str, bot_pubkey: 
     let user_tokens = count_tokens(user_text);
     let total_prompt_tokens = prompt_tokens + user_tokens;
     
-    // JSON形式を強制するためのシステムプロンプトを追加
-    let json_enforced_prompt = format!(
-        "{}\n\n重要: 必ずJSON形式で返答してください。他の形式やテキストは一切含めないでください。",
-        prompt
-    );
-    
-    let req = ChatCompletionRequest::new(
+    let mut req = ChatCompletionRequest::new(
         "gpt-5-nano".to_string(),
         vec![
             chat_completion::ChatCompletionMessage {
                 role: chat_completion::MessageRole::system,
-                content: chat_completion::Content::Text(json_enforced_prompt),
+                content: chat_completion::Content::Text(String::from(prompt)),
                 name: None,
                 tool_calls: None,
                 tool_call_id: None,
@@ -179,6 +172,11 @@ pub async fn call_gpt_with_json_mode(prompt: &str, user_text: &str, bot_pubkey: 
             },
         ]
     );
+    
+    // JSON modeを有効化（serde_json::Valueとして指定）
+    req.response_format = Some(serde_json::json!({
+        "type": "json_object"
+    }));
     
     let mut last_error: Option<String> = None;
     
