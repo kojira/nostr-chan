@@ -405,8 +405,8 @@ pub async fn get_bot_replies_handler(
         _ => "DESC",
     };
     
-    // WHERE句の構築
-    let mut where_clause = format!("pubkey = '{}' AND (event_type = 'bot_reply' OR event_type = 'bot_post')", pubkey);
+    // WHERE句の構築（そのbotのイベントのみ）
+    let mut where_clause = format!("pubkey = '{}'", pubkey);
     
     // 検索フィルタを追加
     if let Some(search) = &query.search {

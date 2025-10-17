@@ -42,8 +42,7 @@ pub fn get_conversation_timeline(
     limit: usize,
 ) -> Result<Vec<EventRecord>> {
     let mut stmt = conn.prepare(
-        "SELECT e.id, e.event_id, e.event_json, e.pubkey, e.kind, e.content, e.created_at, e.received_at,
-                e.kind0_name, e.is_japanese, e.embedding, e.event_type
+        "SELECT e.id, e.event_id, e.event_json, e.pubkey, e.kind, e.content, e.created_at, e.received_at, e.language, e.embedding
          FROM events e
          INNER JOIN conversation_logs cl ON e.id = cl.event_ref_id
          WHERE cl.bot_pubkey = ?
@@ -61,10 +60,8 @@ pub fn get_conversation_timeline(
             content: row.get(5)?,
             created_at: row.get(6)?,
             received_at: row.get(7)?,
-            kind0_name: row.get(8)?,
-            is_japanese: row.get::<_, i32>(9)? != 0,
-            embedding: row.get(10)?,
-            event_type: row.get(11)?,
+            language: row.get(8)?,
+            embedding: row.get(9)?,
         })
     })?
     .collect::<Result<Vec<_>>>()?;
@@ -82,7 +79,7 @@ pub fn get_conversation_timeline_with_user(
 ) -> Result<Vec<EventRecord>> {
     let mut stmt = conn.prepare(
         "SELECT e.id, e.event_id, e.event_json, e.pubkey, e.kind, e.content, e.created_at, e.received_at,
-                e.kind0_name, e.is_japanese, e.embedding, e.event_type
+                e.language, e.embedding
          FROM events e
          INNER JOIN conversation_logs cl ON e.id = cl.event_ref_id
          WHERE cl.bot_pubkey = ?
@@ -101,10 +98,8 @@ pub fn get_conversation_timeline_with_user(
             content: row.get(5)?,
             created_at: row.get(6)?,
             received_at: row.get(7)?,
-            kind0_name: row.get(8)?,
-            is_japanese: row.get::<_, i32>(9)? != 0,
-            embedding: row.get(10)?,
-            event_type: row.get(11)?,
+            language: row.get(8)?,
+            embedding: row.get(9)?,
         })
     })?
     .collect::<Result<Vec<_>>>()?;
@@ -125,7 +120,7 @@ pub fn get_conversation_timeline_in_thread(
         // スレッドが指定されている場合
         conn.prepare(
             "SELECT e.id, e.event_id, e.event_json, e.pubkey, e.kind, e.content, e.created_at, e.received_at,
-                    e.kind0_name, e.is_japanese, e.embedding, e.event_type
+                    e.language, e.embedding
              FROM events e
              INNER JOIN conversation_logs cl ON e.id = cl.event_ref_id
              WHERE cl.bot_pubkey = ?
@@ -138,7 +133,7 @@ pub fn get_conversation_timeline_in_thread(
         // スレッドが指定されていない場合（thread_root_idがNULLのもの）
         conn.prepare(
             "SELECT e.id, e.event_id, e.event_json, e.pubkey, e.kind, e.content, e.created_at, e.received_at,
-                    e.kind0_name, e.is_japanese, e.embedding, e.event_type
+                    e.language, e.embedding
              FROM events e
              INNER JOIN conversation_logs cl ON e.id = cl.event_ref_id
              WHERE cl.bot_pubkey = ?
@@ -160,10 +155,8 @@ pub fn get_conversation_timeline_in_thread(
                 content: row.get(5)?,
                 created_at: row.get(6)?,
                 received_at: row.get(7)?,
-                kind0_name: row.get(8)?,
-                is_japanese: row.get::<_, i32>(9)? != 0,
-                embedding: row.get(10)?,
-                event_type: row.get(11)?,
+                language: row.get(8)?,
+                embedding: row.get(9)?,
             })
         })?
         .collect::<Result<Vec<_>>>()?
@@ -178,10 +171,8 @@ pub fn get_conversation_timeline_in_thread(
                 content: row.get(5)?,
                 created_at: row.get(6)?,
                 received_at: row.get(7)?,
-                kind0_name: row.get(8)?,
-                is_japanese: row.get::<_, i32>(9)? != 0,
-                embedding: row.get(10)?,
-                event_type: row.get(11)?,
+                language: row.get(8)?,
+                embedding: row.get(9)?,
             })
         })?
         .collect::<Result<Vec<_>>>()?

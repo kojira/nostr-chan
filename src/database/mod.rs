@@ -46,7 +46,7 @@ pub use cache::{
 
 // イベント関連を再エクスポート
 pub use events::{
-    EventRecord, insert_event, get_event_by_event_id, update_event_kind0_name,
+    EventRecord, insert_event, get_event_by_event_id,
     update_event_embedding, get_events_without_embedding,
     extract_reply_to_event_id, extract_mentioned_pubkeys, extract_thread_root_id,
     detect_bot_conversation

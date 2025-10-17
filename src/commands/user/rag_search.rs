@@ -123,9 +123,9 @@ fn search_similar_events(
     // embedding付きの日本語イベントを全取得
     let mut stmt = conn.prepare(
         "SELECT id, event_id, event_json, pubkey, kind, content, created_at, received_at,
-                kind0_name, is_japanese, embedding, event_type
+                language, embedding
          FROM events
-         WHERE is_japanese = 1 AND embedding IS NOT NULL"
+         WHERE language = 'ja' AND embedding IS NOT NULL"
     ).map_err(|e| format!("SQL prepare error: {}", e))?;
     
     let events = stmt
@@ -139,10 +139,8 @@ fn search_similar_events(
                 content: row.get(5)?,
                 created_at: row.get(6)?,
                 received_at: row.get(7)?,
-                kind0_name: row.get(8)?,
-                is_japanese: row.get::<_, i32>(9)? != 0,
-                embedding: row.get(10)?,
-                event_type: row.get(11)?,
+                language: row.get(8)?,
+                embedding: row.get(9)?,
             })
         })
         .map_err(|e| format!("SQL query error: {}", e))?

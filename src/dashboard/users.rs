@@ -68,7 +68,7 @@ pub async fn get_kind0_handler(
                 tokio::task::spawn_blocking(move || {
                     if let Ok(conn) = db::connect() {
                         if let Ok(event) = serde_json::from_str::<nostr_sdk::Event>(&event_json_clone) {
-                            let _ = db::insert_event(&conn, &event, false, Some("kind0"));
+                            let _ = db::insert_event(&conn, &event, None);
                             println!("[Kind0] リレーから取得してDBに保存");
                         }
                     }

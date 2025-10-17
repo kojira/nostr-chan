@@ -116,7 +116,8 @@ async fn seed_data(db_path: &str, bot_pubkey: &str, users: usize, topics_csv: &s
         let event = EventBuilder::text_note(content.clone()).sign(user).await?;
 
         let is_japanese = whatlang::detect(&content).map(|d| matches!(d.lang(), whatlang::Lang::Jpn)).unwrap_or(false);
-        let event_ref_id = db::insert_event(&conn, &event, is_japanese, Some("seed"))?;
+        let language = if is_japanese { Some("ja") } else { None };
+        let event_ref_id = db::insert_event(&conn, &event, language)?;
 
         if let Ok(emb) = embedding::generate_embedding_global(&content) {
             let _ = db::update_event_embedding(&conn, &event.id.to_string(), &emb);
@@ -158,7 +159,8 @@ async fn chat_repl(db_path: &str, bot_pubkey: &str, bot_secret: &str, user_secre
 
         let user_event = EventBuilder::text_note(input.to_string()).sign(&user_keys).await?;
         let is_japanese = whatlang::detect(input).map(|d| matches!(d.lang(), whatlang::Lang::Jpn)).unwrap_or(false);
-        let event_ref_id = db::insert_event(&conn, &user_event, is_japanese, Some("mention"))?;
+        let language = if is_japanese { Some("ja") } else { None };
+        let event_ref_id = db::insert_event(&conn, &user_event, language)?;
         if let Ok(emb) = embedding::generate_embedding_global(input) { let _ = db::update_event_embedding(&conn, &user_event.id.to_string(), &emb); }
         let event_json = serde_json::to_string(&user_event)?;
         let thread_root_id = db::extract_thread_root_id(&event_json).ok().flatten();
@@ -172,7 +174,7 @@ async fn chat_repl(db_path: &str, bot_pubkey: &str, bot_secret: &str, user_secre
 
         if reply.is_empty() { continue; }
         let bot_event = EventBuilder::text_note(reply.clone()).sign(&bot_keys).await?;
-        let event_ref_id = db::insert_event(&conn, &bot_event, true, Some("bot_reply"))?;
+        let event_ref_id = db::insert_event(&conn, &bot_event, Some("ja"))?;
         if let Ok(emb) = embedding::generate_embedding_global(&reply) { let _ = db::update_event_embedding(&conn, &bot_event.id.to_string(), &emb); }
         let bot_json = serde_json::to_string(&bot_event)?;
         let thread_root_id = db::extract_thread_root_id(&bot_json).ok().flatten();

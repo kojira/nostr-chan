@@ -17,7 +17,7 @@ pub fn log_event_to_conversation(
     is_bot_message: bool,
 ) -> Result<()> {
     let conn = db::connect()?;
-    let event_ref_id = db::insert_event(&conn, event, true, None)?;
+    let event_ref_id = db::insert_event(&conn, event, None)?;
     let event_json = event.as_json();
     let thread_root_id = db::extract_thread_root_id(&event_json).ok().flatten();
     let mentioned_pubkeys = db::extract_mentioned_pubkeys(&event_json).ok();

@@ -38,13 +38,11 @@ fn find_events_within_token_limit(
             .single()
             .ok_or("タイムスタンプ変換エラー")?;
         let time_str = dt.format("%m/%d %H:%M").to_string();
-        let display_name = event.kind0_name.clone().unwrap_or_else(|| {
-            if event.pubkey.len() > 8 {
-                format!("{}...", &event.pubkey[..8])
-            } else {
-                event.pubkey.clone()
-            }
-        });
+        let display_name = if event.pubkey.len() > 8 {
+            format!("{}...", &event.pubkey[..8])
+        } else {
+            event.pubkey.clone()
+        };
         let line = format!("[{}] {}: {}", time_str, display_name, event.content);
         
         let line_tokens = estimate_tokens(&line);
@@ -79,13 +77,11 @@ fn format_timeline_text(events: Vec<db::EventRecord>) -> Result<String, Box<dyn 
         let time_str = dt.format("%m/%d %H:%M").to_string();
         
         // 名前を取得（なければpubkeyの先頭8文字）
-        let display_name = event.kind0_name.clone().unwrap_or_else(|| {
-            if event.pubkey.len() > 8 {
-                format!("{}...", &event.pubkey[..8])
-            } else {
-                event.pubkey.clone()
-            }
-        });
+        let display_name = if event.pubkey.len() > 8 {
+            format!("{}...", &event.pubkey[..8])
+        } else {
+            event.pubkey.clone()
+        };
         
         let line = format!("{}. [{}] {}: {}", i + 1, time_str, display_name, event.content);
         timeline_lines.push(line);
@@ -261,13 +257,11 @@ pub async fn summarize_conversation_if_needed(
                 .single()
                 .ok_or("タイムスタンプ変換エラー")?;
             let time_str = dt.format("%m/%d %H:%M").to_string();
-            let display_name = event.kind0_name.clone().unwrap_or_else(|| {
-                if event.pubkey.len() > 8 {
-                    format!("{}...", &event.pubkey[..8])
-                } else {
-                    event.pubkey.clone()
-                }
-            });
+            let display_name = if event.pubkey.len() > 8 {
+                format!("{}...", &event.pubkey[..8])
+            } else {
+                event.pubkey.clone()
+            };
             lines.push(format!("[{}] {}: {}", time_str, display_name, event.content));
         }
         lines.join("\n")
@@ -436,9 +430,9 @@ pub fn build_japanese_timeline_for_air_reply(
     // 日本語のイベントを取得
     let mut stmt = conn.prepare(
         "SELECT id, event_id, event_json, pubkey, kind, content, created_at, received_at,
-                kind0_name, is_japanese, embedding, event_type
+                language, embedding
          FROM events
-         WHERE is_japanese = 1 AND event_type = 'air_reply'
+         WHERE language = 'ja'
          ORDER BY created_at DESC
          LIMIT ?"
     )?;
@@ -453,10 +447,8 @@ pub fn build_japanese_timeline_for_air_reply(
             content: row.get(5)?,
             created_at: row.get(6)?,
             received_at: row.get(7)?,
-            kind0_name: row.get(8)?,
-            is_japanese: row.get::<_, i32>(9)? != 0,
-            embedding: row.get(10)?,
-            event_type: row.get(11)?,
+            language: row.get(8)?,
+            embedding: row.get(9)?,
         })
     })?
     .collect::<Result<Vec<_>, _>>()?;

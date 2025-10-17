@@ -402,3 +402,143 @@ pub(crate) fn migrate_add_token_text_columns(conn: &Connection) -> Result<()> {
     Ok(())
 }
 
+/// eventsテーブルを正規化：is_japanese→language、event_type削除、kind0_name削除
+pub(crate) fn migrate_normalize_events_table(conn: &Connection) -> Result<()> {
+    // カラムの存在確認
+    let has_is_japanese: bool = conn
+        .prepare("SELECT COUNT(*) FROM pragma_table_info('events') WHERE name = 'is_japanese'")?
+        .query_row([], |row| row.get(0))
+        .map(|count: i32| count > 0)?;
+    
+    let has_language: bool = conn
+        .prepare("SELECT COUNT(*) FROM pragma_table_info('events') WHERE name = 'language'")?
+        .query_row([], |row| row.get(0))
+        .map(|count: i32| count > 0)?;
+    
+    let has_event_type: bool = conn
+        .prepare("SELECT COUNT(*) FROM pragma_table_info('events') WHERE name = 'event_type'")?
+        .query_row([], |row| row.get(0))
+        .map(|count: i32| count > 0)?;
+    
+    let has_kind0_name: bool = conn
+        .prepare("SELECT COUNT(*) FROM pragma_table_info('events') WHERE name = 'kind0_name'")?
+        .query_row([], |row| row.get(0))
+        .map(|count: i32| count > 0)?;
+    
+    // 既に正規化済み（language あり、event_type/kind0_name なし）の場合は何もしない
+    if has_language && !has_event_type && !has_kind0_name && !has_is_japanese {
+        return Ok(());
+    }
+    
+    // マイグレーションが必要
+    if !has_is_japanese && !has_event_type && !has_kind0_name {
+        return Ok(()); // 新規環境
+    }
+    
+    println!("🔄 マイグレーション: eventsテーブルを正規化");
+    println!("   - is_japanese → language");
+    println!("   - event_type → 削除（不要）");
+    println!("   - kind0_name → 削除（kind0_cacheをJOINで参照）");
+    
+    // 外部キー制約を一時的に無効化
+    conn.execute("PRAGMA foreign_keys = OFF", [])?;
+    conn.execute("BEGIN TRANSACTION", [])?;
+    
+    let migration_result = (|| {
+        // 元のデータ件数を記録
+        let original_count: i64 = conn.query_row("SELECT COUNT(*) FROM events", [], |row| row.get(0))?;
+        println!("   📊 元のデータ件数: {}", original_count);
+        
+        // 前回の失敗で残っているかもしれないevents_newテーブルを削除
+        conn.execute("DROP TABLE IF EXISTS events_new", [])?;
+        
+        // 新しいテーブルを作成（正規化後）
+        conn.execute(
+            "CREATE TABLE events_new (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                event_id TEXT UNIQUE NOT NULL,
+                event_json TEXT NOT NULL,
+                pubkey TEXT NOT NULL,
+                kind INTEGER NOT NULL,
+                content TEXT NOT NULL,
+                created_at INTEGER NOT NULL,
+                received_at INTEGER NOT NULL,
+                language TEXT,
+                embedding BLOB
+            )",
+            [],
+        )?;
+        
+        // データをコピー
+        if has_is_japanese {
+            // is_japanese → language変換
+            conn.execute(
+                "INSERT INTO events_new 
+                 SELECT id, event_id, event_json, pubkey, kind, content, created_at, received_at, 
+                        CASE WHEN is_japanese = 1 THEN 'ja' ELSE NULL END as language,
+                        embedding
+                 FROM events",
+                [],
+            )?;
+        } else if has_language {
+            // 既にlanguageがある場合
+            conn.execute(
+                "INSERT INTO events_new 
+                 SELECT id, event_id, event_json, pubkey, kind, content, created_at, received_at, 
+                        language, embedding
+                 FROM events",
+                [],
+            )?;
+        } else {
+            // languageもis_japaneseもない場合
+            conn.execute(
+                "INSERT INTO events_new 
+                 SELECT id, event_id, event_json, pubkey, kind, content, created_at, received_at, 
+                        NULL as language, embedding
+                 FROM events",
+                [],
+            )?;
+        }
+        
+        // データ件数を検証
+        let new_count: i64 = conn.query_row("SELECT COUNT(*) FROM events_new", [], |row| row.get(0))?;
+        println!("   📊 コピー後のデータ件数: {}", new_count);
+        
+        if original_count != new_count {
+            return Err(rusqlite::Error::QueryReturnedNoRows); // データ損失を検知したらエラー
+        }
+        
+        // 古いテーブルを削除
+        conn.execute("DROP TABLE events", [])?;
+        
+        // 新しいテーブルをリネーム
+        conn.execute("ALTER TABLE events_new RENAME TO events", [])?;
+        
+        // インデックスを再作成
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_events_pubkey ON events(pubkey)", [])?;
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_events_kind ON events(kind)", [])?;
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_events_created_at ON events(created_at DESC)", [])?;
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_events_language ON events(language)", [])?;
+        
+        Ok(())
+    })();
+    
+    match migration_result {
+        Ok(_) => {
+            conn.execute("COMMIT", [])?;
+            println!("✅ マイグレーション完了: eventsテーブルを正規化");
+        }
+        Err(e) => {
+            let _ = conn.execute("ROLLBACK", []);
+            println!("❌ マイグレーション失敗: {:?}", e);
+            println!("🔄 ロールバックしました");
+            return Err(e);
+        }
+    }
+    
+    // 外部キー制約を再度有効化
+    conn.execute("PRAGMA foreign_keys = ON", [])?;
+    
+    Ok(())
+}
+

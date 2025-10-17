@@ -13,8 +13,7 @@ pub struct EventsQuery {
     pub page_size: Option<usize>,
     pub search: Option<String>,
     pub has_embedding: Option<bool>,
-    pub is_japanese: Option<bool>,
-    pub event_type: Option<String>,
+    pub language: Option<String>,
     pub sort_by: Option<String>,
     pub sort_order: Option<String>,
 }
@@ -28,10 +27,8 @@ pub struct VectorizedEvent {
     pub content: String,
     pub created_at: i64,
     pub received_at: i64,
-    pub kind0_name: Option<String>,
-    pub is_japanese: bool,
+    pub language: Option<String>,
     pub has_embedding: bool,
-    pub event_type: Option<String>,
     pub event_json: Option<String>,
 }
 
@@ -55,8 +52,7 @@ pub async fn list_events_handler(
     
     let search = query.search.clone();
     let has_embedding = query.has_embedding;
-    let is_japanese = query.is_japanese;
-    let event_type = query.event_type.clone();
+    let language = query.language.clone();
     let sort_by = query.sort_by.clone().unwrap_or_else(|| "created_at".to_string());
     let sort_order = query.sort_order.clone().unwrap_or_else(|| "desc".to_string());
     
@@ -69,9 +65,8 @@ pub async fn list_events_handler(
         let mut params: Vec<Box<dyn rusqlite::ToSql>> = Vec::new();
         
         if let Some(search_text) = &search {
-            where_clauses.push("(content LIKE ? OR kind0_name LIKE ? OR event_id LIKE ? OR pubkey LIKE ?)");
+            where_clauses.push("(content LIKE ? OR event_id LIKE ? OR pubkey LIKE ?)");
             let search_pattern = format!("%{}%", search_text);
-            params.push(Box::new(search_pattern.clone()));
             params.push(Box::new(search_pattern.clone()));
             params.push(Box::new(search_pattern.clone()));
             params.push(Box::new(search_pattern));
@@ -85,15 +80,10 @@ pub async fn list_events_handler(
             }
         }
         
-        if let Some(is_jp) = is_japanese {
-            where_clauses.push("is_japanese = ?");
-            params.push(Box::new(if is_jp { 1 } else { 0 }));
-        }
-        
-        if let Some(ev_type) = &event_type {
-            if !ev_type.is_empty() {
-                where_clauses.push("event_type = ?");
-                params.push(Box::new(ev_type.clone()));
+        if let Some(lang) = &language {
+            if !lang.is_empty() {
+                where_clauses.push("language = ?");
+                params.push(Box::new(lang.clone()));
             }
         }
         
@@ -123,7 +113,7 @@ pub async fn list_events_handler(
         // イベントを取得
         let query_sql = format!(
             "SELECT id, event_id, pubkey, kind, content, created_at, received_at, 
-                    kind0_name, is_japanese, embedding, event_type, event_json
+                    language, embedding, event_json
              FROM events{}
              ORDER BY {} {}
              LIMIT ? OFFSET ?",
@@ -147,11 +137,9 @@ pub async fn list_events_handler(
                 content: row.get(4)?,
                 created_at: row.get(5)?,
                 received_at: row.get(6)?,
-                kind0_name: row.get(7)?,
-                is_japanese: row.get::<_, i32>(8)? != 0,
-                has_embedding: row.get::<_, Option<Vec<u8>>>(9)?.is_some(),
-                event_type: row.get(10)?,
-                event_json: row.get(11)?,
+                language: row.get(7)?,
+                has_embedding: row.get::<_, Option<Vec<u8>>>(8)?.is_some(),
+                event_json: row.get(9)?,
             })
         }).ok()?
         .collect::<Result<Vec<_>, _>>().ok()?;

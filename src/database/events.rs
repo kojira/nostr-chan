@@ -16,12 +16,8 @@ pub struct EventRecord {
     pub created_at: i64,
     #[allow(dead_code)]
     pub received_at: i64,
-    pub kind0_name: Option<String>,
-    #[allow(dead_code)]
-    pub is_japanese: bool,
+    pub language: Option<String>,
     pub embedding: Option<Vec<u8>>,
-    #[allow(dead_code)]
-    pub event_type: Option<String>,
 }
 
 /// イベントをeventsテーブルに保存
@@ -29,16 +25,15 @@ pub struct EventRecord {
 pub fn insert_event(
     conn: &Connection,
     event: &Event,
-    is_japanese: bool,
-    event_type: Option<&str>,
+    language: Option<&str>,
 ) -> Result<i64> {
     let event_json = serde_json::to_string(event)
         .map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))?;
     let now = Utc::now().timestamp();
     
     conn.execute(
-        "INSERT INTO events (event_id, event_json, pubkey, kind, content, created_at, received_at, is_japanese, event_type)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO events (event_id, event_json, pubkey, kind, content, created_at, received_at, language)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
         params![
             event.id.to_string(),
             event_json,
@@ -47,8 +42,7 @@ pub fn insert_event(
             event.content,
             event.created_at.as_u64() as i64,
             now,
-            if is_japanese { 1 } else { 0 },
-            event_type,
+            language,
         ],
     )?;
     
@@ -59,8 +53,7 @@ pub fn insert_event(
 #[allow(dead_code)]
 pub fn get_event_by_event_id(conn: &Connection, event_id: &str) -> Result<Option<EventRecord>> {
     let mut stmt = conn.prepare(
-        "SELECT id, event_id, event_json, pubkey, kind, content, created_at, received_at, 
-                kind0_name, is_japanese, embedding, event_type 
+        "SELECT id, event_id, event_json, pubkey, kind, content, created_at, received_at, language, embedding
          FROM events WHERE event_id = ?"
     )?;
     
@@ -76,28 +69,12 @@ pub fn get_event_by_event_id(conn: &Connection, event_id: &str) -> Result<Option
             content: row.get(5)?,
             created_at: row.get(6)?,
             received_at: row.get(7)?,
-            kind0_name: row.get(8)?,
-            is_japanese: row.get::<_, i32>(9)? != 0,
-            embedding: row.get(10)?,
-            event_type: row.get(11)?,
+            language: row.get(8)?,
+            embedding: row.get(9)?,
         }))
     } else {
         Ok(None)
     }
-}
-
-/// イベントのkind0情報を更新（kind0_name のみ）
-#[allow(dead_code)]
-pub fn update_event_kind0_name(
-    conn: &Connection,
-    event_id: &str,
-    kind0_name: Option<&str>,
-) -> Result<()> {
-    conn.execute(
-        "UPDATE events SET kind0_name = ? WHERE event_id = ?",
-        params![kind0_name, event_id],
-    )?;
-    Ok(())
 }
 
 /// イベントのembeddingを更新
@@ -118,8 +95,7 @@ pub fn update_event_embedding(conn: &Connection, event_id: &str, embedding: &[f3
 /// embedding未設定のイベントを取得（バックグラウンド処理用）
 pub fn get_events_without_embedding(conn: &Connection, limit: usize) -> Result<Vec<EventRecord>> {
     let mut stmt = conn.prepare(
-        "SELECT id, event_id, event_json, pubkey, kind, content, created_at, received_at, 
-                kind0_name, is_japanese, embedding, event_type 
+        "SELECT id, event_id, event_json, pubkey, kind, content, created_at, received_at, language, embedding
          FROM events WHERE embedding IS NULL LIMIT ?"
     )?;
     
@@ -133,10 +109,8 @@ pub fn get_events_without_embedding(conn: &Connection, limit: usize) -> Result<V
             content: row.get(5)?,
             created_at: row.get(6)?,
             received_at: row.get(7)?,
-            kind0_name: row.get(8)?,
-            is_japanese: row.get::<_, i32>(9)? != 0,
-            embedding: row.get(10)?,
-            event_type: row.get(11)?,
+            language: row.get(8)?,
+            embedding: row.get(9)?,
         })
     })?
     .collect::<Result<Vec<_>>>()?;

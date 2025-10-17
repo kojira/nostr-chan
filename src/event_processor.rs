@@ -25,18 +25,9 @@ pub async fn process_event(
     
     // イベントをeventsテーブルに保存
     if event.kind == Kind::TextNote {
-        let event_type = if japanese { Some("air_reply") } else { None };
-        match db::insert_event(&conn, &event, japanese, event_type) {
+        let language = if japanese { Some("ja") } else { None };
+        match db::insert_event(&conn, &event, language) {
             Ok(event_ref_id) => {
-                // kind 0情報を非同期で取得して更新
-                let conn_clone = db::connect()?;
-                let event_id = event.id.to_string();
-                let pubkey = event.pubkey.to_string();
-                tokio::spawn(async move {
-                    if let Ok(name) = util::get_user_name(&pubkey).await {
-                        let _ = db::update_event_kind0_name(&conn_clone, &event_id, Some(&name));
-                    }
-                });
                 let _ = event_ref_id;
             }
             Err(e) => {
@@ -153,8 +144,8 @@ pub async fn process_event(
         let event_ref_id = if let Some(record) = event_record {
             record.id
         } else {
-            let event_type = Some("mention");
-            db::insert_event(&conn, &event, japanese, event_type)?
+            let language = if japanese { Some("ja") } else { None };
+            db::insert_event(&conn, &event, language)?
         };
         
         let event_json = serde_json::to_string(&event)?;
@@ -247,13 +238,11 @@ pub async fn process_event(
                     if let Some(selected_event) = events.choose(&mut rng) {
                         let dt = chrono::Local.timestamp_opt(selected_event.created_at, 0).single().unwrap();
                         let time_str = dt.format("%m/%d %H:%M").to_string();
-                        let display_name = selected_event.kind0_name.clone().unwrap_or_else(|| {
-                            if selected_event.pubkey.len() > 8 {
-                                format!("{}...", &selected_event.pubkey[..8])
-                            } else {
-                                selected_event.pubkey.clone()
-                            }
-                        });
+                        let display_name = if selected_event.pubkey.len() > 8 {
+                            format!("{}...", &selected_event.pubkey[..8])
+                        } else {
+                            selected_event.pubkey.clone()
+                        };
                         println!("[Worker] エアリプモード: 単一投稿 ({}%)", person.air_reply_single_ratio);
                         Some(format!("【投稿】[{}] {}: {}", time_str, display_name, selected_event.content))
                     } else {
@@ -266,13 +255,11 @@ pub async fn process_event(
                         .map(|(i, ev)| {
                             let dt = chrono::Local.timestamp_opt(ev.created_at, 0).single().unwrap();
                             let time_str = dt.format("%m/%d %H:%M").to_string();
-                            let display_name = ev.kind0_name.clone().unwrap_or_else(|| {
-                                if ev.pubkey.len() > 8 {
-                                    format!("{}...", &ev.pubkey[..8])
-                                } else {
-                                    ev.pubkey.clone()
-                                }
-                            });
+                            let display_name = if ev.pubkey.len() > 8 {
+                                format!("{}...", &ev.pubkey[..8])
+                            } else {
+                                ev.pubkey.clone()
+                            };
                             format!("{}. [{}] {}: {}", i + 1, time_str, display_name, ev.content)
                         })
                         .collect();
@@ -337,7 +324,7 @@ pub async fn process_event(
             }
         } else {
             // bot_postとして保存（会話ログには記録しない）
-            if let Err(e) = db::insert_event(&conn, &bot_event, true, Some("bot_post")) {
+            if let Err(e) = db::insert_event(&conn, &bot_event, None) {
                 if !e.to_string().contains("UNIQUE constraint failed") {
                     eprintln!("[Worker] bot発言の保存エラー: {}", e);
                 }

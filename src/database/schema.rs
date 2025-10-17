@@ -14,6 +14,7 @@ pub fn initialize_db(conn: &Connection) -> Result<()> {
     super::migration::migrate_add_token_text_columns(conn)?;
     super::migration::migrate_add_air_reply_single_ratio(conn)?;
     super::migration::migrate_remove_kind0_content(conn)?;
+    super::migration::migrate_normalize_events_table(conn)?; // events正規化
     
     Ok(())
 }
@@ -98,8 +99,7 @@ fn create_tables(conn: &Connection) -> Result<()> {
             created_at INTEGER NOT NULL,
             received_at INTEGER NOT NULL,
             kind0_name TEXT,
-            kind0_content TEXT,
-            is_japanese INTEGER NOT NULL DEFAULT 0,
+            language TEXT,
             embedding BLOB,
             event_type TEXT
         )",
@@ -119,7 +119,7 @@ fn create_tables(conn: &Connection) -> Result<()> {
         [],
     )?;
     conn.execute(
-        "CREATE INDEX IF NOT EXISTS idx_events_is_japanese ON events(is_japanese)",
+        "CREATE INDEX IF NOT EXISTS idx_events_language ON events(language)",
         [],
     )?;
     conn.execute(
