@@ -186,7 +186,7 @@ async fn chat_repl(db_path: &str, bot_pubkey: &str, bot_secret: &str, user_secre
 async fn print_metrics(db_path: &str, bot_pubkey: &str) -> Result<(), Box<dyn std::error::Error>> {
     let conn = db::connect_at_path(db_path)?;
     let mut stmt = conn.prepare(
-        "SELECT e.pubkey, e.event_type FROM events e INNER JOIN conversation_logs cl ON e.id = cl.event_ref_id WHERE cl.bot_pubkey = ? ORDER BY e.created_at DESC LIMIT 200"
+        "SELECT e.pubkey FROM events e INNER JOIN conversation_logs cl ON e.id = cl.event_ref_id WHERE cl.bot_pubkey = ? ORDER BY e.created_at DESC LIMIT 200"
     )?;
     let mut rows = stmt.query(rusqlite::params![bot_pubkey])?;
     let mut total = 0usize;
@@ -195,8 +195,7 @@ async fn print_metrics(db_path: &str, bot_pubkey: &str) -> Result<(), Box<dyn st
     while let Some(row) = rows.next()? {
         total += 1;
         let pubkey: String = row.get(0)?;
-        let etype: Option<String> = row.get(1)?;
-        if etype.as_deref() == Some("bot_reply") { bot_msgs += 1; }
+        if pubkey == bot_pubkey { bot_msgs += 1; }
         users.insert(pubkey);
     }
     let participants = users.len();

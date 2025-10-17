@@ -188,8 +188,7 @@ pub async fn delete_event_handler(
 pub struct BulkDeleteRequest {
     pub search: Option<String>,
     pub has_embedding: Option<bool>,
-    pub is_japanese: Option<bool>,
-    pub event_type: Option<String>,
+    pub language: Option<String>,
 }
 
 /// フィルター条件に一致するイベントを一括削除
@@ -199,8 +198,7 @@ pub async fn bulk_delete_events_handler(
 ) -> (StatusCode, Json<serde_json::Value>) {
     let search = request.search.clone();
     let has_embedding = request.has_embedding;
-    let is_japanese = request.is_japanese;
-    let event_type = request.event_type.clone();
+    let language = request.language.clone();
     
     let result = tokio::task::spawn_blocking(move || {
         let conn = db::connect().ok()?;
@@ -210,9 +208,8 @@ pub async fn bulk_delete_events_handler(
         let mut params: Vec<Box<dyn rusqlite::ToSql>> = Vec::new();
         
         if let Some(search_text) = &search {
-            where_clauses.push("(content LIKE ? OR kind0_name LIKE ? OR event_id LIKE ? OR pubkey LIKE ?)");
+            where_clauses.push("(content LIKE ? OR event_id LIKE ? OR pubkey LIKE ?)");
             let search_pattern = format!("%{}%", search_text);
-            params.push(Box::new(search_pattern.clone()));
             params.push(Box::new(search_pattern.clone()));
             params.push(Box::new(search_pattern.clone()));
             params.push(Box::new(search_pattern));
@@ -226,15 +223,10 @@ pub async fn bulk_delete_events_handler(
             }
         }
         
-        if let Some(is_jp) = is_japanese {
-            where_clauses.push("is_japanese = ?");
-            params.push(Box::new(if is_jp { 1 } else { 0 }));
-        }
-        
-        if let Some(ev_type) = &event_type {
-            if !ev_type.is_empty() {
-                where_clauses.push("event_type = ?");
-                params.push(Box::new(ev_type.clone()));
+        if let Some(lang) = &language {
+            if !lang.is_empty() {
+                where_clauses.push("language = ?");
+                params.push(Box::new(lang.clone()));
             }
         }
         
