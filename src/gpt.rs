@@ -545,77 +545,66 @@ async fn build_mental_diary_prompt<'a>(
     
     let additional_inst = additional_instruction.unwrap_or("");
     
-    // システムプロンプト全体の構築
-    let system_prompt = if user_pubkey.is_some() {
-        // メンション返信用（印象あり）
-        format!(
-            "# あなたの役割\n\
-             {base_prompt}{additional_inst}\
-             {impression_context}\
-             {mental_state_context}\n\n\
-             # 出力形式\n\
-             重要: あなたは必ずJSON形式で応答してください。他の形式は一切使用しないでください。\n\n\
-             ```json\n\
-             {{\n  \
-               \"reply\": \"ユーザーへの返信文\",\n  \
-               \"impression\": \"このユーザーへの印象\",\n  \
-               \"mental_diary\": {{\n    \
-                 \"mood\": \"現在の気分\",\n    \
-                 \"favorite_people\": [\"好きな人1\", \"好きな人2\"],\n    \
-                 \"disliked_people\": [],\n    \
-                 \"trusted_people\": [],\n    \
-                 \"current_interests\": [\"興味1\", \"興味2\"],\n    \
-                 \"want_to_learn\": [],\n    \
-                 \"bored_with\": [],\n    \
-                 \"short_term_goals\": \"短期目標\",\n    \
-                 \"long_term_goals\": \"長期目標\",\n    \
-                 \"concerns\": \"悩み\",\n    \
-                 \"recent_happy_events\": \"嬉しかったこと\",\n    \
-                 \"recent_sad_events\": \"悲しかったこと\",\n    \
-                 \"recent_surprises\": \"驚いたこと\",\n    \
-                 \"self_changes\": \"自分の変化\",\n    \
-                 \"personality_state\": \"人格の状態\"\n  \
-               }}\n\
-             }}\n\
-             ```\n\n\
-             - **reply**: ユーザーへの返信\n\
-             - **impression**: このユーザーへの印象（{max_impression_length}文字以内）\n\
-             - **mental_diary**: あなた自身の心境を日記のように記録"
+    // mental_diaryのJSON構造（共通）
+    let mental_diary_json = "\
+      \"mental_diary\": {\n    \
+        \"mood\": \"現在の気分\",\n    \
+        \"favorite_people\": [\"好きな人1\", \"好きな人2\"],\n    \
+        \"disliked_people\": [],\n    \
+        \"trusted_people\": [],\n    \
+        \"current_interests\": [\"興味1\", \"興味2\"],\n    \
+        \"want_to_learn\": [],\n    \
+        \"bored_with\": [],\n    \
+        \"short_term_goals\": \"短期目標\",\n    \
+        \"long_term_goals\": \"長期目標\",\n    \
+        \"concerns\": \"悩み\",\n    \
+        \"recent_happy_events\": \"嬉しかったこと\",\n    \
+        \"recent_sad_events\": \"悲しかったこと\",\n    \
+        \"recent_surprises\": \"驚いたこと\",\n    \
+        \"self_changes\": \"自分の変化\",\n    \
+        \"personality_state\": \"人格の状態\"\n  \
+      }";
+    
+    // JSON出力形式とフィールド説明（印象の有無で分岐）
+    let (json_fields, field_descriptions) = if user_pubkey.is_some() {
+        (
+            format!(
+                "  \"reply\": \"ユーザーへの返信文\",\n  \
+                   \"impression\": \"このユーザーへの印象\",\n  \
+                   {mental_diary_json}"
+            ),
+            format!(
+                "- **reply**: ユーザーへの返信\n\
+                 - **impression**: このユーザーへの印象（{max_impression_length}文字以内）\n\
+                 - **mental_diary**: あなた自身の心境を日記のように記録"
+            )
         )
     } else {
-        // エアリプ用（印象なし）
-        format!(
-            "# あなたの役割\n\
-             {base_prompt}{additional_inst}\
-             {mental_state_context}\n\n\
-             # 出力形式\n\
-             重要: あなたは必ずJSON形式で応答してください。他の形式は一切使用しないでください。\n\n\
-             ```json\n\
-             {{\n  \
-               \"reply\": \"返信文\",\n  \
-               \"mental_diary\": {{\n    \
-                 \"mood\": \"現在の気分\",\n    \
-                 \"favorite_people\": [],\n    \
-                 \"disliked_people\": [],\n    \
-                 \"trusted_people\": [],\n    \
-                 \"current_interests\": [],\n    \
-                 \"want_to_learn\": [],\n    \
-                 \"bored_with\": [],\n    \
-                 \"short_term_goals\": \"\",\n    \
-                 \"long_term_goals\": \"\",\n    \
-                 \"concerns\": \"\",\n    \
-                 \"recent_happy_events\": \"\",\n    \
-                 \"recent_sad_events\": \"\",\n    \
-                 \"recent_surprises\": \"\",\n    \
-                 \"self_changes\": \"\",\n    \
-                 \"personality_state\": \"\"\n  \
-               }}\n\
-             }}\n\
-             ```\n\n\
-             - **reply**: 返信文\n\
-             - **mental_diary**: あなた自身の心境を日記のように記録"
+        (
+            format!(
+                "  \"reply\": \"返信文\",\n  \
+                   {mental_diary_json}"
+            ),
+            "- **reply**: 返信文\n\
+             - **mental_diary**: あなた自身の心境を日記のように記録".to_string()
         )
     };
+    
+    // システムプロンプト全体の構築（完全共通化）
+    let system_prompt = format!(
+        "# あなたの役割\n\
+         {base_prompt}{additional_inst}\
+         {impression_context}\
+         {mental_state_context}\n\n\
+         # 出力形式\n\
+         重要: あなたは必ずJSON形式で応答してください。他の形式は一切使用しないでください。\n\n\
+         ```json\n\
+         {{\n\
+         {json_fields}\n\
+         }}\n\
+         ```\n\n\
+         {field_descriptions}"
+    );
     
     Ok((system_prompt, conn))
 }
