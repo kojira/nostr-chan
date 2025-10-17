@@ -21,6 +21,23 @@ pub struct EventRecord {
     pub embedding: Option<Vec<u8>>,
 }
 
+impl EventRecord {
+    /// 表示名を取得（kind0_cacheから取得、なければpubkey短縮）
+    pub fn display_name(&self, conn: &Connection) -> String {
+        // kind0_cacheから名前を取得
+        if let Ok(Some(name)) = super::cache::get_kind0_cache(conn, &self.pubkey, 86400 * 7) {
+            return name;
+        }
+        
+        // キャッシュにない場合はpubkey短縮表示
+        if self.pubkey.len() > 8 {
+            format!("{}...", &self.pubkey[..8])
+        } else {
+            self.pubkey.clone()
+        }
+    }
+}
+
 /// イベントをeventsテーブルに保存
 #[allow(dead_code)]
 pub fn insert_event(

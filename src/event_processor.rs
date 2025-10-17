@@ -238,11 +238,7 @@ pub async fn process_event(
                     if let Some(selected_event) = events.choose(&mut rng) {
                         let dt = chrono::Local.timestamp_opt(selected_event.created_at, 0).single().unwrap();
                         let time_str = dt.format("%m/%d %H:%M").to_string();
-                        let display_name = if selected_event.pubkey.len() > 8 {
-                            format!("{}...", &selected_event.pubkey[..8])
-                        } else {
-                            selected_event.pubkey.clone()
-                        };
+                        let display_name = selected_event.display_name(&conn);
                         println!("[Worker] エアリプモード: 単一投稿 ({}%)", person.air_reply_single_ratio);
                         Some(format!("【投稿】[{}] {}: {}", time_str, display_name, selected_event.content))
                     } else {
@@ -255,11 +251,7 @@ pub async fn process_event(
                         .map(|(i, ev)| {
                             let dt = chrono::Local.timestamp_opt(ev.created_at, 0).single().unwrap();
                             let time_str = dt.format("%m/%d %H:%M").to_string();
-                            let display_name = if ev.pubkey.len() > 8 {
-                                format!("{}...", &ev.pubkey[..8])
-                            } else {
-                                ev.pubkey.clone()
-                            };
+                            let display_name = ev.display_name(&conn);
                             format!("{}. [{}] {}: {}", i + 1, time_str, display_name, ev.content)
                         })
                         .collect();

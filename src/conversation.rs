@@ -17,6 +17,7 @@ fn estimate_tokens(text: &str) -> usize {
 
 /// トークン制限内に収まる最大のイベント数を探索（新しい方から）
 fn find_events_within_token_limit(
+    conn: &Connection,
     events: &[db::EventRecord],
     max_tokens: usize,
     prompt_tokens: usize,
@@ -38,11 +39,7 @@ fn find_events_within_token_limit(
             .single()
             .ok_or("タイムスタンプ変換エラー")?;
         let time_str = dt.format("%m/%d %H:%M").to_string();
-        let display_name = if event.pubkey.len() > 8 {
-            format!("{}...", &event.pubkey[..8])
-        } else {
-            event.pubkey.clone()
-        };
+        let display_name = event.display_name(conn);
         let line = format!("[{}] {}: {}", time_str, display_name, event.content);
         
         let line_tokens = estimate_tokens(&line);
@@ -239,7 +236,7 @@ pub async fn summarize_conversation_if_needed(
         // トークン制限内に収まる最大のイベント数を探索
         let prev_summary_tokens = estimate_tokens(&prev_summary.summary);
         let available_for_events = max_tokens.saturating_sub(prompt_tokens).saturating_sub(prev_summary_tokens);
-        let event_count = find_events_within_token_limit(&recent_events, available_for_events, 0)?;
+        let event_count = find_events_within_token_limit(conn, &recent_events, available_for_events, 0)?;
         
         if event_count == 0 {
             // トークン制限により新規イベントを含められない場合は過去の要約をそのまま使用
