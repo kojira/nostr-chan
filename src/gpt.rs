@@ -1,5 +1,6 @@
 use crate::config::AppConfig;
 use crate::TimelinePost;
+use crate::database as db;
 use dotenv::dotenv;
 use std::error::Error;
 use std::fs::File;
@@ -9,13 +10,36 @@ use tokio::time::timeout;
 use openai_api_rs::v1::api::OpenAIClient;
 use openai_api_rs::v1::chat_completion::{self, ChatCompletionRequest};
 use chrono::{Local, TimeZone};
+use tiktoken_rs::o200k_base;
 
+/// トークン数を計算
+fn count_tokens(text: &str) -> usize {
+    let bpe = o200k_base().expect("[Token] tiktoken (o200k_base) 初期化に失敗しました");
+    let tokens = bpe.encode_with_special_tokens(text);
+    tokens.len()
+}
+
+#[allow(dead_code)]
 pub async fn call_gpt(prompt: &str, user_text: &str) -> Result<String, Box<dyn Error>> {
+    call_gpt_with_category(prompt, user_text, "unknown", "general").await
+}
+
+pub async fn call_gpt_with_category(prompt: &str, user_text: &str, bot_pubkey: &str, category: &str) -> Result<String, Box<dyn Error>> {
     const MAX_RETRIES: u32 = 3;
     const RETRY_DELAY_SECS: u64 = 3;
     
     dotenv().ok();
     let api_key = env::var("OPEN_AI_API_KEY").expect("OPEN_AI_API_KEY is not set");
+    
+    // タイムアウト設定を取得
+    let file = File::open("../config.yml")?;
+    let config: AppConfig = serde_yaml::from_reader(file)?;
+    let timeout_secs = config.get_u64_setting("gpt_timeout");
+    
+    // トークン数を計算
+    let prompt_tokens = count_tokens(prompt);
+    let user_tokens = count_tokens(user_text);
+    let total_prompt_tokens = prompt_tokens + user_tokens;
     
     let req = ChatCompletionRequest::new(
         "gpt-5-nano".to_string(),
@@ -48,8 +72,8 @@ pub async fn call_gpt(prompt: &str, user_text: &str) -> Result<String, Box<dyn E
             client.chat_completion(req.clone()).await
         };
 
-        // タイムアウトを設定（60秒）
-        match timeout(Duration::from_secs(60), chat_completion_future).await {
+        // タイムアウトを設定
+        match timeout(Duration::from_secs(timeout_secs), chat_completion_future).await {
             Ok(result) => match result {
                 Ok(response) => {
                     // 正常なレスポンスの処理
@@ -58,6 +82,15 @@ pub async fn call_gpt(prompt: &str, user_text: &str) -> Result<String, Box<dyn E
                             if attempt > 1 {
                                 println!("[GPT] リトライ成功 (試行 {}/{})", attempt, MAX_RETRIES);
                             }
+                            
+                            // 完了トークン数を計算
+                            let completion_tokens = count_tokens(content);
+                            
+                            // トークン使用量を記録
+                            if let Ok(conn) = db::connect() {
+                                let _ = db::record_token_usage(&conn, bot_pubkey, category, total_prompt_tokens, completion_tokens);
+                            }
+                            
                             return Ok(content.to_string());
                         },
                         None => {
@@ -70,7 +103,7 @@ pub async fn call_gpt(prompt: &str, user_text: &str) -> Result<String, Box<dyn E
                 }
             },
             Err(_) => {
-                last_error = Some("Timeout after 60 seconds".to_string());
+                last_error = Some(format!("Timeout after {} seconds", timeout_secs));
             }
         }
         
@@ -89,15 +122,18 @@ pub async fn call_gpt(prompt: &str, user_text: &str) -> Result<String, Box<dyn E
 /// 新しいインターフェース: 会話コンテキスト文字列を受け取る
 #[allow(dead_code)]
 pub async fn get_reply_with_context<'a>(
+    bot_pubkey: &'a str,
     personality: &'a str,
     user_text: &'a str,
     has_mention: bool,
     context: Option<String>,
 ) -> Result<String, Box<dyn Error>> {
     dotenv().ok();
-    let file = File::open("../config.yml").unwrap();
-    let config: AppConfig = serde_yaml::from_reader(file).unwrap();
-    let answer_length = config.gpt.answer_length;
+    
+    // 回答長設定を取得
+    let file = File::open("../config.yml")?;
+    let config: AppConfig = serde_yaml::from_reader(file)?;
+    let answer_length = config.get_i32_setting("gpt_answer_length");
 
     let start_delimiter = "<<";
     let end_delimiter = ">>";
@@ -145,7 +181,14 @@ pub async fn get_reply_with_context<'a>(
         user_text.to_string()
     };
 
-    match call_gpt(&prompt, &user_input).await {
+    // カテゴリを決定
+    let category = if has_mention {
+        "reply" // メンションへの返信
+    } else {
+        "air_reply" // エアリプ
+    };
+    
+    match call_gpt_with_category(&prompt, &user_input, bot_pubkey, category).await {
         Ok(reply) => {
             println!("Reply: {}", reply);
             Ok(reply)
@@ -160,15 +203,18 @@ pub async fn get_reply_with_context<'a>(
 
 /// 旧インターフェース: 互換性のため残す
 pub async fn get_reply<'a>(
+    bot_pubkey: &'a str,
     personality: &'a str, 
     user_text: &'a str, 
     _has_mention: bool,
     timeline: Option<Vec<TimelinePost>>,
 ) -> Result<String, Box<dyn Error>> {
     dotenv().ok();
-    let file = File::open("../config.yml").unwrap();
-    let config: AppConfig = serde_yaml::from_reader(file).unwrap();
-    let answer_length = config.gpt.answer_length;
+    
+    // 回答長設定を取得
+    let file = File::open("../config.yml")?;
+    let config: AppConfig = serde_yaml::from_reader(file)?;
+    let answer_length = config.get_i32_setting("gpt_answer_length");
 
     let start_delimiter = "<<";
     let end_delimiter = ">>";
@@ -196,6 +242,13 @@ pub async fn get_reply<'a>(
     }
     
     // タイムラインがある場合（エアリプ）
+    // カテゴリを先に決定（moveの前に）
+    let category = if timeline.is_some() {
+        "air_reply"
+    } else {
+        "reply"
+    };
+    
     let user_input = if let Some(timeline_posts) = timeline {
         if !timeline_posts.is_empty() {
             // 既存のタイムラインをフォーマット
@@ -243,7 +296,7 @@ pub async fn get_reply<'a>(
         user_text.to_string()
     };
 
-    match call_gpt(&prompt, &user_input).await {
+    match call_gpt_with_category(&prompt, &user_input, bot_pubkey, category).await {
         Ok(reply) => {
             println!("Reply: {}", reply);
             Ok(reply)

@@ -1,6 +1,6 @@
 use crate::config;
 use crate::config::AppConfig;
-use crate::db;
+use crate::database as db;
 use lightning_invoice::Bolt11Invoice;
 use nostr_sdk::prelude::*;
 use rand::Rng;
@@ -415,13 +415,12 @@ pub async fn get_user_name(pubkey: &str) -> Result<String> {
 }
 
 // Gemini CLIでWeb検索を実行
-pub async fn gemini_search(query: &str) -> Result<String, String> {
+pub async fn gemini_search(query: &str, timeout_seconds: i32) -> Result<String, String> {
     use std::process::Command;
     use tokio::time::{timeout, Duration};
     
-    println!("Executing gemini search: {}", query);
+    println!("Executing gemini search: {} (timeout: {}s)", query, timeout_seconds);
     
-    // 30秒のタイムアウトを設定
     let search_future = tokio::task::spawn_blocking({
         let query = query.to_string();
         move || {
@@ -432,11 +431,11 @@ pub async fn gemini_search(query: &str) -> Result<String, String> {
         }
     });
     
-    let output = match timeout(Duration::from_secs(30), search_future).await {
+    let output = match timeout(Duration::from_secs(timeout_seconds as u64), search_future).await {
         Ok(Ok(Ok(output))) => output,
         Ok(Ok(Err(e))) => return Err(format!("Failed to execute gemini command: {}", e)),
         Ok(Err(e)) => return Err(format!("Task join error: {}", e)),
-        Err(_) => return Err("Gemini search timed out after 30 seconds".to_string()),
+        Err(_) => return Err(format!("Gemini search timed out after {} seconds", timeout_seconds)),
     };
     
     if !output.status.success() {

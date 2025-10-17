@@ -4,7 +4,7 @@ use axum::{
     http::StatusCode,
 };
 use super::types::DashboardState;
-use crate::db;
+use crate::database as db;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize)]

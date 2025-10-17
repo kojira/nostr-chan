@@ -4,7 +4,7 @@ use axum::{
     http::StatusCode,
 };
 use super::types::{DashboardState, BotData, BotRequest};
-use crate::db;
+use crate::database as db;
 use serde::{Deserialize, Serialize};
 
 /// Bot一覧取得

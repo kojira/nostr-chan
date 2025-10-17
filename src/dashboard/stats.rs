@@ -4,7 +4,7 @@ use axum::{
     http::StatusCode,
 };
 use super::types::{DashboardState, Stats};
-use crate::db;
+use crate::database as db;
 use std::collections::HashMap;
 
 /// 統計情報を取得
@@ -84,5 +84,37 @@ pub async fn daily_replies_handler(
     }
     
     Ok(Json(serde_json::json!({ "data": bot_data })))
+}
+
+/// トークン使用量の統計を取得
+pub async fn token_usage_stats_handler(
+    State(_state): State<DashboardState>,
+    axum::extract::Query(params): axum::extract::Query<std::collections::HashMap<String, String>>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let conn = db::connect().map_err(|e| {
+        eprintln!("DB接続エラー: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+    
+    let daily_usage = if let (Some(from), Some(to)) = (params.get("from"), params.get("to")) {
+        // 日付範囲指定
+        db::get_daily_token_usage_with_range(&conn, from, to).map_err(|e| {
+            eprintln!("トークン使用量取得エラー: {}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?
+    } else {
+        // 日数指定（デフォルト7日）
+        let days = params.get("days")
+            .and_then(|d| d.parse::<i64>().ok())
+            .unwrap_or(7)
+            .clamp(1, 365);
+        
+        db::get_daily_token_usage(&conn, days).map_err(|e| {
+            eprintln!("トークン使用量取得エラー: {}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?
+    };
+    
+    Ok(Json(serde_json::json!({ "data": daily_usage })))
 }
 

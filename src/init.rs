@@ -1,4 +1,4 @@
-use crate::{config, db};
+use crate::{config, database as db};
 
 /// システム設定をconfig.ymlの値で初期化（DBに値がない場合のみ）
 pub fn initialize_system_settings(conn: &rusqlite::Connection, config: &config::AppConfig) -> Result<(), Box<dyn std::error::Error>> {
@@ -47,6 +47,22 @@ pub fn initialize_system_settings(conn: &rusqlite::Connection, config: &config::
         db::set_system_setting(conn, "gpt_timeout", &config.gpt.timeout.to_string())?;
         println!("⚙️ GPTタイムアウト: {}秒", config.gpt.timeout);
     }
+    if db::get_system_setting(conn, "gemini_search_timeout")?.is_none() {
+        db::set_system_setting(conn, "gemini_search_timeout", &config.gpt.gemini_search_timeout.to_string())?;
+        println!("⚙️ Gemini Searchタイムアウト: {}秒", config.gpt.gemini_search_timeout);
+    }
+    if db::get_system_setting(conn, "recent_context_count")?.is_none() {
+        db::set_system_setting(conn, "recent_context_count", &config.gpt.recent_context_count.to_string())?;
+        println!("⚙️ 最近のやり取り件数: {}件", config.gpt.recent_context_count);
+    }
+    if db::get_system_setting(conn, "summary_threshold")?.is_none() {
+        db::set_system_setting(conn, "summary_threshold", &config.gpt.summary_threshold.to_string())?;
+        println!("⚙️ 要約開始閾値: {}文字", config.gpt.summary_threshold);
+    }
+    if db::get_system_setting(conn, "max_summary_tokens")?.is_none() {
+        db::set_system_setting(conn, "max_summary_tokens", &config.gpt.max_summary_tokens.to_string())?;
+        println!("⚙️ 要約最大トークン数: {}トークン", config.gpt.max_summary_tokens);
+    }
     
     // リレー設定
     if db::get_system_setting(conn, "relay_write")?.is_none() {
@@ -74,4 +90,3 @@ pub fn initialize_system_settings(conn: &rusqlite::Connection, config: &config::
     
     Ok(())
 }
-

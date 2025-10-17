@@ -2,6 +2,7 @@
 name = "bot"
 version = "0.1.2"
 edition = "2021"
+default-run = "bot"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -29,3 +30,4 @@ candle-transformers = "0.8.0"
 tokenizers = "0.20.3"
 hf-hub = "0.4.3"
 lazy_static = "1.4.0"
+tiktoken-rs = "0.7.0"

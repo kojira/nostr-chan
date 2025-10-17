@@ -4,7 +4,7 @@ use axum::{
     http::StatusCode,
 };
 use super::types::DashboardState;
-use crate::db;
+use crate::database as db;
 
 /// グローバル一時停止状態の取得
 pub async fn get_global_pause_handler(
@@ -225,10 +225,18 @@ pub async fn get_gpt_settings_handler(
     
     let answer_length = get_setting_i64(&conn, "gpt_answer_length", 100)?;
     let timeout = get_setting_i64(&conn, "gpt_timeout", 60)?;
+    let gemini_search_timeout = get_setting_i64(&conn, "gemini_search_timeout", 180)?;
+    let recent_context_count = get_setting_i64(&conn, "recent_context_count", 10)?;
+    let summary_threshold = get_setting_i64(&conn, "summary_threshold", 5000)?;
+    let max_summary_tokens = get_setting_i64(&conn, "max_summary_tokens", 8000)?;
     
     Ok(Json(serde_json::json!({
         "answer_length": answer_length,
-        "timeout": timeout
+        "timeout": timeout,
+        "gemini_search_timeout": gemini_search_timeout,
+        "recent_context_count": recent_context_count,
+        "summary_threshold": summary_threshold,
+        "max_summary_tokens": max_summary_tokens
     })))
 }
 
@@ -255,6 +263,42 @@ pub async fn set_gpt_settings_handler(
         db::set_system_setting(&conn, "gpt_timeout", &timeout.to_string())
             .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
         println!("⏱️ GPTタイムアウト: {}秒", timeout);
+    }
+    
+    if let Some(gemini_search_timeout) = req["gemini_search_timeout"].as_i64() {
+        if gemini_search_timeout < 10 || gemini_search_timeout > 600 {
+            return Err(StatusCode::BAD_REQUEST);
+        }
+        db::set_system_setting(&conn, "gemini_search_timeout", &gemini_search_timeout.to_string())
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        println!("🔍 Gemini Searchタイムアウト: {}秒", gemini_search_timeout);
+    }
+    
+    if let Some(recent_context_count) = req["recent_context_count"].as_i64() {
+        if recent_context_count < 1 || recent_context_count > 100 {
+            return Err(StatusCode::BAD_REQUEST);
+        }
+        db::set_system_setting(&conn, "recent_context_count", &recent_context_count.to_string())
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        println!("💬 最近のやり取り件数: {}件", recent_context_count);
+    }
+    
+    if let Some(summary_threshold) = req["summary_threshold"].as_i64() {
+        if summary_threshold < 1000 || summary_threshold > 50000 {
+            return Err(StatusCode::BAD_REQUEST);
+        }
+        db::set_system_setting(&conn, "summary_threshold", &summary_threshold.to_string())
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        println!("📊 要約開始閾値: {}文字", summary_threshold);
+    }
+    
+    if let Some(max_summary_tokens) = req["max_summary_tokens"].as_i64() {
+        if max_summary_tokens < 1000 || max_summary_tokens > 100000 {
+            return Err(StatusCode::BAD_REQUEST);
+        }
+        db::set_system_setting(&conn, "max_summary_tokens", &max_summary_tokens.to_string())
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        println!("🎫 要約最大トークン数: {}トークン", max_summary_tokens);
     }
     
     Ok(Json(serde_json::json!({ "success": true })))

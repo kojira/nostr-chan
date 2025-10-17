@@ -1,5 +1,5 @@
 use crate::config;
-use crate::db;
+use crate::database as db;
 use crate::util;
 use nostr_sdk::prelude::*;
 use chrono::{Duration as ChronoDuration, NaiveDate, NaiveDateTime, Utc, Local, TimeZone};

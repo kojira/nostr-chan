@@ -1,5 +1,5 @@
 use crate::config;
-use crate::db;
+use crate::database as db;
 use nostr_sdk::prelude::*;
 use std::future::Future;
 

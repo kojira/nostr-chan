@@ -1,5 +1,5 @@
 use crate::config;
-use crate::db;
+use crate::database as db;
 use crate::gpt;
 use crate::util;
 use nostr_sdk::prelude::*;
@@ -20,7 +20,7 @@ pub async fn search_web(config: config::AppConfig, person: db::Person, event: Ev
         "# 質問内容\n{}\n\n# 指示\n上記の質問内容について「これから調べるので待ってて欲しい」という文章を50文字程度であなたらしく作成してください。あくまでこれから調べることに対する一次回答で、質問の回答ではないことに注意。返答のみを出力してください。",
         cleaned_content
     );
-    let initial_reply = match gpt::call_gpt(&person.prompt, &user_input).await {
+    let initial_reply = match gpt::call_gpt_with_category(&person.prompt, &user_input, &person.pubkey, "search_initial_reply").await {
         Ok(reply) => reply,
         Err(e) => {
             eprintln!("Failed to generate initial reply: {}", e);
@@ -74,7 +74,7 @@ pub async fn search_web(config: config::AppConfig, person: db::Person, event: Ev
         ・検索キーワードのみを返し、説明や前置きは不要".to_string()
     };
     
-    let search_keyword = match gpt::call_gpt(&extract_prompt, &cleaned_content).await {
+    let search_keyword = match gpt::call_gpt_with_category(&extract_prompt, &cleaned_content, &person.pubkey, "search_keyword_extraction").await {
         Ok(keyword) => keyword.trim().to_string(),
         Err(e) => {
             eprintln!("Failed to extract search keyword: {}", e);
@@ -94,7 +94,10 @@ pub async fn search_web(config: config::AppConfig, person: db::Person, event: Ev
     }
     
     println!("Gemini search query: {}", search_keyword);
-    match util::gemini_search(&search_keyword).await {
+    
+    let gemini_timeout = config.get_i32_setting("gemini_search_timeout");
+    
+    match util::gemini_search(&search_keyword, gemini_timeout).await {
         Ok(search_result) => {
             // 検索結果を一次回答を踏まえて要約
             let summary_prompt = format!(
@@ -104,7 +107,7 @@ pub async fn search_web(config: config::AppConfig, person: db::Person, event: Ev
                 initial_reply,
                 config.gpt.search_answer_length
             );
-            let final_reply = match gpt::get_reply(&summary_prompt, &search_result, true, None).await {
+            let final_reply = match gpt::call_gpt_with_category(&summary_prompt, &search_result, &person.pubkey, "search_final_reply").await {
                 Ok(summary) => summary,
                 Err(e) => {
                     eprintln!("Failed to summarize search result: {}", e);

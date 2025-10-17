@@ -1,5 +1,6 @@
 use crate::config;
-use crate::db;
+use crate::database as db;
+use crate::database;
 use crate::util;
 use nostr_sdk::prelude::*;
 use serde_json::Value;
@@ -79,7 +80,7 @@ async fn admin_new(
     let keys = Keys::generate();
     let prompt = &lines[1];
     let content = &lines[2];
-    db::insert_person(&conn, &keys, &prompt, &content)?;
+    database::person::insert_person(&conn, &keys, &prompt, &content)?;
     let new_person = db::get_person(&conn, &keys.public_key().to_string()).unwrap();
     util::send_kind0(&new_person.secretkey.to_string(), content).await?;
     let content: Value = serde_json::from_str(content)?;
@@ -103,7 +104,7 @@ async fn admin_get_kind0(
     println!("get kind 0");
     let _meta_event = util::get_kind0(&person.pubkey, &person.secretkey).await?;
     let conn = db::connect()?;
-    db::update_person_content(&conn, &person.pubkey, &_meta_event.content.to_string())?;
+    database::person::update_person_content(&conn, &person.pubkey, &_meta_event.content.to_string())?;
     util::reply_to(
         &config,
         event.clone(),
@@ -122,7 +123,7 @@ async fn admin_update_kind0(
 ) -> Result<()> {
     println!("update kind 0");
     let conn = db::connect()?;
-    db::update_person_content(&conn, &person.pubkey, &lines[1])?;
+    database::person::update_person_content(&conn, &person.pubkey, &lines[1])?;
     util::send_kind0(&person.secretkey.to_string(), &lines[1]).await?;
     util::reply_to(
         &config,

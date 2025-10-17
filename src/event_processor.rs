@@ -1,4 +1,4 @@
-use crate::{config, db, gpt, util, conversation, dashboard};
+use crate::{config, database as db, gpt, util, conversation, dashboard};
 use nostr_sdk::prelude::*;
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -126,19 +126,22 @@ pub async fn process_event(
     
     // 会話回数制限チェック（メンション時のみ）
     if has_mention {
+        let limit_minutes = config.get_i64_setting("conversation_limit_minutes");
+        let limit_count = config.get_usize_setting("conversation_limit_count");
+        
         let conversation_count = db::get_conversation_count_with_user(
             &conn,
             &person.pubkey,
             &event.pubkey.to_string(),
-            config.bot.conversation_limit_minutes,
+            limit_minutes,
         )?;
         
-        if conversation_count >= config.bot.conversation_limit_count {
+        if conversation_count >= limit_count {
             println!(
                 "[Worker] 会話回数制限: {}分間で{}回 (制限: {}回)",
-                config.bot.conversation_limit_minutes,
+                limit_minutes,
                 conversation_count,
-                config.bot.conversation_limit_count
+                limit_count
             );
             return Ok(());
         }
@@ -200,12 +203,18 @@ pub async fn process_event(
     
     // 会話コンテキストを準備
     let context = if has_conversation_log {
+        // スレッドIDを取得
+        let event_json = serde_json::to_string(&event)?;
+        let thread_root_id = db::extract_thread_root_id(&event_json).ok().flatten();
+        
         match conversation::prepare_context_for_reply(
             &conn,
             &person.pubkey,
             &user_pubkey,
             &event.content,
             50,
+            &config,
+            thread_root_id.as_deref(),
         ).await {
             Ok(ctx) => {
                 if ctx.is_empty() {
@@ -226,7 +235,9 @@ pub async fn process_event(
         let random_value: i32 = rng.gen_range(0..100);
         let use_single_post = random_value < person.air_reply_single_ratio;
         
-        match conversation::build_japanese_timeline_for_air_reply(&conn, config.bot.timeline_size) {
+        let timeline_size = config.get_usize_setting("timeline_size");
+        
+        match conversation::build_japanese_timeline_for_air_reply(&conn, timeline_size) {
             Ok(events) => {
                 if events.is_empty() {
                     None
@@ -277,7 +288,7 @@ pub async fn process_event(
     };
     
     // GPT応答生成
-    let reply = gpt::get_reply_with_context(&prompt, &event.content, has_mention, context).await?;
+    let reply = gpt::get_reply_with_context(&person.pubkey, &prompt, &event.content, has_mention, context).await?;
     
     if reply.is_empty() {
         return Ok(());
@@ -358,7 +369,8 @@ pub async fn process_event(
             eprintln!("[Worker] Failed to save bot timeline post: {}", e);
         }
         
-        let _ = db::cleanup_old_timeline_posts(&conn, config.bot.timeline_size);
+        let timeline_size = config.get_usize_setting("timeline_size");
+        let _ = db::cleanup_old_timeline_posts(&conn, timeline_size);
     }
     
     Ok(())

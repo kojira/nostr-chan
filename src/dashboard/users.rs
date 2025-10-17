@@ -4,7 +4,7 @@ use axum::{
     http::StatusCode,
 };
 use super::types::DashboardState;
-use crate::{db, config};
+use crate::{database as db, config};
 use serde::Serialize;
 use nostr_sdk::{ToBech32, Keys, Client, Filter, Kind, PublicKey};
 use std::time::Duration;

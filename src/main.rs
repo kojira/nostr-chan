@@ -1,5 +1,5 @@
 mod config;
-mod db;
+mod database;
 mod gpt;
 mod commands;
 mod util;
@@ -8,6 +8,7 @@ mod conversation;
 mod dashboard;
 mod init;
 mod event_processor;
+use database as db;
 use chrono::Utc;
 use dotenv::dotenv;
 use nostr_sdk::prelude::*;
@@ -35,8 +36,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let config: config::AppConfig = serde_yaml::from_reader(file)?;
     let conn = db::connect()?;
     
+    // データベース初期化（テーブル作成とマイグレーション）
+    db::initialize_db(&conn)?;
+    
     // システム設定をconfig.ymlの値で初期化（DBに値がない場合のみ）
     init::initialize_system_settings(&conn, &config)?;
+
     
     // ダッシュボード用のBot情報を共有
     let bot_info = Arc::new(RwLock::new(dashboard::BotInfo {

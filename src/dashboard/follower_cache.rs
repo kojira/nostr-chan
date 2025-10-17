@@ -5,7 +5,7 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 use super::types::DashboardState;
-use crate::db;
+use crate::database as db;
 
 /// フォロワーキャッシュ一覧
 #[derive(Debug, Serialize)]

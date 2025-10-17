@@ -2,7 +2,7 @@ pub mod user;
 pub mod admin;
 
 use crate::config;
-use crate::db;
+use crate::database as db;
 use crate::util;
 use nostr_sdk::prelude::*;
 use rusqlite::Connection;

@@ -1,5 +1,5 @@
 use crate::config::AppConfig;
-use crate::db;
+use crate::database as db;
 use crate::embedding;
 use crate::util;
 use chrono::{Local, TimeZone};
@@ -52,7 +52,7 @@ pub async fn rag_search(config: AppConfig, person: db::Person, event: Event) -> 
     
     // データベースから類似イベントを検索
     let conn = db::connect()?;
-    let threshold = config.bot.rag_similarity_threshold;
+    let threshold = config.get_f32_setting("rag_similarity_threshold");
     let similar_events;
     {
         match search_similar_events(&conn, &query_embedding, 5, threshold) {

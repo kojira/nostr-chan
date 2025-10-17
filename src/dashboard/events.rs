@@ -5,7 +5,7 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 use super::types::DashboardState;
-use crate::db;
+use crate::database as db;
 
 #[derive(Debug, Deserialize)]
 pub struct EventsQuery {
