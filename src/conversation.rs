@@ -60,7 +60,7 @@ fn find_events_within_token_limit(
 }
 
 /// イベントリストをタイムライン文字列にフォーマット（下に行くほど新しい）
-fn format_timeline_text(events: Vec<db::EventRecord>) -> Result<String, Box<dyn std::error::Error>> {
+fn format_timeline_text(conn: &Connection, events: Vec<db::EventRecord>) -> Result<String, Box<dyn std::error::Error>> {
     let mut timeline_lines = Vec::new();
     
     // eventsは古い順に並んでいるが、新しい順（下に行くほど新しい）で表示したいので逆順にする
@@ -73,12 +73,8 @@ fn format_timeline_text(events: Vec<db::EventRecord>) -> Result<String, Box<dyn 
             .ok_or("タイムスタンプ変換エラー")?;
         let time_str = dt.format("%m/%d %H:%M").to_string();
         
-        // 名前を取得（なければpubkeyの先頭8文字）
-        let display_name = if event.pubkey.len() > 8 {
-            format!("{}...", &event.pubkey[..8])
-        } else {
-            event.pubkey.clone()
-        };
+        // kind0_cacheから名前を取得
+        let display_name = event.display_name(conn);
         
         let line = format!("{}. [{}] {}: {}", i + 1, time_str, display_name, event.content);
         timeline_lines.push(line);
@@ -112,7 +108,7 @@ pub async fn build_conversation_timeline_with_diversity(
             Ok(Err(_)) | Err(_) => {
                 // ベクトル化失敗時は通常の時系列順
                 events.truncate(limit);
-                return format_timeline_text(events);
+                return format_timeline_text(conn, events);
             }
         };
         
@@ -166,7 +162,7 @@ pub async fn build_conversation_timeline_with_diversity(
         events
     };
     
-    format_timeline_text(selected_events)
+    format_timeline_text(conn, selected_events)
 }
 
 /// 旧インターフェース（互換性のため）
@@ -382,12 +378,12 @@ pub async fn prepare_context_for_reply(
             let recent_events = &all_events[cutoff_index..];
             
             // 古い部分を要約用のテキストに変換
-            let old_events_text = format_timeline_text(old_events.to_vec())?;
+            let old_events_text = format_timeline_text(conn, old_events.to_vec())?;
             
             if !old_events_text.is_empty() {
                 // 古い部分を要約
                 if let Some((summary, _)) = summarize_conversation_if_needed(conn, bot_pubkey, user_pubkey, user_input, &old_events_text, config).await? {
-                    let recent_timeline = format_timeline_text(recent_events.to_vec())?;
+                    let recent_timeline = format_timeline_text(conn, recent_events.to_vec())?;
                     
                     println!("[Conversation] 要約対象: {}件, 最近のやり取り: {}件", old_events.len(), recent_events.len());
                     
