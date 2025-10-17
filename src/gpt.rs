@@ -517,31 +517,20 @@ pub async fn get_reply_with_impression<'a>(
 
     // GPTを呼び出し（JSON mode使用）
     let category = "reply";
-    println!("========== GPT印象生成リクエスト ==========");
-    println!("[System Prompt]:\n{}", system_prompt);
-    println!("\n[User Input]:\n{}", user_input);
-    println!("==========================================");
-    
     match call_gpt_with_json_mode(&system_prompt, &user_input, bot_pubkey, category).await {
         Ok(response_text) => {
-            println!("[GPT Response] 生の応答: {}", response_text);
             
             // JSON形式のパース
             match serde_json::from_str::<GptResponseWithImpression>(&response_text) {
                 Ok(parsed) => {
-                    println!("[Parsed] Reply: {}", parsed.reply);
-                    println!("[Parsed] Impression: {}", parsed.impression);
-                    
                     // 印象が空の場合は警告
                     if parsed.impression.is_empty() {
-                        eprintln!("[Warning] 印象が空です！GPTがimpressionフィールドを埋めていません");
+                        eprintln!("[Warning] 印象が空です");
                     }
                     
                     // 印象をDBに保存
                     if let Err(e) = db::save_user_impression(&conn, bot_pubkey, user_pubkey, &parsed.impression) {
                         eprintln!("[Impression] 保存エラー: {}", e);
-                    } else {
-                        println!("[Impression] 保存成功");
                     }
                     
                     Ok(parsed)
