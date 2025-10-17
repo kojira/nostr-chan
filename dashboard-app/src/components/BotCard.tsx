@@ -1,5 +1,5 @@
 import { Card, CardContent, Typography, Box, Chip, IconButton, Tooltip, Avatar, Dialog, DialogTitle, DialogContent, DialogActions, TextField, Button } from '@mui/material';
-import { CheckCircle, Cancel, PlayArrow, Pause, Edit, Delete, SmartToy, Send, ChatBubble, Summarize } from '@mui/icons-material';
+import { CheckCircle, Cancel, PlayArrow, Pause, Edit, Delete, SmartToy, Send, Info, Summarize } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import type { BotData } from '../types';
 import { useMemo, useState } from 'react';
@@ -158,7 +158,7 @@ export const BotCard = ({ bot, onEdit, onDelete, onToggle }: BotCardProps) => {
           </Box>
           
           <Box sx={{ display: 'flex', gap: 0.5 }}>
-            <Tooltip title="返信履歴">
+            <Tooltip title="Bot詳細">
               <IconButton 
                 onClick={() => navigate(`/bots/${bot.pubkey}`)}
                 sx={{
@@ -172,7 +172,7 @@ export const BotCard = ({ bot, onEdit, onDelete, onToggle }: BotCardProps) => {
                 }}
                 size="small"
               >
-                <ChatBubble fontSize="small" />
+                <Info fontSize="small" />
               </IconButton>
             </Tooltip>
             <Tooltip title="会話要約">
