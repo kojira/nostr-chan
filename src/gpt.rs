@@ -515,8 +515,8 @@ pub async fn get_reply_with_mental_diary<'a>(
     let system_prompt = format!(
         "# あなたの役割\n\
          {base_prompt}\
-         {mental_state_context}\
-         {impression_context}\n\n\
+         {impression_context}\
+         {mental_state_context}\n\n\
          # 出力形式\n\
          重要: あなたは必ずJSON形式で応答してください。他の形式は一切使用しないでください。\n\n\
          ```json\n\
