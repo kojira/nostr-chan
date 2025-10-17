@@ -427,6 +427,11 @@ pub(crate) fn migrate_normalize_events_table(conn: &Connection) -> Result<()> {
     
     // 既に正規化済み（language あり、event_type/kind0_name なし）の場合は何もしない
     if has_language && !has_event_type && !has_kind0_name && !has_is_japanese {
+        // インデックスだけ確認（新規環境の場合）
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_events_pubkey ON events(pubkey)", [])?;
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_events_kind ON events(kind)", [])?;
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_events_created_at ON events(created_at DESC)", [])?;
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_events_language ON events(language)", [])?;
         return Ok(());
     }
     

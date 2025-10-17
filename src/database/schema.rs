@@ -98,34 +98,14 @@ fn create_tables(conn: &Connection) -> Result<()> {
             content TEXT NOT NULL,
             created_at INTEGER NOT NULL,
             received_at INTEGER NOT NULL,
-            kind0_name TEXT,
             language TEXT,
-            embedding BLOB,
-            event_type TEXT
+            embedding BLOB
         )",
         [],
     )?;
     
-    conn.execute(
-        "CREATE INDEX IF NOT EXISTS idx_events_pubkey ON events(pubkey)",
-        [],
-    )?;
-    conn.execute(
-        "CREATE INDEX IF NOT EXISTS idx_events_kind ON events(kind)",
-        [],
-    )?;
-    conn.execute(
-        "CREATE INDEX IF NOT EXISTS idx_events_created_at ON events(created_at DESC)",
-        [],
-    )?;
-    conn.execute(
-        "CREATE INDEX IF NOT EXISTS idx_events_language ON events(language)",
-        [],
-    )?;
-    conn.execute(
-        "CREATE INDEX IF NOT EXISTS idx_events_event_type ON events(event_type)",
-        [],
-    )?;
+    // インデックスはマイグレーション内で作成される
+    // （既存DBの場合、カラムがまだ変更されていない可能性があるため）
     
     // conversation_logs table
     conn.execute(
