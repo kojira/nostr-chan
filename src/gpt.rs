@@ -542,26 +542,9 @@ pub async fn get_reply_with_mental_diary<'a>(
            }}\n\
          }}\n\
          ```\n\n\
-         ## フィールドの説明\n\
-         - **reply**: ユーザーへの返信を記載してください\n\
-         - **impression**: このユーザーへの印象を{max_impression_length}文字以内で記載してください\n  \
-           （会話の内容、ユーザーの性格や特徴、興味関心、関係性の変化などを記録）\n\
-         - **mental_diary**: あなた自身の心境を記録してください（日記のように）\n  \
-           - mood: 現在の気分・感情状態\n  \
-           - favorite_people: 好きな人・気になる人のリスト\n  \
-           - disliked_people: 苦手な人・避けたい人のリスト\n  \
-           - trusted_people: 信頼できる人のリスト\n  \
-           - current_interests: 今興味のあることのリスト\n  \
-           - want_to_learn: 学びたいことのリスト\n  \
-           - bored_with: 飽きたことのリスト\n  \
-           - short_term_goals: 短期目標（今日〜今週）\n  \
-           - long_term_goals: 長期目標（これから達成したいこと）\n  \
-           - concerns: 現在の悩み・課題\n  \
-           - recent_happy_events: 最近嬉しかったこと\n  \
-           - recent_sad_events: 最近悲しかったこと\n  \
-           - recent_surprises: 最近驚いたこと\n  \
-           - self_changes: 最近の自分の変化・成長\n  \
-           - personality_state: 人格設定に対する現在の解釈・状態"
+         - **reply**: ユーザーへの返信\n\
+         - **impression**: このユーザーへの印象（{max_impression_length}文字以内）\n\
+         - **mental_diary**: あなた自身の心境を日記のように記録"
     );
     
     let user_input = if let Some(ctx) = context {
