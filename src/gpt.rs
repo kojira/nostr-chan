@@ -458,53 +458,17 @@ pub async fn get_air_reply_with_mental_diary<'a>(
         ""
     };
     
-    // 共通のプロンプト構築関数を使用（印象なし）
-    let (system_prompt, conn) = build_mental_diary_prompt(
+    let response = call_gpt_with_mental_diary_internal(
         bot_pubkey,
         None, // user_pubkey なし（エアリプなので印象不要）
         personality,
         user_text,
+        context,
         Some(air_reply_instruction),
+        "air_reply",
     ).await?;
     
-    let user_input = if let Some(ctx) = context {
-        ctx
-    } else {
-        user_text.to_string()
-    };
-
-    // GPTを呼び出し（JSON mode使用）
-    let category = "air_reply";
-    match call_gpt_with_json_mode(&system_prompt, &user_input, bot_pubkey, category).await {
-        Ok(response_text) => {
-            // JSON形式のパース（replyとmental_diaryのみ）
-            #[derive(Debug, serde::Deserialize)]
-            struct AirReplyResponse {
-                reply: String,
-                mental_diary: db::MentalDiary,
-            }
-            
-            match serde_json::from_str::<AirReplyResponse>(&response_text) {
-                Ok(parsed) => {
-                    // 心境をDBに保存
-                    if let Err(e) = db::save_bot_mental_state(&conn, bot_pubkey, &parsed.mental_diary) {
-                        eprintln!("[MentalDiary] 保存エラー: {}", e);
-                    }
-                    
-                    Ok(parsed.reply)
-                },
-                Err(e) => {
-                    eprintln!("[JSON Parse] エラー: {}", e);
-                    eprintln!("[JSON Parse] 元の応答: {}", response_text);
-                    Err(format!("JSONパースエラー: {} (応答: {})", e, response_text).into())
-                }
-            }
-        },
-        Err(e) => {
-            eprintln!("[GPT API] エラー: {:?}", e);
-            Err(e)
-        }
-    }
+    Ok(response.reply)
 }
 
 /// 心境・印象付きプロンプトを構築する共通関数
@@ -664,13 +628,34 @@ pub async fn get_reply_with_mental_diary<'a>(
     user_text: &'a str,
     context: Option<String>,
 ) -> Result<GptResponseWithMentalDiary, Box<dyn Error>> {
-    // 共通のプロンプト構築関数を使用（印象あり）
-    let (system_prompt, conn) = build_mental_diary_prompt(
+    call_gpt_with_mental_diary_internal(
         bot_pubkey,
         Some(user_pubkey), // user_pubkey あり（メンション返信なので印象必要）
         personality,
         user_text,
+        context,
         None, // 追加指示なし
+        "reply",
+    ).await
+}
+
+/// 心境・印象付き返信の内部共通関数
+async fn call_gpt_with_mental_diary_internal<'a>(
+    bot_pubkey: &'a str,
+    user_pubkey: Option<&'a str>,
+    personality: &'a str,
+    user_text: &'a str,
+    context: Option<String>,
+    additional_instruction: Option<&'a str>,
+    category: &'a str,
+) -> Result<GptResponseWithMentalDiary, Box<dyn Error>> {
+    // 共通のプロンプト構築関数を使用
+    let (system_prompt, conn) = build_mental_diary_prompt(
+        bot_pubkey,
+        user_pubkey,
+        personality,
+        user_text,
+        additional_instruction,
     ).await?;
     
     let user_input = if let Some(ctx) = context {
@@ -680,34 +665,63 @@ pub async fn get_reply_with_mental_diary<'a>(
     };
 
     // GPTを呼び出し（JSON mode使用）
-    let category = "reply";
     match call_gpt_with_json_mode(&system_prompt, &user_input, bot_pubkey, category).await {
         Ok(response_text) => {
-            
-            // JSON形式のパース
-            match serde_json::from_str::<GptResponseWithMentalDiary>(&response_text) {
-                Ok(parsed) => {
-                    // 印象が空の場合は警告
-                    if parsed.impression.is_empty() {
-                        eprintln!("[Warning] 印象が空です");
+            // user_pubkeyがある場合は印象あり、ない場合は印象なし
+            if user_pubkey.is_some() {
+                // 印象ありのパース
+                match serde_json::from_str::<GptResponseWithMentalDiary>(&response_text) {
+                    Ok(parsed) => {
+                        // 印象が空の場合は警告
+                        if parsed.impression.is_empty() {
+                            eprintln!("[Warning] 印象が空です");
+                        }
+                        
+                        // 印象をDBに保存
+                        if let Err(e) = db::save_user_impression(&conn, bot_pubkey, user_pubkey.unwrap(), &parsed.impression) {
+                            eprintln!("[Impression] 保存エラー: {}", e);
+                        }
+                        
+                        // 心境をDBに保存
+                        if let Err(e) = db::save_bot_mental_state(&conn, bot_pubkey, &parsed.mental_diary) {
+                            eprintln!("[MentalDiary] 保存エラー: {}", e);
+                        }
+                        
+                        Ok(parsed)
+                    },
+                    Err(e) => {
+                        eprintln!("[JSON Parse] エラー: {}", e);
+                        eprintln!("[JSON Parse] 元の応答: {}", response_text);
+                        Err(format!("JSONパースエラー: {} (応答: {})", e, response_text).into())
                     }
-                    
-                    // 印象をDBに保存
-                    if let Err(e) = db::save_user_impression(&conn, bot_pubkey, user_pubkey, &parsed.impression) {
-                        eprintln!("[Impression] 保存エラー: {}", e);
+                }
+            } else {
+                // 印象なしのパース（エアリプ用）
+                #[derive(Debug, serde::Deserialize)]
+                struct AirReplyResponse {
+                    reply: String,
+                    mental_diary: db::MentalDiary,
+                }
+                
+                match serde_json::from_str::<AirReplyResponse>(&response_text) {
+                    Ok(parsed) => {
+                        // 心境をDBに保存
+                        if let Err(e) = db::save_bot_mental_state(&conn, bot_pubkey, &parsed.mental_diary) {
+                            eprintln!("[MentalDiary] 保存エラー: {}", e);
+                        }
+                        
+                        // 印象なしのレスポンスを印象ありの形式に変換
+                        Ok(GptResponseWithMentalDiary {
+                            reply: parsed.reply,
+                            impression: String::new(),
+                            mental_diary: parsed.mental_diary,
+                        })
+                    },
+                    Err(e) => {
+                        eprintln!("[JSON Parse] エラー: {}", e);
+                        eprintln!("[JSON Parse] 元の応答: {}", response_text);
+                        Err(format!("JSONパースエラー: {} (応答: {})", e, response_text).into())
                     }
-                    
-                    // 心境をDBに保存
-                    if let Err(e) = db::save_bot_mental_state(&conn, bot_pubkey, &parsed.mental_diary) {
-                        eprintln!("[MentalDiary] 保存エラー: {}", e);
-                    }
-                    
-                    Ok(parsed)
-                },
-                Err(e) => {
-                    eprintln!("[JSON Parse] エラー: {}", e);
-                    eprintln!("[JSON Parse] 元の応答: {}", response_text);
-                    Err(format!("JSONパースエラー: {} (応答: {})", e, response_text).into())
                 }
             }
         },
