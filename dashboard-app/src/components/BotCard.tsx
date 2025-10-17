@@ -3,6 +3,7 @@ import { CheckCircle, Cancel, PlayArrow, Pause, Edit, Delete, SmartToy, Send, Ch
 import { useNavigate } from 'react-router-dom';
 import type { BotData } from '../types';
 import { useMemo, useState } from 'react';
+import { nip19 } from 'nostr-tools';
 
 interface BotCardProps {
   bot: BotData;
@@ -22,15 +23,20 @@ export const BotCard = ({ bot, onEdit, onDelete, onToggle }: BotCardProps) => {
   const kind0Info = useMemo(() => {
     try {
       if (!bot.content) return null;
-      const parsed = JSON.parse(bot.content);
-      return {
-        name: parsed.name || parsed.display_name || null,
-        picture: parsed.picture || null,
-      };
+      return JSON.parse(bot.content);
     } catch {
       return null;
     }
   }, [bot.content]);
+
+  // npub形式に変換
+  const npub = useMemo(() => {
+    try {
+      return nip19.npubEncode(bot.pubkey);
+    } catch {
+      return null;
+    }
+  }, [bot.pubkey]);
 
   const handlePost = async () => {
     if (!postContent.trim()) {
@@ -105,20 +111,38 @@ export const BotCard = ({ bot, onEdit, onDelete, onToggle }: BotCardProps) => {
               <SmartToy sx={{ fontSize: 40 }} />
             </Avatar>
             <Box sx={{ flex: 1, minWidth: 0 }}>
-              {kind0Info?.name && (
+              {(kind0Info?.name || kind0Info?.display_name) && (
                 <Typography variant="h6" fontWeight="bold" noWrap sx={{ mb: 0.5 }}>
-                  {kind0Info.name}
+                  {kind0Info.display_name || kind0Info.name}
                 </Typography>
               )}
               <Typography 
                 variant="caption" 
                 fontFamily="monospace" 
                 color="text.secondary"
-                noWrap
-                sx={{ display: 'block' }}
+                sx={{ 
+                  display: 'block',
+                  wordBreak: 'break-all',
+                  lineHeight: 1.3,
+                }}
               >
-                {bot.pubkey.substring(0, 16)}...
+                hex: {bot.pubkey}
               </Typography>
+              {npub && (
+                <Typography 
+                  variant="caption" 
+                  fontFamily="monospace" 
+                  color="text.secondary"
+                  sx={{ 
+                    display: 'block',
+                    wordBreak: 'break-all',
+                    lineHeight: 1.3,
+                    mt: 0.3,
+                  }}
+                >
+                  npub: {npub}
+                </Typography>
+              )}
               <Chip
                 label={isActive ? '✓ 有効' : '× 無効'}
                 size="small"
@@ -266,7 +290,7 @@ export const BotCard = ({ bot, onEdit, onDelete, onToggle }: BotCardProps) => {
           </Typography>
         </Box>
 
-        {bot.content && kind0Info?.name && (
+        {kind0Info && Object.keys(kind0Info).length > 0 && (
           <Box 
             sx={{ 
               borderLeft: '4px solid',
@@ -280,16 +304,20 @@ export const BotCard = ({ bot, onEdit, onDelete, onToggle }: BotCardProps) => {
             <Typography variant="caption" fontWeight="bold" color="secondary.main" textTransform="uppercase" letterSpacing={0.8}>
               追加情報
             </Typography>
-            <Typography variant="body2" color="text.secondary" noWrap sx={{ mt: 0.5 }}>
-              {kind0Info.name}の設定情報
-            </Typography>
+            <Box sx={{ mt: 0.5 }}>
+              {Object.entries(kind0Info).map(([key, value]) => (
+                <Typography key={key} variant="body2" color="text.secondary" sx={{ mb: 0.5, wordBreak: 'break-word' }}>
+                  <strong>{key}:</strong> {String(value)}
+                </Typography>
+              ))}
+            </Box>
           </Box>
         )}
       </CardContent>
 
       {/* 投稿ダイアログ */}
       <Dialog open={postDialogOpen} onClose={() => setPostDialogOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>📝 {kind0Info?.name || 'Bot'}として投稿</DialogTitle>
+        <DialogTitle>📝 {kind0Info?.display_name || kind0Info?.name || 'Bot'}として投稿</DialogTitle>
         <DialogContent>
           <TextField
             autoFocus

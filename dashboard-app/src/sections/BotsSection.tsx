@@ -1,10 +1,12 @@
 import { useState } from 'react';
-import { Box, Typography, Paper, Button, ToggleButtonGroup, ToggleButton } from '@mui/material';
+import { Box, Typography, Paper, Button, ToggleButtonGroup, ToggleButton, Pagination } from '@mui/material';
 import { SmartToy, Add, CheckCircle, Cancel, List } from '@mui/icons-material';
 import { BotCard } from '../components/BotCard';
 import { BotDialog } from '../components/BotDialog';
 import type { BotData, BotRequest } from '../types';
 import { botApi } from '../api/botApi';
+
+const ITEMS_PER_PAGE = 10;
 
 interface BotsSectionProps {
   bots: BotData[];
@@ -15,6 +17,7 @@ export const BotsSection = ({ bots, onRefresh }: BotsSectionProps) => {
   const [filter, setFilter] = useState<'all' | 'active' | 'inactive'>('all');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingBot, setEditingBot] = useState<BotData | null>(null);
+  const [page, setPage] = useState(1);
 
   const filteredBots = bots.filter(bot => {
     if (filter === 'active') return bot.status === 0;
@@ -22,8 +25,21 @@ export const BotsSection = ({ bots, onRefresh }: BotsSectionProps) => {
     return true;
   });
 
+  // ページングの計算
+  const totalPages = Math.ceil(filteredBots.length / ITEMS_PER_PAGE);
+  const startIndex = (page - 1) * ITEMS_PER_PAGE;
+  const endIndex = startIndex + ITEMS_PER_PAGE;
+  const paginatedBots = filteredBots.slice(startIndex, endIndex);
+
   const activeCount = bots.filter(b => b.status === 0).length;
   const inactiveCount = bots.filter(b => b.status === 1).length;
+
+  const handleFilterChange = (_: any, value: 'all' | 'active' | 'inactive' | null) => {
+    if (value) {
+      setFilter(value);
+      setPage(1); // フィルター変更時はページをリセット
+    }
+  };
 
   const handleEdit = (bot: BotData) => {
     setEditingBot(bot);
@@ -81,7 +97,7 @@ export const BotsSection = ({ bots, onRefresh }: BotsSectionProps) => {
           <ToggleButtonGroup
             value={filter}
             exclusive
-            onChange={(_, value) => value && setFilter(value)}
+            onChange={handleFilterChange}
             size="small"
           >
             <ToggleButton value="all">
@@ -110,8 +126,22 @@ export const BotsSection = ({ bots, onRefresh }: BotsSectionProps) => {
         </Box>
       </Box>
 
+      {totalPages > 1 && (
+        <Box sx={{ display: 'flex', justifyContent: 'center', mb: 2 }}>
+          <Pagination 
+            count={totalPages} 
+            page={page} 
+            onChange={(_, value) => setPage(value)}
+            color="primary"
+            size="large"
+            showFirstButton
+            showLastButton
+          />
+        </Box>
+      )}
+
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-        {filteredBots.map((bot) => (
+        {paginatedBots.map((bot) => (
           <BotCard
             key={bot.pubkey}
             bot={bot}
@@ -126,6 +156,20 @@ export const BotsSection = ({ bots, onRefresh }: BotsSectionProps) => {
           </Box>
         )}
       </Box>
+
+      {totalPages > 1 && (
+        <Box sx={{ display: 'flex', justifyContent: 'center', mt: 3 }}>
+          <Pagination 
+            count={totalPages} 
+            page={page} 
+            onChange={(_, value) => setPage(value)}
+            color="primary"
+            size="large"
+            showFirstButton
+            showLastButton
+          />
+        </Box>
+      )}
 
       <BotDialog
         open={dialogOpen}

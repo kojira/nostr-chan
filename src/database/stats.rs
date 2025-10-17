@@ -7,27 +7,27 @@ pub fn get_dashboard_stats(conn: &Connection) -> Result<DashboardStats> {
     let week_start = now - (7 * 86400);
     let month_start = now - (30 * 86400);
     
-    // 返信統計
+    // 返信統計（is_bot_message = 1 のもののみカウント）
     let replies_today: u32 = conn.query_row(
-        "SELECT COUNT(*) FROM conversation_logs WHERE timestamp >= ?",
+        "SELECT COUNT(*) FROM conversation_logs WHERE is_bot_message = 1 AND logged_at >= ?",
         params![today_start],
         |row| row.get(0)
     ).unwrap_or(0);
     
     let replies_week: u32 = conn.query_row(
-        "SELECT COUNT(*) FROM conversation_logs WHERE timestamp >= ?",
+        "SELECT COUNT(*) FROM conversation_logs WHERE is_bot_message = 1 AND logged_at >= ?",
         params![week_start],
         |row| row.get(0)
     ).unwrap_or(0);
     
     let replies_month: u32 = conn.query_row(
-        "SELECT COUNT(*) FROM conversation_logs WHERE timestamp >= ?",
+        "SELECT COUNT(*) FROM conversation_logs WHERE is_bot_message = 1 AND logged_at >= ?",
         params![month_start],
         |row| row.get(0)
     ).unwrap_or(0);
     
     let replies_total: u32 = conn.query_row(
-        "SELECT COUNT(*) FROM conversation_logs",
+        "SELECT COUNT(*) FROM conversation_logs WHERE is_bot_message = 1",
         [],
         |row| row.get(0)
     ).unwrap_or(0);
