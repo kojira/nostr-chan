@@ -477,19 +477,36 @@ pub async fn get_reply_with_impression<'a>(
         }
     }
 
-    let prompt_temp;
-    if modified_personality.len() > 0 && extracted_prompt.len() > 0 {
-        prompt_temp = format!("これはあなたの人格です。'{modified_personality}'\n{extracted_prompt}");
+    // パーソナリティとベースプロンプトの構築
+    let base_prompt = if modified_personality.len() > 0 && extracted_prompt.len() > 0 {
+        format!(
+            "これはあなたの人格です。'{modified_personality}'\n{extracted_prompt}"
+        )
     } else {
-        prompt_temp = format!("これはあなたの人格です。'{personality}'\nこの人格を演じて次の行の文章に対して{answer_length}文字程度で返信してください。ユーザーから文字数指定があった場合はそちらを優先してください。");
-    }
+        format!(
+            "これはあなたの人格です。'{personality}'\n\
+             この人格を演じて次の行の文章に対して{answer_length}文字程度で返信してください。\n\
+             ユーザーから文字数指定があった場合はそちらを優先してください。"
+        )
+    };
     
-    // システムプロンプトとJSON形式の指示を追加
+    // システムプロンプト全体の構築
     let system_prompt = format!(
-        "{}{}\n\n重要: あなたは必ずJSON形式で応答してください。他の形式は一切使用しないでください。\n\nJSON形式:\n{{\n  \"reply\": \"ユーザーへの返信文\",\n  \"impression\": \"このユーザーへの印象\"\n}}\n\nreplyフィールド: ユーザーへの返信を記載\nimpressionフィールド: このユーザーへの印象を{}文字以内で記載（会話の内容、ユーザーの性格や特徴、興味関心などを記録）",
-        prompt_temp,
-        impression_context,
-        max_impression_length
+        "# あなたの役割\n\
+         {base_prompt}\
+         {impression_context}\n\n\
+         # 出力形式\n\
+         重要: あなたは必ずJSON形式で応答してください。他の形式は一切使用しないでください。\n\n\
+         ```json\n\
+         {{\n  \
+           \"reply\": \"ユーザーへの返信文\",\n  \
+           \"impression\": \"このユーザーへの印象\"\n\
+         }}\n\
+         ```\n\n\
+         ## フィールドの説明\n\
+         - **reply**: ユーザーへの返信を記載してください\n\
+         - **impression**: このユーザーへの印象を{max_impression_length}文字以内で記載してください\n  \
+           （会話の内容、ユーザーの性格や特徴、興味関心、関係性の変化などを記録）"
     );
     
     let user_input = if let Some(ctx) = context {
