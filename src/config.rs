@@ -156,6 +156,7 @@ impl AppConfig {
             "recent_context_count" => self.gpt.recent_context_count,
             "summary_threshold" => self.gpt.summary_threshold,
             "max_summary_tokens" => self.gpt.max_summary_tokens,
+            "max_impression_length" => self.gpt.max_impression_length,
             _ => 0,
         }
     }
