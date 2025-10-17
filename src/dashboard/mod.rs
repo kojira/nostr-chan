@@ -6,6 +6,7 @@ mod settings;
 mod summaries;
 mod users;
 mod events;
+mod impressions;
 
 pub use types::{DashboardState, BotInfo};
 
@@ -81,6 +82,11 @@ pub async fn start_dashboard(
         .route("/api/settings/relay", post(settings::set_relay_settings_handler))
         .route("/api/settings/blacklist", get(settings::get_blacklist_settings_handler))
         .route("/api/settings/blacklist", post(settings::set_blacklist_settings_handler))
+        // ユーザー印象
+        .route("/api/bots/:bot_pubkey/impressions", get(impressions::get_bot_impressions_handler))
+        .route("/api/bots/:bot_pubkey/impressions/:user_pubkey", get(impressions::get_user_latest_impression_handler))
+        .route("/api/bots/:bot_pubkey/impressions/:user_pubkey", put(impressions::update_user_impression_handler))
+        .route("/api/bots/:bot_pubkey/impressions/:user_pubkey/history", get(impressions::get_user_impression_history_handler))
         .with_state(state);
 
     // 静的ファイル配信 + APIルート

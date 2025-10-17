@@ -122,6 +122,7 @@ pub fn count_users_with_impressions(conn: &Connection, bot_pubkey: &str) -> Resu
 }
 
 /// 特定ユーザーの印象履歴件数を取得
+#[allow(dead_code)]
 pub fn count_user_impression_history(
     conn: &Connection,
     bot_pubkey: &str,

@@ -229,6 +229,7 @@ pub async fn get_gpt_settings_handler(
     let recent_context_count = get_setting_i64(&conn, "recent_context_count", 10)?;
     let summary_threshold = get_setting_i64(&conn, "summary_threshold", 5000)?;
     let max_summary_tokens = get_setting_i64(&conn, "max_summary_tokens", 8000)?;
+    let max_impression_length = get_setting_i64(&conn, "max_impression_length", 500)?;
     
     Ok(Json(serde_json::json!({
         "answer_length": answer_length,
@@ -236,7 +237,8 @@ pub async fn get_gpt_settings_handler(
         "gemini_search_timeout": gemini_search_timeout,
         "recent_context_count": recent_context_count,
         "summary_threshold": summary_threshold,
-        "max_summary_tokens": max_summary_tokens
+        "max_summary_tokens": max_summary_tokens,
+        "max_impression_length": max_impression_length
     })))
 }
 
@@ -299,6 +301,15 @@ pub async fn set_gpt_settings_handler(
         db::set_system_setting(&conn, "max_summary_tokens", &max_summary_tokens.to_string())
             .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
         println!("🎫 要約最大トークン数: {}トークン", max_summary_tokens);
+    }
+    
+    if let Some(max_impression_length) = req["max_impression_length"].as_i64() {
+        if max_impression_length < 50 || max_impression_length > 2000 {
+            return Err(StatusCode::BAD_REQUEST);
+        }
+        db::set_system_setting(&conn, "max_impression_length", &max_impression_length.to_string())
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        println!("💭 印象最大文字数: {}文字", max_impression_length);
     }
     
     Ok(Json(serde_json::json!({ "success": true })))
