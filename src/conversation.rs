@@ -96,7 +96,7 @@ fn format_timeline_text(events: Vec<db::EventRecord>) -> Result<String, Box<dyn 
 
 /// 会話タイムラインを文字列として構築（最大5000文字）
 /// user_inputが指定された場合、80%高類似度 + 20%低類似度で多様性を持たせる
-pub fn build_conversation_timeline_with_diversity(
+pub async fn build_conversation_timeline_with_diversity(
     conn: &Connection,
     bot_pubkey: &str,
     user_input: Option<&str>,
@@ -110,10 +110,13 @@ pub fn build_conversation_timeline_with_diversity(
     
     // user_inputがある場合は類似度で選別
     let selected_events = if let Some(input) = user_input {
-        // ユーザー入力をベクトル化
-        let user_embedding = match embedding::generate_embedding_global(input) {
-            Ok(emb) => emb,
-            Err(_) => {
+        // ユーザー入力をベクトル化（spawn_blockingで非同期実行）
+        let input_cloned = input.to_string();
+        let user_embedding = match tokio::task::spawn_blocking(move || {
+            embedding::generate_embedding_global(&input_cloned)
+        }).await {
+            Ok(Ok(emb)) => emb,
+            Ok(Err(_)) | Err(_) => {
                 // ベクトル化失敗時は通常の時系列順
                 events.truncate(limit);
                 return format_timeline_text(events);
@@ -175,12 +178,12 @@ pub fn build_conversation_timeline_with_diversity(
 
 /// 旧インターフェース（互換性のため）
 #[allow(dead_code)]
-pub fn build_conversation_timeline(
+pub async fn build_conversation_timeline(
     conn: &Connection,
     bot_pubkey: &str,
     limit: usize,
 ) -> Result<String, Box<dyn std::error::Error>> {
-    build_conversation_timeline_with_diversity(conn, bot_pubkey, None, limit)
+    build_conversation_timeline_with_diversity(conn, bot_pubkey, None, limit).await
 }
 
 /// 会話が指定文字数を超える場合に要約を作成
@@ -366,7 +369,7 @@ pub async fn prepare_context_for_reply(
     thread_root_id: Option<&str>,
 ) -> Result<String, Box<dyn std::error::Error>> {
     // 会話タイムラインを構築（80%高類似度 + 20%低類似度）
-    let timeline_text = build_conversation_timeline_with_diversity(conn, bot_pubkey, Some(user_input), limit)?;
+    let timeline_text = build_conversation_timeline_with_diversity(conn, bot_pubkey, Some(user_input), limit).await?;
     
     if timeline_text.is_empty() {
         return Ok(String::new());

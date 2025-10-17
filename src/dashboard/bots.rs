@@ -62,7 +62,7 @@ pub async fn create_bot_handler(
     }))
 }
 
-/// 誕生投稿
+/// 誕生投稿とkind 0の送信
 async fn post_birth_announcement(secretkey: &str, content_json: &str) -> Result<(), Box<dyn std::error::Error>> {
     use nostr_sdk::prelude::*;
     
@@ -95,6 +95,20 @@ async fn post_birth_announcement(secretkey: &str, content_json: &str) -> Result<
     }
     
     client.connect().await;
+    
+    // kind 0（メタデータ）を送信
+    println!("[Bot Creation] Publishing kind 0 metadata...");
+    if !content_json.is_empty() {
+        match Metadata::from_json(content_json) {
+            Ok(metadata) => {
+                match client.set_metadata(&metadata).await {
+                    Ok(_) => println!("✓ kind 0 published successfully"),
+                    Err(e) => eprintln!("✗ Failed to publish kind 0: {}", e),
+                }
+            }
+            Err(e) => eprintln!("✗ Failed to parse metadata: {}", e),
+        }
+    }
     
     // 誕生メッセージを投稿（adminコマンドと同じ文面）
     let message = format!("{}です。コンゴトモヨロシク！", bot_name);

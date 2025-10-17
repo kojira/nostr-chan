@@ -82,7 +82,17 @@ async fn admin_new(
     let content = &lines[2];
     database::person::insert_person(&conn, &keys, &prompt, &content)?;
     let new_person = db::get_person(&conn, &keys.public_key().to_string()).unwrap();
-    util::send_kind0(&new_person.secretkey.to_string(), content).await?;
+    
+    // kind 0をpublish
+    println!("[Bot Creation] Publishing kind 0 for new bot: {}", new_person.pubkey);
+    match util::send_kind0(&new_person.secretkey.to_string(), content).await {
+        Ok(_) => println!("[Bot Creation] ✓ kind 0 published successfully"),
+        Err(e) => {
+            eprintln!("[Bot Creation] ✗ Failed to publish kind 0: {:?}", e);
+            // 失敗してもbot作成は続行
+        }
+    }
+    
     let content: Value = serde_json::from_str(content)?;
     let display_name =
         &content["display_name"].to_string()[1..content["display_name"].to_string().len() - 1];
