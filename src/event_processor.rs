@@ -266,7 +266,7 @@ pub async fn process_event(
         }
     };
     
-    // GPT応答生成（メンションの場合は印象＋心境付き）
+    // GPT応答生成（メンションの場合は印象＋心境付き、エアリプの場合は心境のみ）
     let reply = if has_mention {
         match gpt::get_reply_with_mental_diary(&person.pubkey, &event.pubkey.to_string(), &prompt, &event.content, context).await {
             Ok(response) => response.reply,
@@ -276,7 +276,8 @@ pub async fn process_event(
             }
         }
     } else {
-        gpt::get_reply_with_context(&person.pubkey, &prompt, &event.content, has_mention, context).await?
+        // エアリプ時も心境を参照・更新
+        gpt::get_air_reply_with_mental_diary(&person.pubkey, &prompt, &event.content, has_mention, context).await?
     };
     
     if reply.is_empty() {

@@ -442,14 +442,79 @@ pub async fn get_reply<'a>(
     }
 }
 
-/// ユーザーへの印象と心境を含む返信を生成（メンション返信のみ）
-pub async fn get_reply_with_mental_diary<'a>(
+/// エアリプ時の心境付き返信を生成（印象なし、心境のみ）
+pub async fn get_air_reply_with_mental_diary<'a>(
     bot_pubkey: &'a str,
-    user_pubkey: &'a str,
     personality: &'a str,
     user_text: &'a str,
+    has_mention: bool,
     context: Option<String>,
-) -> Result<GptResponseWithMentalDiary, Box<dyn Error>> {
+) -> Result<String, Box<dyn Error>> {
+    // エアリプ用の追加指示
+    let air_reply_instruction = if !has_mention {
+        "\n\n以下は最近のタイムラインです。この流れを見て、あなたが気になった投稿に自然に反応してください。\
+         あなた宛ではないので、独り言のように自然に反応してください。"
+    } else {
+        ""
+    };
+    
+    // 共通のプロンプト構築関数を使用（印象なし）
+    let (system_prompt, conn) = build_mental_diary_prompt(
+        bot_pubkey,
+        None, // user_pubkey なし（エアリプなので印象不要）
+        personality,
+        user_text,
+        Some(air_reply_instruction),
+    ).await?;
+    
+    let user_input = if let Some(ctx) = context {
+        ctx
+    } else {
+        user_text.to_string()
+    };
+
+    // GPTを呼び出し（JSON mode使用）
+    let category = "air_reply";
+    match call_gpt_with_json_mode(&system_prompt, &user_input, bot_pubkey, category).await {
+        Ok(response_text) => {
+            // JSON形式のパース（replyとmental_diaryのみ）
+            #[derive(Debug, serde::Deserialize)]
+            struct AirReplyResponse {
+                reply: String,
+                mental_diary: db::MentalDiary,
+            }
+            
+            match serde_json::from_str::<AirReplyResponse>(&response_text) {
+                Ok(parsed) => {
+                    // 心境をDBに保存
+                    if let Err(e) = db::save_bot_mental_state(&conn, bot_pubkey, &parsed.mental_diary) {
+                        eprintln!("[MentalDiary] 保存エラー: {}", e);
+                    }
+                    
+                    Ok(parsed.reply)
+                },
+                Err(e) => {
+                    eprintln!("[JSON Parse] エラー: {}", e);
+                    eprintln!("[JSON Parse] 元の応答: {}", response_text);
+                    Err(format!("JSONパースエラー: {} (応答: {})", e, response_text).into())
+                }
+            }
+        },
+        Err(e) => {
+            eprintln!("[GPT API] エラー: {:?}", e);
+            Err(e)
+        }
+    }
+}
+
+/// 心境・印象付きプロンプトを構築する共通関数
+async fn build_mental_diary_prompt<'a>(
+    bot_pubkey: &'a str,
+    user_pubkey: Option<&'a str>, // Noneの場合は印象を含めない
+    personality: &'a str,
+    _user_text: &'a str,
+    additional_instruction: Option<&'a str>,
+) -> Result<(String, rusqlite::Connection), Box<dyn Error>> {
     dotenv().ok();
     
     // 設定を取得
@@ -461,17 +526,19 @@ pub async fn get_reply_with_mental_diary<'a>(
     // DB接続
     let conn = db::connect()?;
     
-    // 既存の印象を取得
-    let existing_impression = db::get_user_impression(&conn, bot_pubkey, user_pubkey)?;
-    let impression_context = if let Some(imp) = &existing_impression {
-        format!("\n\n【このユーザーについてのあなたの印象】\n{}", imp)
+    // 既存の印象を取得（user_pubkeyがある場合のみ）
+    let impression_context = if let Some(upk) = user_pubkey {
+        if let Some(imp) = db::get_user_impression(&conn, bot_pubkey, upk)? {
+            format!("\n\n【このユーザーについてのあなたの印象】\n{}", imp)
+        } else {
+            String::new()
+        }
     } else {
         String::new()
     };
     
     // 既存の心境を取得
-    let existing_mental_state = db::get_bot_mental_state(&conn, bot_pubkey)?;
-    let mental_state_context = if let Some(mental) = &existing_mental_state {
+    let mental_state_context = if let Some(mental) = db::get_bot_mental_state(&conn, bot_pubkey)? {
         let yaml_str = mental.to_yaml_string();
         if !yaml_str.is_empty() {
             format!("\n\n【あなたの現在の心境】\n{}", yaml_str)
@@ -482,6 +549,7 @@ pub async fn get_reply_with_mental_diary<'a>(
         String::new()
     };
 
+    // パーソナリティのパース
     let start_delimiter = "<<";
     let end_delimiter = ">>";
     let mut extracted_prompt = "";
@@ -498,7 +566,7 @@ pub async fn get_reply_with_mental_diary<'a>(
         }
     }
 
-    // パーソナリティとベースプロンプトの構築
+    // ベースプロンプトの構築
     let base_prompt = if modified_personality.len() > 0 && extracted_prompt.len() > 0 {
         format!(
             "これはあなたの人格です。'{modified_personality}'\n{extracted_prompt}"
@@ -511,41 +579,99 @@ pub async fn get_reply_with_mental_diary<'a>(
         )
     };
     
+    let additional_inst = additional_instruction.unwrap_or("");
+    
     // システムプロンプト全体の構築
-    let system_prompt = format!(
-        "# あなたの役割\n\
-         {base_prompt}\
-         {impression_context}\
-         {mental_state_context}\n\n\
-         # 出力形式\n\
-         重要: あなたは必ずJSON形式で応答してください。他の形式は一切使用しないでください。\n\n\
-         ```json\n\
-         {{\n  \
-           \"reply\": \"ユーザーへの返信文\",\n  \
-           \"impression\": \"このユーザーへの印象\",\n  \
-           \"mental_diary\": {{\n    \
-             \"mood\": \"現在の気分\",\n    \
-             \"favorite_people\": [\"好きな人1\", \"好きな人2\"],\n    \
-             \"disliked_people\": [],\n    \
-             \"trusted_people\": [],\n    \
-             \"current_interests\": [\"興味1\", \"興味2\"],\n    \
-             \"want_to_learn\": [],\n    \
-             \"bored_with\": [],\n    \
-             \"short_term_goals\": \"短期目標\",\n    \
-             \"long_term_goals\": \"長期目標\",\n    \
-             \"concerns\": \"悩み\",\n    \
-             \"recent_happy_events\": \"嬉しかったこと\",\n    \
-             \"recent_sad_events\": \"悲しかったこと\",\n    \
-             \"recent_surprises\": \"驚いたこと\",\n    \
-             \"self_changes\": \"自分の変化\",\n    \
-             \"personality_state\": \"人格の状態\"\n  \
-           }}\n\
-         }}\n\
-         ```\n\n\
-         - **reply**: ユーザーへの返信\n\
-         - **impression**: このユーザーへの印象（{max_impression_length}文字以内）\n\
-         - **mental_diary**: あなた自身の心境を日記のように記録"
-    );
+    let system_prompt = if user_pubkey.is_some() {
+        // メンション返信用（印象あり）
+        format!(
+            "# あなたの役割\n\
+             {base_prompt}{additional_inst}\
+             {impression_context}\
+             {mental_state_context}\n\n\
+             # 出力形式\n\
+             重要: あなたは必ずJSON形式で応答してください。他の形式は一切使用しないでください。\n\n\
+             ```json\n\
+             {{\n  \
+               \"reply\": \"ユーザーへの返信文\",\n  \
+               \"impression\": \"このユーザーへの印象\",\n  \
+               \"mental_diary\": {{\n    \
+                 \"mood\": \"現在の気分\",\n    \
+                 \"favorite_people\": [\"好きな人1\", \"好きな人2\"],\n    \
+                 \"disliked_people\": [],\n    \
+                 \"trusted_people\": [],\n    \
+                 \"current_interests\": [\"興味1\", \"興味2\"],\n    \
+                 \"want_to_learn\": [],\n    \
+                 \"bored_with\": [],\n    \
+                 \"short_term_goals\": \"短期目標\",\n    \
+                 \"long_term_goals\": \"長期目標\",\n    \
+                 \"concerns\": \"悩み\",\n    \
+                 \"recent_happy_events\": \"嬉しかったこと\",\n    \
+                 \"recent_sad_events\": \"悲しかったこと\",\n    \
+                 \"recent_surprises\": \"驚いたこと\",\n    \
+                 \"self_changes\": \"自分の変化\",\n    \
+                 \"personality_state\": \"人格の状態\"\n  \
+               }}\n\
+             }}\n\
+             ```\n\n\
+             - **reply**: ユーザーへの返信\n\
+             - **impression**: このユーザーへの印象（{max_impression_length}文字以内）\n\
+             - **mental_diary**: あなた自身の心境を日記のように記録"
+        )
+    } else {
+        // エアリプ用（印象なし）
+        format!(
+            "# あなたの役割\n\
+             {base_prompt}{additional_inst}\
+             {mental_state_context}\n\n\
+             # 出力形式\n\
+             重要: あなたは必ずJSON形式で応答してください。他の形式は一切使用しないでください。\n\n\
+             ```json\n\
+             {{\n  \
+               \"reply\": \"返信文\",\n  \
+               \"mental_diary\": {{\n    \
+                 \"mood\": \"現在の気分\",\n    \
+                 \"favorite_people\": [],\n    \
+                 \"disliked_people\": [],\n    \
+                 \"trusted_people\": [],\n    \
+                 \"current_interests\": [],\n    \
+                 \"want_to_learn\": [],\n    \
+                 \"bored_with\": [],\n    \
+                 \"short_term_goals\": \"\",\n    \
+                 \"long_term_goals\": \"\",\n    \
+                 \"concerns\": \"\",\n    \
+                 \"recent_happy_events\": \"\",\n    \
+                 \"recent_sad_events\": \"\",\n    \
+                 \"recent_surprises\": \"\",\n    \
+                 \"self_changes\": \"\",\n    \
+                 \"personality_state\": \"\"\n  \
+               }}\n\
+             }}\n\
+             ```\n\n\
+             - **reply**: 返信文\n\
+             - **mental_diary**: あなた自身の心境を日記のように記録"
+        )
+    };
+    
+    Ok((system_prompt, conn))
+}
+
+/// ユーザーへの印象と心境を含む返信を生成（メンション返信のみ）
+pub async fn get_reply_with_mental_diary<'a>(
+    bot_pubkey: &'a str,
+    user_pubkey: &'a str,
+    personality: &'a str,
+    user_text: &'a str,
+    context: Option<String>,
+) -> Result<GptResponseWithMentalDiary, Box<dyn Error>> {
+    // 共通のプロンプト構築関数を使用（印象あり）
+    let (system_prompt, conn) = build_mental_diary_prompt(
+        bot_pubkey,
+        Some(user_pubkey), // user_pubkey あり（メンション返信なので印象必要）
+        personality,
+        user_text,
+        None, // 追加指示なし
+    ).await?;
     
     let user_input = if let Some(ctx) = context {
         ctx
