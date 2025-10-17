@@ -67,6 +67,8 @@ pub fn record_token_usage(
     category: &str,
     prompt_tokens: usize,
     completion_tokens: usize,
+    prompt_text: &str,
+    completion_text: &str,
 ) -> Result<()> {
     let category_enum = TokenCategory::from_str(category)
         .ok_or_else(|| rusqlite::Error::InvalidParameterName(format!("Unknown category: {}", category)))?;
@@ -74,9 +76,9 @@ pub fn record_token_usage(
     let total_tokens = prompt_tokens + completion_tokens;
     
     conn.execute(
-        "INSERT INTO token_usage (bot_pubkey, category_id, prompt_tokens, completion_tokens, total_tokens, created_at)
-         VALUES (?, ?, ?, ?, ?, ?)",
-        params![bot_pubkey, category_enum as i32, prompt_tokens as i64, completion_tokens as i64, total_tokens as i64, now],
+        "INSERT INTO token_usage (bot_pubkey, category_id, prompt_tokens, completion_tokens, total_tokens, prompt_text, completion_text, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        params![bot_pubkey, category_enum as i32, prompt_tokens as i64, completion_tokens as i64, total_tokens as i64, prompt_text, completion_text, now],
     )?;
     
     println!("[Token] Bot: {}, カテゴリ: {} ({}), プロンプト: {}トークン, 完了: {}トークン, 合計: {}トークン", 

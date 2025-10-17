@@ -136,6 +136,19 @@ export const DashboardPage = () => {
 
       {/* トークン使用量 */}
       <Box sx={{ mb: 4 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+          <Typography variant="h5" gutterBottom sx={{ mb: 0 }}>
+            トークン使用量
+          </Typography>
+          <Button
+            variant="outlined"
+            size="small"
+            endIcon={<ChevronRight />}
+            onClick={() => navigate('/analytics/token-details')}
+          >
+            詳細を見る
+          </Button>
+        </Box>
         <TokenUsageChart />
       </Box>
 

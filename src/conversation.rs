@@ -64,11 +64,14 @@ fn find_events_within_token_limit(
     Ok(count)
 }
 
-/// イベントリストをタイムライン文字列にフォーマット
+/// イベントリストをタイムライン文字列にフォーマット（下に行くほど新しい）
 fn format_timeline_text(events: Vec<db::EventRecord>) -> Result<String, Box<dyn std::error::Error>> {
     let mut timeline_lines = Vec::new();
     
-    for (i, event) in events.iter().enumerate() {
+    // eventsは古い順に並んでいるが、新しい順（下に行くほど新しい）で表示したいので逆順にする
+    let reversed_events: Vec<_> = events.into_iter().rev().collect();
+    
+    for (i, event) in reversed_events.iter().enumerate() {
         // 日本時間に変換
         let dt = Local.timestamp_opt(event.created_at, 0)
             .single()

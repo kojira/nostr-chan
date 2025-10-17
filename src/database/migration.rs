@@ -324,3 +324,81 @@ pub(crate) fn migrate_token_usage_table(conn: &Connection) -> Result<()> {
     Ok(())
 }
 
+/// token_usageテーブルにprompt_textとcompletion_textカラムを追加するマイグレーション
+pub(crate) fn migrate_add_token_text_columns(conn: &Connection) -> Result<()> {
+    // カラムの存在確認
+    let has_prompt_text: bool = conn
+        .prepare("SELECT COUNT(*) FROM pragma_table_info('token_usage') WHERE name = 'prompt_text'")?
+        .query_row([], |row| row.get(0))
+        .map(|count: i32| count > 0)?;
+    
+    let has_completion_text: bool = conn
+        .prepare("SELECT COUNT(*) FROM pragma_table_info('token_usage') WHERE name = 'completion_text'")?
+        .query_row([], |row| row.get(0))
+        .map(|count: i32| count > 0)?;
+    
+    // 既に両方のカラムがある場合は何もしない
+    if has_prompt_text && has_completion_text {
+        return Ok(());
+    }
+    
+    println!("🔄 マイグレーション: token_usageテーブルにテキストカラムを追加");
+    
+    // 外部キー制約を一時的に無効化
+    conn.execute("PRAGMA foreign_keys = OFF", [])?;
+    
+    // 既存データを一時テーブルに退避
+    conn.execute(
+        "CREATE TEMPORARY TABLE token_usage_backup AS SELECT * FROM token_usage",
+        [],
+    )?;
+    
+    // 古いテーブルを削除
+    conn.execute("DROP TABLE token_usage", [])?;
+    
+    // 新しいスキーマでテーブルを作成
+    conn.execute(
+        "CREATE TABLE token_usage (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            bot_pubkey TEXT NOT NULL,
+            category_id INTEGER NOT NULL,
+            prompt_tokens INTEGER NOT NULL,
+            completion_tokens INTEGER NOT NULL,
+            total_tokens INTEGER NOT NULL,
+            prompt_text TEXT NOT NULL DEFAULT '',
+            completion_text TEXT NOT NULL DEFAULT '',
+            created_at INTEGER NOT NULL,
+            FOREIGN KEY (category_id) REFERENCES token_categories(id)
+        )",
+        [],
+    )?;
+    
+    // データを新しいテーブルに挿入（テキストカラムは空文字列）
+    conn.execute(
+        "INSERT INTO token_usage (id, bot_pubkey, category_id, prompt_tokens, completion_tokens, total_tokens, prompt_text, completion_text, created_at)
+         SELECT id, bot_pubkey, category_id, prompt_tokens, completion_tokens, total_tokens, '', '', created_at
+         FROM token_usage_backup",
+        [],
+    )?;
+    
+    // 一時テーブルを削除
+    conn.execute("DROP TABLE token_usage_backup", [])?;
+    
+    // 外部キー制約を再度有効化
+    conn.execute("PRAGMA foreign_keys = ON", [])?;
+    
+    // インデックスを作成
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_token_usage_bot ON token_usage(bot_pubkey, created_at DESC)",
+        [],
+    )?;
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_token_usage_category ON token_usage(category_id, created_at DESC)",
+        [],
+    )?;
+    
+    println!("✅ マイグレーション完了: テキストカラムを追加");
+    
+    Ok(())
+}
+

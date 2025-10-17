@@ -22,6 +22,7 @@ import { RagSettingsPage } from './pages/RagSettingsPage';
 import { GptSettingsPage } from './pages/GptSettingsPage';
 import { RelaySettingsPage } from './pages/RelaySettingsPage';
 import { BlacklistSettingsPage } from './pages/BlacklistSettingsPage';
+import TokenDetailsPage from './pages/TokenDetailsPage';
 import { useBots } from './hooks/useBots';
 import { useStats } from './hooks/useStats';
 import { useDailyReplies } from './hooks/useDailyReplies';
@@ -160,6 +161,7 @@ function AppContent() {
         <Route path="/bots/:pubkey/summaries" element={<BotSummariesPage />} />
         <Route path="/events" element={<EventsPage />} />
         <Route path="/follower-cache" element={<FollowerCachePage />} />
+        <Route path="/analytics/token-details" element={<TokenDetailsPage />} />
         <Route path="/settings/bot-behavior" element={<BotBehaviorSettingsPage />} />
         <Route path="/settings/conversation-limit" element={<ConversationLimitSettingsPage />} />
         <Route path="/settings/rag" element={<RagSettingsPage />} />

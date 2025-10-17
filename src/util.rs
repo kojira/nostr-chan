@@ -10,6 +10,29 @@ use std::thread;
 use std::time::Duration;
 use serde_json::Value;
 
+/// イベントを会話履歴に記録するヘルパー関数
+pub fn log_event_to_conversation(
+    event: &Event,
+    bot_pubkey: &str,
+    is_bot_message: bool,
+) -> Result<()> {
+    let conn = db::connect()?;
+    let event_ref_id = db::insert_event(&conn, event, true, None)?;
+    let event_json = event.as_json();
+    let thread_root_id = db::extract_thread_root_id(&event_json).ok().flatten();
+    let mentioned_pubkeys = db::extract_mentioned_pubkeys(&event_json).ok();
+    db::insert_conversation_log(
+        &conn,
+        bot_pubkey,
+        event_ref_id,
+        thread_root_id.as_deref(),
+        mentioned_pubkeys.as_deref(),
+        is_bot_message,
+        false
+    )?;
+    Ok(())
+}
+
 pub async fn is_follower(user_pubkey: &str, bot_secret_key: &str) -> Result<bool> {
   let file = File::open("../config.yml")?;
   let config: config::AppConfig = serde_yaml::from_reader(file)?;
@@ -264,8 +287,66 @@ pub async fn reply_to(
   let mut event_copy: Option<Event> = None;
 
   if kind == Kind::TextNote {
-    let event_builder = EventBuilder::text_note(text)
-      .tags([Tag::event(event.id), Tag::public_key(event.pubkey)]);
+    // 元のイベントのタグから全てのpタグを収集
+    let p_tags: Vec<Tag> = event.tags.iter()
+      .filter(|tag| matches!(tag.as_standardized(), Some(TagStandard::PublicKey { .. })))
+      .cloned()
+      .collect();
+    
+    // 元のイベントからrootとなるeタグを探す
+    let root_event_id = event.tags.iter()
+      .find_map(|tag| {
+        if let Some(TagStandard::Event { event_id, marker: Some(Marker::Root), .. }) = tag.as_standardized() {
+          Some(*event_id)
+        } else {
+          None
+        }
+      });
+    
+    let mut tags = Vec::new();
+    
+    // rootタグを設定
+    if let Some(root_id) = root_event_id {
+      // 既存のrootがある場合はそれを継承
+      tags.push(Tag::from_standardized(TagStandard::Event {
+        event_id: root_id,
+        relay_url: None,
+        marker: Some(Marker::Root),
+        public_key: None,
+        uppercase: false,
+      }));
+      // 現在のイベントをreplyとして追加
+      tags.push(Tag::from_standardized(TagStandard::Event {
+        event_id: event.id,
+        relay_url: None,
+        marker: Some(Marker::Reply),
+        public_key: None,
+        uppercase: false,
+      }));
+    } else {
+      // rootがない場合は、リプライ先のイベントがroot
+      tags.push(Tag::from_standardized(TagStandard::Event {
+        event_id: event.id,
+        relay_url: None,
+        marker: Some(Marker::Root),
+        public_key: None,
+        uppercase: false,
+      }));
+    }
+    
+    // リプライ先のpubkeyをタグに追加
+    tags.push(Tag::public_key(event.pubkey));
+    
+    // 既存のpタグを追加（重複しないように）
+    for p_tag in p_tags {
+      if let Some(TagStandard::PublicKey { public_key, .. }) = p_tag.as_standardized() {
+        if public_key != &event.pubkey {
+          tags.push(p_tag);
+        }
+      }
+    }
+    
+    let event_builder = EventBuilder::text_note(text).tags(tags);
     let event = event_builder.sign(&bot_keys).await?;
     event_copy = Some(event.clone());
     let send_result = client_temp.send_event(&event).await?;

@@ -11,6 +11,7 @@ pub fn initialize_db(conn: &Connection) -> Result<()> {
     
     // マイグレーション実行
     super::migration::migrate_token_usage_table(conn)?;
+    super::migration::migrate_add_token_text_columns(conn)?;
     super::migration::migrate_add_air_reply_single_ratio(conn)?;
     super::migration::migrate_remove_kind0_content(conn)?;
     
@@ -191,6 +192,8 @@ fn create_tables(conn: &Connection) -> Result<()> {
             prompt_tokens INTEGER NOT NULL,
             completion_tokens INTEGER NOT NULL,
             total_tokens INTEGER NOT NULL,
+            prompt_text TEXT NOT NULL,
+            completion_text TEXT NOT NULL,
             created_at INTEGER NOT NULL,
             FOREIGN KEY (category_id) REFERENCES token_categories(id)
         )",

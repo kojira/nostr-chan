@@ -331,27 +331,13 @@ pub async fn process_event(
     
     // bot自身の発言を記録
     if let Some(bot_event) = sent_event {
-        let event_type = if has_conversation_log { Some("bot_reply") } else { Some("bot_post") };
-        match db::insert_event(&conn, &bot_event, true, event_type) {
-            Ok(event_ref_id) => {
-                if has_conversation_log {
-                    let event_json = serde_json::to_string(&bot_event).unwrap_or_default();
-                    let thread_root_id = db::extract_thread_root_id(&event_json).ok().flatten();
-                    
-                    if let Err(e) = db::insert_conversation_log(
-                        &conn,
-                        &person.pubkey,
-                        event_ref_id,
-                        thread_root_id.as_deref(),
-                        None,
-                        true,
-                        false,
-                    ) {
-                        eprintln!("[Worker] bot発言の会話ログ記録エラー: {}", e);
-                    }
-                }
+        if has_conversation_log {
+            if let Err(e) = util::log_event_to_conversation(&bot_event, &person.pubkey, true) {
+                eprintln!("[Worker] bot発言の会話ログ記録エラー: {}", e);
             }
-            Err(e) => {
+        } else {
+            // bot_postとして保存（会話ログには記録しない）
+            if let Err(e) = db::insert_event(&conn, &bot_event, true, Some("bot_post")) {
                 if !e.to_string().contains("UNIQUE constraint failed") {
                     eprintln!("[Worker] bot発言の保存エラー: {}", e);
                 }

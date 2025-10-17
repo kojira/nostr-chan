@@ -33,6 +33,10 @@ pub async fn search_web(config: config::AppConfig, person: db::Person, event: Ev
     let initial_event = match util::reply_to(&config, event.clone(), person.clone(), &initial_reply).await {
         Ok(event) => {
             println!("✓ Initial reply posted successfully: {:?}", event.id);
+            
+            // 会話履歴に記録
+            let _ = util::log_event_to_conversation(&event, &person.pubkey, true);
+            
             Some(event)
         },
         Err(e) => {
@@ -123,12 +127,15 @@ pub async fn search_web(config: config::AppConfig, person: db::Person, event: Ev
             
             // 最終回答を一次回答へのリプライとして投稿
             if let Some(initial_evt) = initial_event {
-                util::reply_to(
+                let final_event = util::reply_to(
                     &config,
                     initial_evt,
                     person.clone(),
                     &final_reply,
                 ).await?;
+                
+                // 最終回答を会話履歴に記録
+                let _ = util::log_event_to_conversation(&final_event, &person.pubkey, true);
             }
         }
         Err(e) => {
@@ -136,7 +143,10 @@ pub async fn search_web(config: config::AppConfig, person: db::Person, event: Ev
             let error_reply = format!("検索に失敗しました: {}", e);
             // エラーも一次回答へのリプライとして投稿
             if let Some(initial_evt) = initial_event {
-                util::reply_to(&config, initial_evt, person, &error_reply).await?;
+                let error_event = util::reply_to(&config, initial_evt, person.clone(), &error_reply).await?;
+                
+                // エラー回答も会話履歴に記録
+                let _ = util::log_event_to_conversation(&error_event, &person.pubkey, true);
             } else {
                 util::reply_to(&config, event, person, &error_reply).await?;
             }

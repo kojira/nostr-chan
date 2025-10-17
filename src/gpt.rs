@@ -86,10 +86,13 @@ pub async fn call_gpt_with_category(prompt: &str, user_text: &str, bot_pubkey: &
                             // 完了トークン数を計算
                             let completion_tokens = count_tokens(content);
                             
+                            // プロンプト全体を作成（システムプロンプト + ユーザー入力）
+                            let full_prompt = format!("{}\n\nユーザー入力:\n{}", prompt, user_text);
+                            
                             // トークン使用量を記録
                             println!("[Token] 記録開始: bot_pubkey={}, category={}", bot_pubkey, category);
                             if let Ok(conn) = db::connect() {
-                                if let Err(e) = db::record_token_usage(&conn, bot_pubkey, category, total_prompt_tokens, completion_tokens) {
+                                if let Err(e) = db::record_token_usage(&conn, bot_pubkey, category, total_prompt_tokens, completion_tokens, &full_prompt, content) {
                                     eprintln!("[Token] 記録エラー: {:?}", e);
                                 }
                             } else {

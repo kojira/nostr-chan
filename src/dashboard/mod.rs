@@ -38,6 +38,7 @@ pub async fn start_dashboard(
         .route("/api/stats", get(stats::stats_handler))
         .route("/api/analytics/daily-replies", get(stats::daily_replies_handler))
         .route("/api/analytics/token-usage", get(stats::token_usage_stats_handler))
+        .route("/api/analytics/token-details", get(stats::token_details_handler))
         // Bot管理
         .route("/api/bots", get(bots::list_bots_handler))
         .route("/api/bots", post(bots::create_bot_handler))

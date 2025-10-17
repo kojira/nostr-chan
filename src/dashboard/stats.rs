@@ -1,11 +1,12 @@
 use axum::{
-    extract::State,
+    extract::{State, Query},
     response::Json,
     http::StatusCode,
 };
 use super::types::{DashboardState, Stats};
 use crate::database as db;
 use std::collections::HashMap;
+use serde::{Deserialize, Serialize};
 
 /// 統計情報を取得
 pub async fn stats_handler(
@@ -116,5 +117,96 @@ pub async fn token_usage_stats_handler(
     };
     
     Ok(Json(serde_json::json!({ "data": daily_usage })))
+}
+
+#[derive(Deserialize)]
+pub struct TokenDetailsQuery {
+    limit: Option<usize>,
+    offset: Option<usize>,
+}
+
+#[derive(Serialize)]
+pub struct TokenDetail {
+    id: i64,
+    bot_pubkey: String,
+    category_name: String,
+    category_display_name: String,
+    prompt_tokens: i64,
+    completion_tokens: i64,
+    total_tokens: i64,
+    prompt_text: String,
+    completion_text: String,
+    created_at: i64,
+}
+
+/// トークン使用量の詳細を取得
+pub async fn token_details_handler(
+    State(_state): State<DashboardState>,
+    Query(query): Query<TokenDetailsQuery>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let conn = db::connect().map_err(|e| {
+        eprintln!("DB接続エラー: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+    
+    let limit = query.limit.unwrap_or(50);
+    let offset = query.offset.unwrap_or(0);
+    
+    // トークン使用量の詳細を取得
+    let mut stmt = conn.prepare(
+        "SELECT tu.id, tu.bot_pubkey, tc.name, tc.display_name, 
+                tu.prompt_tokens, tu.completion_tokens, tu.total_tokens,
+                tu.prompt_text, tu.completion_text, tu.created_at
+         FROM token_usage tu
+         INNER JOIN token_categories tc ON tu.category_id = tc.id
+         ORDER BY tu.created_at DESC
+         LIMIT ? OFFSET ?"
+    ).map_err(|e| {
+        eprintln!("クエリ準備エラー: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+    
+    let details = stmt.query_map(rusqlite::params![limit, offset], |row| {
+        Ok(TokenDetail {
+            id: row.get(0)?,
+            bot_pubkey: row.get(1)?,
+            category_name: row.get(2)?,
+            category_display_name: row.get(3)?,
+            prompt_tokens: row.get(4)?,
+            completion_tokens: row.get(5)?,
+            total_tokens: row.get(6)?,
+            prompt_text: row.get(7)?,
+            completion_text: row.get(8)?,
+            created_at: row.get(9)?,
+        })
+    }).map_err(|e| {
+        eprintln!("クエリ実行エラー: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+    
+    let mut results = Vec::new();
+    for detail in details {
+        results.push(detail.map_err(|e| {
+            eprintln!("行取得エラー: {}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?);
+    }
+    
+    // 全件数を取得
+    let total: i64 = conn.query_row(
+        "SELECT COUNT(*) FROM token_usage",
+        [],
+        |row| row.get(0)
+    ).map_err(|e| {
+        eprintln!("件数取得エラー: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+    
+    Ok(Json(serde_json::json!({
+        "data": results,
+        "total": total,
+        "limit": limit,
+        "offset": offset
+    })))
 }
 
