@@ -40,7 +40,7 @@ pub async fn create_bot_handler(
     let pubkey = keys.public_key().to_string();
     
     // DBに追加
-    db::add_person(&conn, &pubkey, &req.secretkey, &req.prompt, &req.content)
+    db::add_person(&conn, &pubkey, &req.secretkey, &req.prompt, &req.content, req.air_reply_single_ratio)
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     
     // 誕生投稿を非同期で送信

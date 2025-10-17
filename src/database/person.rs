@@ -20,11 +20,12 @@ pub struct Person {
 }
 
 /// Botを追加
-pub fn add_person(conn: &Connection, pubkey: &str, secretkey: &str, prompt: &str, content: &str) -> Result<()> {
+pub fn add_person(conn: &Connection, pubkey: &str, secretkey: &str, prompt: &str, content: &str, air_reply_single_ratio: Option<i32>) -> Result<()> {
     let now = Utc::now().timestamp();
+    let ratio = air_reply_single_ratio.unwrap_or(30); // デフォルト30
     conn.execute(
-        "INSERT INTO Persons (status, prompt, pubkey, secretkey, content, created_at) VALUES(0, ?, ?, ?, ?, datetime(?, 'unixepoch'))",
-        params![prompt, pubkey, secretkey, content, now],
+        "INSERT INTO Persons (status, prompt, pubkey, secretkey, content, air_reply_single_ratio, created_at) VALUES(0, ?, ?, ?, ?, ?, datetime(?, 'unixepoch'))",
+        params![prompt, pubkey, secretkey, content, ratio, now],
     )?;
     Ok(())
 }
