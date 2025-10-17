@@ -135,6 +135,117 @@ pub async fn call_gpt_with_category(prompt: &str, user_text: &str, bot_pubkey: &
     Err(last_error.unwrap_or_else(|| "Unknown error after retries".to_string()).into())
 }
 
+/// GPT呼び出し（JSON mode、印象付き返信用）
+/// 注：openai_api_rsがJSON modeをネイティブサポートしていないため、プロンプトでJSON形式を強制
+pub async fn call_gpt_with_json_mode(prompt: &str, user_text: &str, bot_pubkey: &str, category: &str) -> Result<String, Box<dyn Error>> {
+    const MAX_RETRIES: u32 = 3;
+    const RETRY_DELAY_SECS: u64 = 3;
+    
+    dotenv().ok();
+    let api_key = env::var("OPEN_AI_API_KEY").expect("OPEN_AI_API_KEY is not set");
+    
+    // タイムアウト設定を取得
+    let file = File::open("../config.yml")?;
+    let config: AppConfig = serde_yaml::from_reader(file)?;
+    let timeout_secs = config.get_u64_setting("gpt_timeout");
+    
+    // トークン数を計算
+    let prompt_tokens = count_tokens(prompt);
+    let user_tokens = count_tokens(user_text);
+    let total_prompt_tokens = prompt_tokens + user_tokens;
+    
+    // JSON形式を強制するためのシステムプロンプトを追加
+    let json_enforced_prompt = format!(
+        "{}\n\n重要: 必ずJSON形式で返答してください。他の形式やテキストは一切含めないでください。",
+        prompt
+    );
+    
+    let req = ChatCompletionRequest::new(
+        "gpt-5-nano".to_string(),
+        vec![
+            chat_completion::ChatCompletionMessage {
+                role: chat_completion::MessageRole::system,
+                content: chat_completion::Content::Text(json_enforced_prompt),
+                name: None,
+                tool_calls: None,
+                tool_call_id: None,
+            },
+            chat_completion::ChatCompletionMessage {
+                role: chat_completion::MessageRole::user,
+                content: chat_completion::Content::Text(String::from(user_text)),
+                name: None,
+                tool_calls: None,
+                tool_call_id: None,
+            },
+        ]
+    );
+    
+    let mut last_error: Option<String> = None;
+    
+    for attempt in 1..=MAX_RETRIES {
+        let mut client = OpenAIClient::builder()
+            .with_api_key(api_key.clone())
+            .build()?;
+        
+        let chat_completion_future = async {
+            client.chat_completion(req.clone()).await
+        };
+
+        // タイムアウトを設定
+        match timeout(Duration::from_secs(timeout_secs), chat_completion_future).await {
+            Ok(result) => match result {
+                Ok(response) => {
+                    // 正常なレスポンスの処理
+                    match &response.choices[0].message.content {
+                        Some(content) => {
+                            if attempt > 1 {
+                                println!("[GPT JSON] リトライ成功 (試行 {}/{})", attempt, MAX_RETRIES);
+                            }
+                            
+                            // 完了トークン数を計算
+                            let completion_tokens = count_tokens(content);
+                            
+                            // プロンプト全体を作成（システムプロンプト + ユーザー入力）
+                            let full_prompt = format!("{}\n\nユーザー入力:\n{}", prompt, user_text);
+                            
+                            // トークン使用量を記録
+                            println!("[Token] 記録開始: bot_pubkey={}, category={}", bot_pubkey, category);
+                            if let Ok(conn) = db::connect() {
+                                if let Err(e) = db::record_token_usage(&conn, bot_pubkey, category, total_prompt_tokens, completion_tokens, &full_prompt, content) {
+                                    eprintln!("[Token] 記録エラー: {:?}", e);
+                                }
+                            } else {
+                                eprintln!("[Token] DB接続エラー");
+                            }
+                            
+                            return Ok(content.to_string());
+                        },
+                        None => {
+                            last_error = Some("No content found in response".to_string());
+                        }
+                    }            
+                },
+                Err(e) => {
+                    last_error = Some(format!("{}", e));
+                }
+            },
+            Err(_) => {
+                last_error = Some(format!("Timeout after {} seconds", timeout_secs));
+            }
+        }
+        
+        // 最後の試行でなければリトライ
+        if attempt < MAX_RETRIES {
+            eprintln!("[GPT JSON] エラー発生 (試行 {}/{}): {:?} - {}秒後にリトライ", 
+                      attempt, MAX_RETRIES, last_error, RETRY_DELAY_SECS);
+            tokio::time::sleep(Duration::from_secs(RETRY_DELAY_SECS)).await;
+        }
+    }
+    
+    // 全てのリトライが失敗
+    Err(last_error.unwrap_or_else(|| "Unknown error after retries".to_string()).into())
+}
+
 /// 新しいインターフェース: 会話コンテキスト文字列を受け取る
 #[allow(dead_code)]
 pub async fn get_reply_with_context<'a>(
@@ -390,9 +501,9 @@ pub async fn get_reply_with_impression<'a>(
         user_text.to_string()
     };
 
-    // GPTを呼び出し
+    // GPTを呼び出し（JSON mode使用）
     let category = "reply";
-    match call_gpt_with_category(&prompt, &user_input, bot_pubkey, category).await {
+    match call_gpt_with_json_mode(&prompt, &user_input, bot_pubkey, category).await {
         Ok(response_text) => {
             // JSON形式のパース
             match serde_json::from_str::<GptResponseWithImpression>(&response_text) {
