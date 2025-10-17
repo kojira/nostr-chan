@@ -17,6 +17,7 @@ export const GptSettingsPage = () => {
   const [summaryThreshold, setSummaryThreshold] = useState(5000);
   const [maxSummaryTokens, setMaxSummaryTokens] = useState(8000);
   const [maxImpressionLength, setMaxImpressionLength] = useState(500);
+  const [maxMentalDiaryLength, setMaxMentalDiaryLength] = useState(1000);
 
   useEffect(() => {
     loadSettings();
@@ -34,6 +35,7 @@ export const GptSettingsPage = () => {
         setSummaryThreshold(data.summary_threshold || 5000);
         setMaxSummaryTokens(data.max_summary_tokens || 8000);
         setMaxImpressionLength(data.max_impression_length || 500);
+        setMaxMentalDiaryLength(data.max_mental_diary_length || 1000);
       }
     } catch (error) {
       console.error('設定読み込みエラー:', error);
@@ -56,6 +58,7 @@ export const GptSettingsPage = () => {
           summary_threshold: summaryThreshold,
           max_summary_tokens: maxSummaryTokens,
           max_impression_length: maxImpressionLength,
+          max_mental_diary_length: maxMentalDiaryLength,
         }),
       });
 
@@ -477,6 +480,60 @@ export const GptSettingsPage = () => {
         </Paper>
       </Paper>
 
+      {/* 心境最大文字数 */}
+      <Paper sx={{ p: 3, mb: 3 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+          <Psychology />
+          <Typography variant="h6" fontWeight="bold">
+            心境最大文字数
+          </Typography>
+        </Box>
+        <TextField
+          type="number"
+          value={maxMentalDiaryLength}
+          onChange={(e) => setMaxMentalDiaryLength(Math.max(100, Math.min(5000, parseInt(e.target.value) || 100)))}
+          fullWidth
+          InputProps={{
+            endAdornment: <InputAdornment position="end">文字</InputAdornment>,
+          }}
+          helperText="100〜5000文字の範囲で設定"
+          sx={{ mb: 2 }}
+        />
+        <Slider
+          value={maxMentalDiaryLength}
+          onChange={(_, value) => setMaxMentalDiaryLength(value as number)}
+          min={100}
+          max={3000}
+          step={100}
+          marks={[
+            { value: 100, label: '100' },
+            { value: 500, label: '500' },
+            { value: 1000, label: '1k' },
+            { value: 2000, label: '2k' },
+            { value: 3000, label: '3k' },
+          ]}
+        />
+        <Box sx={{ display: 'flex', gap: 1, mt: 2, flexWrap: 'wrap' }}>
+          <Button variant="outlined" onClick={() => setMaxMentalDiaryLength(500)} size="small">
+            簡潔 (500文字)
+          </Button>
+          <Button variant="outlined" onClick={() => setMaxMentalDiaryLength(1000)} size="small">
+            標準 (1000文字)
+          </Button>
+          <Button variant="outlined" onClick={() => setMaxMentalDiaryLength(2000)} size="small">
+            詳細 (2000文字)
+          </Button>
+          <Button variant="outlined" onClick={() => setMaxMentalDiaryLength(3000)} size="small">
+            最大 (3000文字)
+          </Button>
+        </Box>
+        <Paper sx={{ mt: 2, p: 2, bgcolor: 'grey.50' }}>
+          <Typography variant="caption" color="text.secondary">
+            💡 Botの内面的な心境（気分、好きな人、興味、目標など）を記録する最大文字数です。会話を通じてBotの人格が成長し、より自然で人間らしい返信が可能になります。
+          </Typography>
+        </Paper>
+      </Paper>
+
       {/* 設定例 */}
       <Paper sx={{ p: 3, bgcolor: 'info.light' }}>
         <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
@@ -498,8 +555,11 @@ export const GptSettingsPage = () => {
         <Typography variant="body1" gutterBottom>
           要約作成時の最大トークン数は<strong>{maxSummaryTokens}トークン</strong>です。
         </Typography>
-        <Typography variant="body1">
+        <Typography variant="body1" gutterBottom>
           ユーザー印象は<strong>{maxImpressionLength}文字</strong>以内で記録します。
+        </Typography>
+        <Typography variant="body1">
+          Bot心境は<strong>{maxMentalDiaryLength}文字</strong>以内で記録します。
         </Typography>
       </Paper>
     </Container>

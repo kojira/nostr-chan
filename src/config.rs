@@ -28,6 +28,7 @@ pub struct GptConfig {
     pub summary_threshold: usize,
     pub max_summary_tokens: usize,
     pub max_impression_length: usize,
+    pub max_mental_diary_length: usize,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -157,6 +158,7 @@ impl AppConfig {
             "summary_threshold" => self.gpt.summary_threshold,
             "max_summary_tokens" => self.gpt.max_summary_tokens,
             "max_impression_length" => self.gpt.max_impression_length,
+            "max_mental_diary_length" => self.gpt.max_mental_diary_length,
             _ => 0,
         }
     }

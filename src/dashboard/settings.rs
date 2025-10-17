@@ -230,6 +230,7 @@ pub async fn get_gpt_settings_handler(
     let summary_threshold = get_setting_i64(&conn, "summary_threshold", 5000)?;
     let max_summary_tokens = get_setting_i64(&conn, "max_summary_tokens", 8000)?;
     let max_impression_length = get_setting_i64(&conn, "max_impression_length", 500)?;
+    let max_mental_diary_length = get_setting_i64(&conn, "max_mental_diary_length", 1000)?;
     
     Ok(Json(serde_json::json!({
         "answer_length": answer_length,
@@ -238,7 +239,8 @@ pub async fn get_gpt_settings_handler(
         "recent_context_count": recent_context_count,
         "summary_threshold": summary_threshold,
         "max_summary_tokens": max_summary_tokens,
-        "max_impression_length": max_impression_length
+        "max_impression_length": max_impression_length,
+        "max_mental_diary_length": max_mental_diary_length
     })))
 }
 
@@ -310,6 +312,15 @@ pub async fn set_gpt_settings_handler(
         db::set_system_setting(&conn, "max_impression_length", &max_impression_length.to_string())
             .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
         println!("💭 印象最大文字数: {}文字", max_impression_length);
+    }
+    
+    if let Some(max_mental_diary_length) = req["max_mental_diary_length"].as_i64() {
+        if max_mental_diary_length < 100 || max_mental_diary_length > 5000 {
+            return Err(StatusCode::BAD_REQUEST);
+        }
+        db::set_system_setting(&conn, "max_mental_diary_length", &max_mental_diary_length.to_string())
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        println!("📔 心境最大文字数: {}文字", max_mental_diary_length);
     }
     
     Ok(Json(serde_json::json!({ "success": true })))

@@ -41,6 +41,7 @@ gpt:
   summary_threshold: 5000
   max_summary_tokens: 8000
   max_impression_length: 500
+  max_mental_diary_length: 1000
 
 dashboard:
   port: 3000
