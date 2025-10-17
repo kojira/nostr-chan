@@ -23,7 +23,7 @@ where
 // コマンドハンドラー（メインエントリーポイント）
 pub async fn command_handler(
     config: &config::AppConfig,
-    _conn: &Connection,
+    conn: &Connection,
     persons: &Vec<db::Person>,
     event: &Event,
 ) -> Result<bool> {
@@ -42,6 +42,13 @@ pub async fn command_handler(
     // bot自身の投稿にはコマンド反応しない
     let event_pubkey = event.pubkey.to_string();
     if persons.iter().any(|p| p.pubkey == event_pubkey) {
+        return Ok(false);
+    }
+    
+    // ブラックリストチェック（管理者以外）
+    let is_admin = admin_pubkeys.iter().any(|s| *s == event_pubkey);
+    if !is_admin && is_blacklisted(conn, &event_pubkey)? {
+        println!("[Command] ブラックリストのユーザーからのコマンドをスキップ: {}", event_pubkey);
         return Ok(false);
     }
     
@@ -128,4 +135,14 @@ pub async fn command_handler(
     }
     
     Ok(false)
+}
+
+// ブラックリストチェック
+fn is_blacklisted(conn: &Connection, pubkey: &str) -> Result<bool> {
+    if let Some(blacklist_str) = db::get_system_setting(conn, "blacklist")? {
+        let blacklist: Vec<&str> = blacklist_str.split(',').filter(|s| !s.is_empty()).collect();
+        Ok(blacklist.contains(&pubkey))
+    } else {
+        Ok(false)
+    }
 }
