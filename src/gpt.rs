@@ -484,24 +484,23 @@ pub async fn get_reply_with_impression<'a>(
         prompt_temp = format!("これはあなたの人格です。'{personality}'\nこの人格を演じて次の行の文章に対して{answer_length}文字程度で返信してください。ユーザーから文字数指定があった場合はそちらを優先してください。");
     }
     
-    // 印象生成の指示を追加
-    let prompt = format!(
-        "{}{}\n\n返信と同時に、このユーザーへの印象を{}文字以内で更新してください。印象には会話の内容、ユーザーの性格や特徴、興味関心などを記録してください。\n\n以下のJSON形式で返答してください：\n{{\n  \"reply\": \"ユーザーへの返信文\",\n  \"impression\": \"このユーザーへの印象（{}文字以内）\"\n}}",
+    // システムプロンプトとJSON形式の指示を追加
+    let system_prompt = format!(
+        "{}{}\n\n重要: あなたは必ずJSON形式で応答してください。他の形式は一切使用しないでください。\n\nJSON形式:\n{{\n  \"reply\": \"ユーザーへの返信文\",\n  \"impression\": \"このユーザーへの印象\"\n}}\n\nreplyフィールド: ユーザーへの返信を記載\nimpressionフィールド: このユーザーへの印象を{}文字以内で記載（会話の内容、ユーザーの性格や特徴、興味関心などを記録）",
         prompt_temp,
         impression_context,
-        max_impression_length,
         max_impression_length
     );
     
     let user_input = if let Some(ctx) = context {
-        ctx
+        format!("{}\n\nユーザーの発言: {}", ctx, user_text)
     } else {
         user_text.to_string()
     };
 
     // GPTを呼び出し（JSON mode使用）
     let category = "reply";
-    match call_gpt_with_json_mode(&prompt, &user_input, bot_pubkey, category).await {
+    match call_gpt_with_json_mode(&system_prompt, &user_input, bot_pubkey, category).await {
         Ok(response_text) => {
             // JSON形式のパース
             match serde_json::from_str::<GptResponseWithImpression>(&response_text) {
@@ -521,17 +520,12 @@ pub async fn get_reply_with_impression<'a>(
                 Err(e) => {
                     eprintln!("[JSON Parse] エラー: {}", e);
                     eprintln!("[JSON Parse] 元の応答: {}", response_text);
-                    
-                    // JSONパースに失敗した場合はフォールバック
-                    Ok(GptResponseWithImpression {
-                        reply: response_text,
-                        impression: String::new(),
-                    })
+                    Err(format!("JSONパースエラー: {} (応答: {})", e, response_text).into())
                 }
             }
         },
         Err(e) => {
-            eprintln!("Error calling GPT API: {:?}", e);
+            eprintln!("[GPT API] エラー: {:?}", e);
             Err(e)
         }
     }
