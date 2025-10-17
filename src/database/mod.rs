@@ -6,6 +6,7 @@
 
 pub mod connection;
 pub mod schema;
+pub mod migration;
 pub mod person;
 pub mod settings;
 pub mod cache;
