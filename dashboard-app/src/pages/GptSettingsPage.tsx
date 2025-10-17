@@ -16,6 +16,7 @@ export const GptSettingsPage = () => {
   const [recentContextCount, setRecentContextCount] = useState(10);
   const [summaryThreshold, setSummaryThreshold] = useState(5000);
   const [maxSummaryTokens, setMaxSummaryTokens] = useState(8000);
+  const [maxImpressionLength, setMaxImpressionLength] = useState(500);
 
   useEffect(() => {
     loadSettings();
@@ -32,6 +33,7 @@ export const GptSettingsPage = () => {
         setRecentContextCount(data.recent_context_count || 10);
         setSummaryThreshold(data.summary_threshold || 5000);
         setMaxSummaryTokens(data.max_summary_tokens || 8000);
+        setMaxImpressionLength(data.max_impression_length || 500);
       }
     } catch (error) {
       console.error('設定読み込みエラー:', error);
@@ -53,6 +55,7 @@ export const GptSettingsPage = () => {
           recent_context_count: recentContextCount,
           summary_threshold: summaryThreshold,
           max_summary_tokens: maxSummaryTokens,
+          max_impression_length: maxImpressionLength,
         }),
       });
 
@@ -421,6 +424,59 @@ export const GptSettingsPage = () => {
         </Paper>
       </Paper>
 
+      {/* 印象最大文字数 */}
+      <Paper sx={{ p: 3, mb: 3 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+          <Psychology />
+          <Typography variant="h6" fontWeight="bold">
+            印象最大文字数
+          </Typography>
+        </Box>
+        <TextField
+          type="number"
+          value={maxImpressionLength}
+          onChange={(e) => setMaxImpressionLength(Math.max(50, Math.min(2000, parseInt(e.target.value) || 50)))}
+          fullWidth
+          InputProps={{
+            endAdornment: <InputAdornment position="end">文字</InputAdornment>,
+          }}
+          helperText="50〜2000文字の範囲で設定"
+          sx={{ mb: 2 }}
+        />
+        <Slider
+          value={maxImpressionLength}
+          onChange={(_, value) => setMaxImpressionLength(value as number)}
+          min={50}
+          max={1000}
+          step={50}
+          marks={[
+            { value: 50, label: '50' },
+            { value: 200, label: '200' },
+            { value: 500, label: '500' },
+            { value: 1000, label: '1000' },
+          ]}
+        />
+        <Box sx={{ display: 'flex', gap: 1, mt: 2, flexWrap: 'wrap' }}>
+          <Button variant="outlined" onClick={() => setMaxImpressionLength(200)} size="small">
+            簡潔 (200文字)
+          </Button>
+          <Button variant="outlined" onClick={() => setMaxImpressionLength(500)} size="small">
+            標準 (500文字)
+          </Button>
+          <Button variant="outlined" onClick={() => setMaxImpressionLength(800)} size="small">
+            詳細 (800文字)
+          </Button>
+          <Button variant="outlined" onClick={() => setMaxImpressionLength(1000)} size="small">
+            最大 (1000文字)
+          </Button>
+        </Box>
+        <Paper sx={{ mt: 2, p: 2, bgcolor: 'grey.50' }}>
+          <Typography variant="caption" color="text.secondary">
+            💡 Botが各ユーザーに対して記録する印象の最大文字数です。ユーザーの性格や興味関心、会話履歴から得た情報を記録し、よりパーソナライズされた返信に活用します。
+          </Typography>
+        </Paper>
+      </Paper>
+
       {/* 設定例 */}
       <Paper sx={{ p: 3, bgcolor: 'info.light' }}>
         <Typography variant="subtitle1" fontWeight="bold" gutterBottom>
@@ -439,8 +495,11 @@ export const GptSettingsPage = () => {
         <Typography variant="body1" gutterBottom>
           会話履歴が<strong>{summaryThreshold}文字</strong>を超えると要約を作成します。
         </Typography>
-        <Typography variant="body1">
+        <Typography variant="body1" gutterBottom>
           要約作成時の最大トークン数は<strong>{maxSummaryTokens}トークン</strong>です。
+        </Typography>
+        <Typography variant="body1">
+          ユーザー印象は<strong>{maxImpressionLength}文字</strong>以内で記録します。
         </Typography>
       </Paper>
     </Container>
