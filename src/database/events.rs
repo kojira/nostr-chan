@@ -16,6 +16,7 @@ pub struct EventRecord {
     pub created_at: i64,
     #[allow(dead_code)]
     pub received_at: i64,
+    #[allow(dead_code)]
     pub language: Option<String>,
     pub embedding: Option<Vec<u8>>,
 }
