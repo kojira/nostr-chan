@@ -23,27 +23,6 @@ pub struct MentalDiary {
 }
 
 impl MentalDiary {
-    /// 空の心境を作成
-    pub fn empty() -> Self {
-        Self {
-            mood: String::new(),
-            favorite_people: Vec::new(),
-            disliked_people: Vec::new(),
-            trusted_people: Vec::new(),
-            current_interests: Vec::new(),
-            want_to_learn: Vec::new(),
-            bored_with: Vec::new(),
-            short_term_goals: String::new(),
-            long_term_goals: String::new(),
-            concerns: String::new(),
-            recent_happy_events: String::new(),
-            recent_sad_events: String::new(),
-            recent_surprises: String::new(),
-            self_changes: String::new(),
-            personality_state: String::new(),
-        }
-    }
-
     /// YAML形式の文字列に変換（プロンプト用）
     pub fn to_yaml_string(&self) -> String {
         let mut lines = Vec::new();
