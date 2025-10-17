@@ -493,7 +493,7 @@ pub async fn get_reply_with_impression<'a>(
     );
     
     let user_input = if let Some(ctx) = context {
-        format!("{}\n\nユーザーの発言: {}", ctx, user_text)
+        ctx
     } else {
         user_text.to_string()
     };
