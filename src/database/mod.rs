@@ -16,6 +16,7 @@ pub mod queue;
 pub mod token_usage;
 pub mod stats;
 pub mod impression;
+pub mod mental_state;
 
 // 接続関数を再エクスポート
 pub(crate) use connection::connect;
@@ -82,4 +83,10 @@ pub use impression::{
     get_user_impression, save_user_impression, get_user_impression_history,
     get_all_user_impressions, count_users_with_impressions, count_user_impression_history,
     UserImpressionRecord
+};
+
+// mental_stateモジュールから再エクスポート
+pub use mental_state::{
+    get_bot_mental_state, save_bot_mental_state, get_bot_mental_state_history,
+    count_bot_mental_state_history, MentalDiary, BotMentalStateRecord
 };

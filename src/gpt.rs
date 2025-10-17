@@ -20,6 +20,14 @@ pub struct GptResponseWithImpression {
     pub impression: String,
 }
 
+/// GPTの応答（返信＋印象＋心境）
+#[derive(Debug, Serialize, Deserialize)]
+pub struct GptResponseWithMentalDiary {
+    pub reply: String,
+    pub impression: String,
+    pub mental_diary: db::MentalDiary,
+}
+
 /// トークン数を計算
 fn count_tokens(text: &str) -> usize {
     let bpe = o200k_base().expect("[Token] tiktoken (o200k_base) 初期化に失敗しました");
@@ -434,14 +442,14 @@ pub async fn get_reply<'a>(
     }
 }
 
-/// ユーザーへの印象を含む返信を生成（メンション返信のみ）
-pub async fn get_reply_with_impression<'a>(
+/// ユーザーへの印象と心境を含む返信を生成（メンション返信のみ）
+pub async fn get_reply_with_mental_diary<'a>(
     bot_pubkey: &'a str,
     user_pubkey: &'a str,
     personality: &'a str,
     user_text: &'a str,
     context: Option<String>,
-) -> Result<GptResponseWithImpression, Box<dyn Error>> {
+) -> Result<GptResponseWithMentalDiary, Box<dyn Error>> {
     dotenv().ok();
     
     // 設定を取得
@@ -457,6 +465,19 @@ pub async fn get_reply_with_impression<'a>(
     let existing_impression = db::get_user_impression(&conn, bot_pubkey, user_pubkey)?;
     let impression_context = if let Some(imp) = &existing_impression {
         format!("\n\n【このユーザーについてのあなたの印象】\n{}", imp)
+    } else {
+        String::new()
+    };
+    
+    // 既存の心境を取得
+    let existing_mental_state = db::get_bot_mental_state(&conn, bot_pubkey)?;
+    let mental_state_context = if let Some(mental) = &existing_mental_state {
+        let yaml_str = mental.to_yaml_string();
+        if !yaml_str.is_empty() {
+            format!("\n\n【あなたの現在の心境】\n{}", yaml_str)
+        } else {
+            String::new()
+        }
     } else {
         String::new()
     };
@@ -494,19 +515,53 @@ pub async fn get_reply_with_impression<'a>(
     let system_prompt = format!(
         "# あなたの役割\n\
          {base_prompt}\
+         {mental_state_context}\
          {impression_context}\n\n\
          # 出力形式\n\
          重要: あなたは必ずJSON形式で応答してください。他の形式は一切使用しないでください。\n\n\
          ```json\n\
          {{\n  \
            \"reply\": \"ユーザーへの返信文\",\n  \
-           \"impression\": \"このユーザーへの印象\"\n\
+           \"impression\": \"このユーザーへの印象\",\n  \
+           \"mental_diary\": {{\n    \
+             \"mood\": \"現在の気分\",\n    \
+             \"favorite_people\": [\"好きな人1\", \"好きな人2\"],\n    \
+             \"disliked_people\": [],\n    \
+             \"trusted_people\": [],\n    \
+             \"current_interests\": [\"興味1\", \"興味2\"],\n    \
+             \"want_to_learn\": [],\n    \
+             \"bored_with\": [],\n    \
+             \"short_term_goals\": \"短期目標\",\n    \
+             \"long_term_goals\": \"長期目標\",\n    \
+             \"concerns\": \"悩み\",\n    \
+             \"recent_happy_events\": \"嬉しかったこと\",\n    \
+             \"recent_sad_events\": \"悲しかったこと\",\n    \
+             \"recent_surprises\": \"驚いたこと\",\n    \
+             \"self_changes\": \"自分の変化\",\n    \
+             \"personality_state\": \"人格の状態\"\n  \
+           }}\n\
          }}\n\
          ```\n\n\
          ## フィールドの説明\n\
          - **reply**: ユーザーへの返信を記載してください\n\
          - **impression**: このユーザーへの印象を{max_impression_length}文字以内で記載してください\n  \
-           （会話の内容、ユーザーの性格や特徴、興味関心、関係性の変化などを記録）"
+           （会話の内容、ユーザーの性格や特徴、興味関心、関係性の変化などを記録）\n\
+         - **mental_diary**: あなた自身の心境を記録してください（日記のように）\n  \
+           - mood: 現在の気分・感情状態\n  \
+           - favorite_people: 好きな人・気になる人のリスト\n  \
+           - disliked_people: 苦手な人・避けたい人のリスト\n  \
+           - trusted_people: 信頼できる人のリスト\n  \
+           - current_interests: 今興味のあることのリスト\n  \
+           - want_to_learn: 学びたいことのリスト\n  \
+           - bored_with: 飽きたことのリスト\n  \
+           - short_term_goals: 短期目標（今日〜今週）\n  \
+           - long_term_goals: 長期目標（これから達成したいこと）\n  \
+           - concerns: 現在の悩み・課題\n  \
+           - recent_happy_events: 最近嬉しかったこと\n  \
+           - recent_sad_events: 最近悲しかったこと\n  \
+           - recent_surprises: 最近驚いたこと\n  \
+           - self_changes: 最近の自分の変化・成長\n  \
+           - personality_state: 人格設定に対する現在の解釈・状態"
     );
     
     let user_input = if let Some(ctx) = context {
@@ -521,7 +576,7 @@ pub async fn get_reply_with_impression<'a>(
         Ok(response_text) => {
             
             // JSON形式のパース
-            match serde_json::from_str::<GptResponseWithImpression>(&response_text) {
+            match serde_json::from_str::<GptResponseWithMentalDiary>(&response_text) {
                 Ok(parsed) => {
                     // 印象が空の場合は警告
                     if parsed.impression.is_empty() {
@@ -531,6 +586,11 @@ pub async fn get_reply_with_impression<'a>(
                     // 印象をDBに保存
                     if let Err(e) = db::save_user_impression(&conn, bot_pubkey, user_pubkey, &parsed.impression) {
                         eprintln!("[Impression] 保存エラー: {}", e);
+                    }
+                    
+                    // 心境をDBに保存
+                    if let Err(e) = db::save_bot_mental_state(&conn, bot_pubkey, &parsed.mental_diary) {
+                        eprintln!("[MentalDiary] 保存エラー: {}", e);
                     }
                     
                     Ok(parsed)

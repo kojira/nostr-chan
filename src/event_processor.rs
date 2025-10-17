@@ -266,9 +266,9 @@ pub async fn process_event(
         }
     };
     
-    // GPT応答生成（メンションの場合は印象付き）
+    // GPT応答生成（メンションの場合は印象＋心境付き）
     let reply = if has_mention {
-        match gpt::get_reply_with_impression(&person.pubkey, &event.pubkey.to_string(), &prompt, &event.content, context).await {
+        match gpt::get_reply_with_mental_diary(&person.pubkey, &event.pubkey.to_string(), &prompt, &event.content, context).await {
             Ok(response) => response.reply,
             Err(e) => {
                 eprintln!("[GPT Error] {}", e);

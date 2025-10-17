@@ -584,3 +584,39 @@ pub(crate) fn migrate_add_user_impressions(conn: &Connection) -> Result<()> {
     Ok(())
 }
 
+/// bot_mental_stateテーブルを追加するマイグレーション
+/// Botの心境を履歴として保存
+pub(crate) fn migrate_add_bot_mental_state(conn: &Connection) -> Result<()> {
+    // テーブルが存在するかチェック
+    let table_exists: bool = conn
+        .prepare("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='bot_mental_state'")?
+        .query_row([], |row| row.get(0))
+        .map(|count: i32| count > 0)?;
+    
+    if table_exists {
+        return Ok(());
+    }
+    
+    println!("🔄 マイグレーション: bot_mental_stateテーブルを作成（履歴保存）");
+    
+    conn.execute(
+        "CREATE TABLE bot_mental_state (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            bot_pubkey TEXT NOT NULL,
+            mental_state_json TEXT NOT NULL,
+            created_at INTEGER NOT NULL
+        )",
+        [],
+    )?;
+    
+    // インデックスを作成
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_bot_mental_state_bot ON bot_mental_state(bot_pubkey, created_at DESC)",
+        [],
+    )?;
+    
+    println!("✅ マイグレーション完了: bot_mental_stateテーブルを作成（履歴保存対応）");
+    
+    Ok(())
+}
+
