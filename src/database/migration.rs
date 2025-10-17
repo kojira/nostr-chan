@@ -547,3 +547,40 @@ pub(crate) fn migrate_normalize_events_table(conn: &Connection) -> Result<()> {
     Ok(())
 }
 
+/// user_impressionsテーブルを追加するマイグレーション
+/// 印象の変遷を保存するため、履歴として保存（UNIQUE制約なし）
+pub(crate) fn migrate_add_user_impressions(conn: &Connection) -> Result<()> {
+    // テーブルが存在するかチェック
+    let table_exists: bool = conn
+        .prepare("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='user_impressions'")?
+        .query_row([], |row| row.get(0))
+        .map(|count: i32| count > 0)?;
+    
+    if table_exists {
+        return Ok(());
+    }
+    
+    println!("🔄 マイグレーション: user_impressionsテーブルを作成（履歴保存）");
+    
+    conn.execute(
+        "CREATE TABLE user_impressions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            bot_pubkey TEXT NOT NULL,
+            user_pubkey TEXT NOT NULL,
+            impression TEXT NOT NULL,
+            created_at INTEGER NOT NULL
+        )",
+        [],
+    )?;
+    
+    // インデックスを作成
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_user_impressions_bot_user ON user_impressions(bot_pubkey, user_pubkey, created_at DESC)",
+        [],
+    )?;
+    
+    println!("✅ マイグレーション完了: user_impressionsテーブルを作成（変遷履歴保存対応）");
+    
+    Ok(())
+}
+

@@ -266,8 +266,18 @@ pub async fn process_event(
         }
     };
     
-    // GPT応答生成
-    let reply = gpt::get_reply_with_context(&person.pubkey, &prompt, &event.content, has_mention, context).await?;
+    // GPT応答生成（メンションの場合は印象付き）
+    let reply = if has_mention {
+        match gpt::get_reply_with_impression(&person.pubkey, &event.pubkey.to_string(), &prompt, &event.content, context).await {
+            Ok(response) => response.reply,
+            Err(e) => {
+                eprintln!("[GPT Error] {}", e);
+                return Ok(());
+            }
+        }
+    } else {
+        gpt::get_reply_with_context(&person.pubkey, &prompt, &event.content, has_mention, context).await?
+    };
     
     if reply.is_empty() {
         return Ok(());

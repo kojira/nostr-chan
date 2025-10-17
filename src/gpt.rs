@@ -11,6 +11,14 @@ use openai_api_rs::v1::api::OpenAIClient;
 use openai_api_rs::v1::chat_completion::{self, ChatCompletionRequest};
 use chrono::{Local, TimeZone};
 use tiktoken_rs::o200k_base;
+use serde::{Deserialize, Serialize};
+
+/// GPTの応答（返信＋印象）
+#[derive(Debug, Serialize, Deserialize)]
+pub struct GptResponseWithImpression {
+    pub reply: String,
+    pub impression: String,
+}
 
 /// トークン数を計算
 fn count_tokens(text: &str) -> usize {
@@ -314,5 +322,108 @@ pub async fn get_reply<'a>(
             eprintln!("Error details: {}", e);
             Ok("".to_string())
         },
+    }
+}
+
+/// ユーザーへの印象を含む返信を生成（メンション返信のみ）
+pub async fn get_reply_with_impression<'a>(
+    bot_pubkey: &'a str,
+    user_pubkey: &'a str,
+    personality: &'a str,
+    user_text: &'a str,
+    context: Option<String>,
+) -> Result<GptResponseWithImpression, Box<dyn Error>> {
+    dotenv().ok();
+    
+    // 設定を取得
+    let file = File::open("../config.yml")?;
+    let config: AppConfig = serde_yaml::from_reader(file)?;
+    let answer_length = config.get_i32_setting("gpt_answer_length");
+    let max_impression_length = config.get_usize_setting("max_impression_length");
+    
+    // DB接続
+    let conn = db::connect()?;
+    
+    // 既存の印象を取得
+    let existing_impression = db::get_user_impression(&conn, bot_pubkey, user_pubkey)?;
+    let impression_context = if let Some(imp) = &existing_impression {
+        format!("\n\n【このユーザーについてのあなたの印象】\n{}", imp)
+    } else {
+        String::new()
+    };
+
+    let start_delimiter = "<<";
+    let end_delimiter = ">>";
+    let mut extracted_prompt = "";
+    let mut modified_personality = String::new();
+
+    if let Some(start_index) = personality.find(start_delimiter) {
+        if let Some(end_index) = personality.find(end_delimiter) {
+            extracted_prompt = &personality[start_index + start_delimiter.len()..end_index];
+            modified_personality = personality.replacen(
+                &format!("{}{}{}", start_delimiter, extracted_prompt, end_delimiter),
+                "",
+                1,
+            );
+        }
+    }
+
+    let prompt_temp;
+    if modified_personality.len() > 0 && extracted_prompt.len() > 0 {
+        prompt_temp = format!("これはあなたの人格です。'{modified_personality}'\n{extracted_prompt}");
+    } else {
+        prompt_temp = format!("これはあなたの人格です。'{personality}'\nこの人格を演じて次の行の文章に対して{answer_length}文字程度で返信してください。ユーザーから文字数指定があった場合はそちらを優先してください。");
+    }
+    
+    // 印象生成の指示を追加
+    let prompt = format!(
+        "{}{}\n\n返信と同時に、このユーザーへの印象を{}文字以内で更新してください。印象には会話の内容、ユーザーの性格や特徴、興味関心などを記録してください。\n\n以下のJSON形式で返答してください：\n{{\n  \"reply\": \"ユーザーへの返信文\",\n  \"impression\": \"このユーザーへの印象（{}文字以内）\"\n}}",
+        prompt_temp,
+        impression_context,
+        max_impression_length,
+        max_impression_length
+    );
+    
+    let user_input = if let Some(ctx) = context {
+        ctx
+    } else {
+        user_text.to_string()
+    };
+
+    // GPTを呼び出し
+    let category = "reply";
+    match call_gpt_with_category(&prompt, &user_input, bot_pubkey, category).await {
+        Ok(response_text) => {
+            // JSON形式のパース
+            match serde_json::from_str::<GptResponseWithImpression>(&response_text) {
+                Ok(parsed) => {
+                    println!("Reply: {}", parsed.reply);
+                    println!("Impression: {}", parsed.impression);
+                    
+                    // 印象をDBに保存
+                    if let Err(e) = db::save_user_impression(&conn, bot_pubkey, user_pubkey, &parsed.impression) {
+                        eprintln!("[Impression] 保存エラー: {}", e);
+                    } else {
+                        println!("[Impression] 保存成功");
+                    }
+                    
+                    Ok(parsed)
+                },
+                Err(e) => {
+                    eprintln!("[JSON Parse] エラー: {}", e);
+                    eprintln!("[JSON Parse] 元の応答: {}", response_text);
+                    
+                    // JSONパースに失敗した場合はフォールバック
+                    Ok(GptResponseWithImpression {
+                        reply: response_text,
+                        impression: String::new(),
+                    })
+                }
+            }
+        },
+        Err(e) => {
+            eprintln!("Error calling GPT API: {:?}", e);
+            Err(e)
+        }
     }
 }

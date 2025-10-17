@@ -15,6 +15,7 @@ pub mod conversation;
 pub mod queue;
 pub mod token_usage;
 pub mod stats;
+pub mod impression;
 
 // 接続関数を再エクスポート
 pub(crate) use connection::connect;
@@ -75,3 +76,10 @@ pub use token_usage::{
 
 // 統計を再エクスポート
 pub use stats::{get_dashboard_stats, DashboardStats};
+
+// ユーザー印象を再エクスポート
+pub use impression::{
+    get_user_impression, save_user_impression, get_user_impression_history,
+    get_all_user_impressions, count_users_with_impressions, count_user_impression_history,
+    UserImpressionRecord
+};

@@ -40,6 +40,7 @@ gpt:
   recent_context_count: 10
   summary_threshold: 5000
   max_summary_tokens: 8000
+  max_impression_length: 500
 
 dashboard:
   port: 3000

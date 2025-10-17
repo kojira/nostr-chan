@@ -27,6 +27,7 @@ pub struct GptConfig {
     pub recent_context_count: usize,
     pub summary_threshold: usize,
     pub max_summary_tokens: usize,
+    pub max_impression_length: usize,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
