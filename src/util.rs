@@ -452,6 +452,7 @@ pub fn get_kind0_metadata(conn: &rusqlite::Connection, pubkey: &str) -> Option<S
 }
 
 // リレーからkind 0を取得してDBに保存（非同期版）
+#[allow(dead_code)]
 pub async fn fetch_kind0_from_relay_async(conn: &rusqlite::Connection, pubkey: &str) -> Option<String> {
     use nostr_sdk::prelude::*;
     use std::time::Duration;
