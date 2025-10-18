@@ -36,6 +36,7 @@ export const BotDialog = ({ open, bot, onClose, onSave }: BotDialogProps) => {
   const [jsonFields, setJsonFields] = useState<JsonField[]>([{ key: '', value: '' }]);
   const [fetchingKind0, setFetchingKind0] = useState(false);
   const [publishing, setPublishing] = useState(false);
+  const [confirmPublishOpen, setConfirmPublishOpen] = useState(false);
 
   useEffect(() => {
     if (bot) {
@@ -151,13 +152,15 @@ export const BotDialog = ({ open, bot, onClose, onSave }: BotDialogProps) => {
       return;
     }
 
-    if (!confirm('現在の内容でkind 0（プロフィール情報）をリレーに公開しますか？\n※保存されていない変更は反映されません。')) {
-      return;
-    }
+    setConfirmPublishOpen(true);
+  };
 
+  const handleConfirmPublish = async () => {
+    setConfirmPublishOpen(false);
     setPublishing(true);
+    
     try {
-      const response = await fetch(`/api/bots/${bot.pubkey}/kind0/publish`, {
+      const response = await fetch(`/api/bots/${bot!.pubkey}/kind0/publish`, {
         method: 'POST',
       });
 
@@ -359,6 +362,58 @@ export const BotDialog = ({ open, bot, onClose, onSave }: BotDialogProps) => {
           </Box>
         </DialogActions>
       </form>
+
+      {/* kind 0公開確認ダイアログ */}
+      <Dialog 
+        open={confirmPublishOpen} 
+        onClose={() => setConfirmPublishOpen(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <Publish color="success" />
+          kind 0をリレーに公開
+        </DialogTitle>
+        <DialogContent>
+          <Typography variant="body1" sx={{ mb: 2 }}>
+            現在の内容でkind 0（プロフィール情報）をリレーに公開しますか？
+          </Typography>
+          <Box 
+            sx={{ 
+              bgcolor: 'warning.light', 
+              color: 'warning.contrastText',
+              p: 2, 
+              borderRadius: 1,
+              border: '1px solid',
+              borderColor: 'warning.main',
+            }}
+          >
+            <Typography variant="body2" fontWeight="bold" sx={{ mb: 0.5 }}>
+              ⚠️ 注意
+            </Typography>
+            <Typography variant="body2">
+              保存されていない変更は反映されません。<br />
+              編集中の内容を公開したい場合は、先に「保存」ボタンをクリックしてください。
+            </Typography>
+          </Box>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button 
+            onClick={() => setConfirmPublishOpen(false)}
+            startIcon={<Close />}
+          >
+            キャンセル
+          </Button>
+          <Button 
+            onClick={handleConfirmPublish}
+            variant="contained"
+            color="success"
+            startIcon={<Publish />}
+          >
+            公開する
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Dialog>
   );
 };
