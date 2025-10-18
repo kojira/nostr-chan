@@ -12,7 +12,7 @@ import {
   Typography,
   Slider,
 } from '@mui/material';
-import { VpnKey, Psychology, Description, Save, Close, Add, Delete, CloudDownload, Casino } from '@mui/icons-material';
+import { VpnKey, Psychology, Description, Save, Close, Add, Delete, CloudDownload, Casino, Publish } from '@mui/icons-material';
 import type { BotData, BotRequest } from '../types';
 
 interface JsonField {
@@ -35,6 +35,7 @@ export const BotDialog = ({ open, bot, onClose, onSave }: BotDialogProps) => {
   });
   const [jsonFields, setJsonFields] = useState<JsonField[]>([{ key: '', value: '' }]);
   const [fetchingKind0, setFetchingKind0] = useState(false);
+  const [publishing, setPublishing] = useState(false);
 
   useEffect(() => {
     if (bot) {
@@ -142,6 +143,35 @@ export const BotDialog = ({ open, bot, onClose, onSave }: BotDialogProps) => {
     const content = Object.keys(contentObj).length > 0 ? JSON.stringify(contentObj) : '';
     
     onSave({ ...formData, content }, bot?.pubkey);
+  };
+
+  const handlePublishKind0 = async () => {
+    if (!bot) {
+      alert('❌ Botが選択されていません');
+      return;
+    }
+
+    if (!confirm('現在の内容でkind 0（プロフィール情報）をリレーに公開しますか？\n※保存されていない変更は反映されません。')) {
+      return;
+    }
+
+    setPublishing(true);
+    try {
+      const response = await fetch(`/api/bots/${bot.pubkey}/kind0/publish`, {
+        method: 'POST',
+      });
+
+      if (!response.ok) {
+        throw new Error('kind 0の公開に失敗しました');
+      }
+
+      alert('✅ kind 0の公開を開始しました！');
+    } catch (error) {
+      console.error('kind 0公開エラー:', error);
+      alert('❌ kind 0の公開に失敗しました');
+    } finally {
+      setPublishing(false);
+    }
   };
 
   return (
@@ -305,13 +335,28 @@ export const BotDialog = ({ open, bot, onClose, onSave }: BotDialogProps) => {
           </Box>
         </DialogContent>
         
-        <DialogActions sx={{ px: 3, pb: 3 }}>
-          <Button onClick={onClose} startIcon={<Close />}>
-            キャンセル
-          </Button>
-          <Button type="submit" variant="contained" startIcon={<Save />}>
-            保存
-          </Button>
+        <DialogActions sx={{ px: 3, pb: 3, justifyContent: 'space-between' }}>
+          <Box>
+            {bot && (
+              <Button 
+                onClick={handlePublishKind0}
+                disabled={publishing}
+                startIcon={<Publish />}
+                color="success"
+                variant="outlined"
+              >
+                {publishing ? '公開中...' : 'リレーに公開'}
+              </Button>
+            )}
+          </Box>
+          <Box sx={{ display: 'flex', gap: 1 }}>
+            <Button onClick={onClose} startIcon={<Close />}>
+              キャンセル
+            </Button>
+            <Button type="submit" variant="contained" startIcon={<Save />}>
+              保存
+            </Button>
+          </Box>
         </DialogActions>
       </form>
     </Dialog>
