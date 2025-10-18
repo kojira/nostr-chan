@@ -20,12 +20,8 @@ pub struct ImpressionResponse {
 
 impl ImpressionResponse {
     fn from_record(record: db::UserImpressionRecord, conn: &rusqlite::Connection) -> Self {
-        // eventsテーブルからkind 0イベントを取得
-        let kind0_json = conn.query_row(
-            "SELECT content FROM events WHERE pubkey = ? AND kind = 0 ORDER BY created_at DESC LIMIT 1",
-            rusqlite::params![&record.user_pubkey],
-            |row| row.get::<_, String>(0)
-        ).ok();
+        // utilのget_kind0_metadataを使用
+        let kind0_json = crate::util::get_kind0_metadata(conn, &record.user_pubkey);
         
         let user_name = kind0_json.as_ref().and_then(|json| {
             serde_json::from_str::<serde_json::Value>(json).ok()

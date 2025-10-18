@@ -619,32 +619,3 @@ pub(crate) fn migrate_add_bot_mental_state(conn: &Connection) -> Result<()> {
     
     Ok(())
 }
-
-/// kind0_cacheテーブルにcontentカラムを追加するマイグレーション
-pub(crate) fn migrate_add_kind0_content(conn: &Connection) -> Result<()> {
-    // カラムが存在するかチェック
-    let column_exists: bool = conn
-        .query_row(
-            "SELECT COUNT(*) FROM pragma_table_info('kind0_cache') WHERE name='content'",
-            [],
-            |row| row.get(0),
-        )
-        .unwrap_or(0) > 0;
-    
-    if column_exists {
-        return Ok(());
-    }
-    
-    println!("🔄 マイグレーション: kind0_cacheテーブルにcontentカラムを追加");
-    
-    // contentカラムを追加（JSONを保存）
-    conn.execute(
-        "ALTER TABLE kind0_cache ADD COLUMN content TEXT",
-        [],
-    )?;
-    
-    println!("✅ マイグレーション完了: kind0_cacheにcontentカラムを追加");
-    
-    Ok(())
-}
-

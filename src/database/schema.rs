@@ -17,7 +17,6 @@ pub fn initialize_db(conn: &Connection) -> Result<()> {
     super::migration::migrate_normalize_events_table(conn)?; // events正規化
     super::migration::migrate_add_user_impressions(conn)?; // ユーザー印象テーブル
     super::migration::migrate_add_bot_mental_state(conn)?; // Bot心境テーブル
-    super::migration::migrate_add_kind0_content(conn)?; // kind0_cacheにcontentカラム追加
     
     Ok(())
 }
