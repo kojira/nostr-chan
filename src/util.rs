@@ -217,7 +217,7 @@ pub fn judge_post(
   println!("{:?}", event);
   let random_number = rand::thread_rng().gen_range(0..100);
   let person = extract_mention(persons, &event).unwrap();
-  let mut base_percent = config.bot.reaction_percent;
+  let mut base_percent = config.get_i64_setting("reaction_percent");
   if person.is_some() {
     base_percent += 10;
   }

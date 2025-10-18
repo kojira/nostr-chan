@@ -142,7 +142,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     
     // DBから既存のタイムラインを読み込み（起動時のみ）
     println!("Loading timeline from DB...");
-    let timeline_posts = db::get_latest_timeline_posts(&conn, config.bot.timeline_size).unwrap_or_else(|e| {
+    let timeline_size = config.get_usize_setting("timeline_size");
+    let timeline_posts = db::get_latest_timeline_posts(&conn, timeline_size).unwrap_or_else(|e| {
         eprintln!("Failed to load timeline: {}", e);
         Vec::new()
     });
