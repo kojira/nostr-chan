@@ -52,7 +52,10 @@ pub async fn process_event(
         .cloned()
         .collect();
     
+    println!("[EventProcessor] Total bots: {}, Active bots: {}", persons.len(), active_persons.len());
+    
     if active_persons.is_empty() {
+        println!("[EventProcessor] No active bots, skipping event");
         return Ok(());
     }
     
