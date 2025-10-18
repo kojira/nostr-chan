@@ -25,6 +25,8 @@ interface UserImpression {
   user_pubkey: string;
   impression: string;
   created_at: number;
+  user_name?: string;
+  user_picture?: string;
 }
 
 interface ImpressionsListResponse {
@@ -552,8 +554,44 @@ export const BotDetailPage = () => {
                   <TableBody>
                     {impressions.map((impression) => (
                       <TableRow key={impression.id} hover>
-                        <TableCell sx={{ fontFamily: 'monospace', fontSize: '0.875rem' }}>
-                          {impression.user_pubkey.substring(0, 16)}...
+                        <TableCell>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                            {impression.user_picture ? (
+                              <Box
+                                component="img"
+                                src={impression.user_picture}
+                                alt={impression.user_name || 'User'}
+                                sx={{
+                                  width: 40,
+                                  height: 40,
+                                  borderRadius: '50%',
+                                  objectFit: 'cover'
+                                }}
+                              />
+                            ) : (
+                              <Box
+                                sx={{
+                                  width: 40,
+                                  height: 40,
+                                  borderRadius: '50%',
+                                  bgcolor: 'grey.300',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center'
+                                }}
+                              >
+                                <Person sx={{ color: 'grey.600' }} />
+                              </Box>
+                            )}
+                            <Box>
+                              <Typography variant="body2" fontWeight="bold">
+                                {impression.user_name || `${impression.user_pubkey.substring(0, 8)}...`}
+                              </Typography>
+                              <Typography variant="caption" color="text.secondary" sx={{ fontFamily: 'monospace', fontSize: '0.75rem' }}>
+                                {impression.user_pubkey.substring(0, 16)}...
+                              </Typography>
+                            </Box>
+                          </Box>
                         </TableCell>
                         <TableCell>
                           <Typography variant="body2" sx={{ 

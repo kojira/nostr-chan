@@ -14,16 +14,31 @@ pub struct ImpressionResponse {
     pub user_pubkey: String,
     pub impression: String,
     pub created_at: i64,
+    pub user_name: Option<String>,
+    pub user_picture: Option<String>,
 }
 
-impl From<db::UserImpressionRecord> for ImpressionResponse {
-    fn from(record: db::UserImpressionRecord) -> Self {
+impl ImpressionResponse {
+    fn from_record(record: db::UserImpressionRecord, conn: &rusqlite::Connection) -> Self {
+        // kind0_cacheからユーザー情報を取得（TTL: 1日 = 86400秒）
+        let kind0_json = db::get_kind0_cache(conn, &record.user_pubkey, 86400).ok().flatten();
+        let user_name = kind0_json.as_ref().and_then(|json| {
+            serde_json::from_str::<serde_json::Value>(json).ok()
+                .and_then(|v| v.get("name").and_then(|n| n.as_str().map(|s| s.to_string())))
+        });
+        let user_picture = kind0_json.as_ref().and_then(|json| {
+            serde_json::from_str::<serde_json::Value>(json).ok()
+                .and_then(|v| v.get("picture").and_then(|p| p.as_str().map(|s| s.to_string())))
+        });
+        
         ImpressionResponse {
             id: record.id,
             bot_pubkey: record.bot_pubkey,
             user_pubkey: record.user_pubkey,
             impression: record.impression,
             created_at: record.created_at,
+            user_name,
+            user_picture,
         }
     }
 }
@@ -61,7 +76,7 @@ pub async fn get_bot_impressions_handler(
     let impressions = db::get_all_user_impressions(&conn, &bot_pubkey, pagination.per_page, offset)
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
         .into_iter()
-        .map(ImpressionResponse::from)
+        .map(|record| ImpressionResponse::from_record(record, &conn))
         .collect();
     
     let total = db::count_users_with_impressions(&conn, &bot_pubkey)
@@ -87,7 +102,7 @@ pub async fn get_user_impression_history_handler(
     let history = db::get_user_impression_history(&conn, &bot_pubkey, &user_pubkey, limit)
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
         .into_iter()
-        .map(ImpressionResponse::from)
+        .map(|record| ImpressionResponse::from_record(record, &conn))
         .collect();
     
     Ok(Json(history))
