@@ -547,11 +547,11 @@ async fn build_mental_diary_prompt<'a>(
     // ベースプロンプトの構築
     let base_prompt = if modified_personality.len() > 0 && extracted_prompt.len() > 0 {
         format!(
-            "# あなたの役割\nこれはあなたの人格です。'{modified_personality}'{user_name_section}\n{extracted_prompt}"
+            "これはあなたの人格です。'{modified_personality}'{user_name_section}\n{extracted_prompt}"
         )
     } else {
         format!(
-            "# あなたの役割\nこれはあなたの人格です。'{personality}'{user_name_section}\n\
+            "これはあなたの人格です。'{personality}'{user_name_section}\n\
              この人格を演じて次の行の文章に対して{answer_length}文字程度で返信してください。\n\
              ユーザーから文字数指定があった場合はそちらを優先してください。"
         )
