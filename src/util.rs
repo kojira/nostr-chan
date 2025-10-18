@@ -441,83 +441,74 @@ pub fn format_with_commas(num: u64) -> String {
     result.chars().rev().collect()
 }
 
-// Kind 0イベントを取得（eventsテーブル優先、なければリレーから取得してDBに保存）
+// Kind 0イベントを取得（eventsテーブルのみ、リレーからは取得しない）
 pub fn get_kind0_metadata(conn: &rusqlite::Connection, pubkey: &str) -> Option<String> {
     // eventsテーブルからkind 0イベントを取得
-    if let Ok(content) = conn.query_row(
+    conn.query_row(
         "SELECT content FROM events WHERE pubkey = ? AND kind = 0 ORDER BY created_at DESC LIMIT 1",
         rusqlite::params![pubkey],
         |row| row.get::<_, String>(0)
-    ) {
-        return Some(content);
-    }
-    
-    // eventsテーブルになければリレーから取得
-    fetch_kind0_from_relay(conn, pubkey)
+    ).ok()
 }
 
-// リレーからkind 0を取得してDBに保存
-fn fetch_kind0_from_relay(conn: &rusqlite::Connection, pubkey: &str) -> Option<String> {
+// リレーからkind 0を取得してDBに保存（非同期版）
+pub async fn fetch_kind0_from_relay_async(conn: &rusqlite::Connection, pubkey: &str) -> Option<String> {
     use nostr_sdk::prelude::*;
     use std::time::Duration;
     
-    // 非同期処理をブロッキング実行
-    let rt = tokio::runtime::Runtime::new().ok()?;
-    rt.block_on(async {
-        // config.ymlから読み込みリレーを取得
-        let config_result = std::fs::File::open("../config.yml")
-            .ok()
-            .and_then(|file| serde_yaml::from_reader::<_, config::AppConfig>(file).ok());
-        
-        let relays = config_result
-            .map(|c| c.relay_servers.read)
-            .unwrap_or_else(|| vec!["wss://relay.damus.io".to_string()]);
-        
-        let keys = Keys::generate();
-        let client = Client::new(keys);
-        
-        for relay in relays.iter().take(3) {
-            if client.add_relay(relay).await.is_err() {
-                continue;
-            }
+    // config.ymlから読み込みリレーを取得
+    let config_result = std::fs::File::open("../config.yml")
+        .ok()
+        .and_then(|file| serde_yaml::from_reader::<_, config::AppConfig>(file).ok());
+    
+    let relays = config_result
+        .map(|c| c.relay_servers.read)
+        .unwrap_or_else(|| vec!["wss://relay.damus.io".to_string()]);
+    
+    let keys = Keys::generate();
+    let client = Client::new(keys);
+    
+    for relay in relays.iter().take(3) {
+        if client.add_relay(relay).await.is_err() {
+            continue;
         }
+    }
+    
+    client.connect().await;
+    
+    let public_key = PublicKey::from_hex(pubkey).ok()?;
+    let filter = Filter::new()
+        .author(public_key)
+        .kind(Kind::Metadata)
+        .limit(1);
+    
+    let events = client.fetch_events(filter, Duration::from_secs(5)).await.ok()?;
+    client.shutdown().await;
+    
+    if let Some(event) = events.first() {
+        let content = event.content.clone();
         
-        client.connect().await;
+        // eventsテーブルに保存
+        let _ = conn.execute(
+            "INSERT OR IGNORE INTO events (event_id, event_json, pubkey, kind, content, created_at, received_at, language, embedding) 
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            rusqlite::params![
+                event.id.to_hex(),
+                serde_json::to_string(&event).ok()?,
+                event.pubkey.to_hex(),
+                0,
+                &content,
+                event.created_at.as_u64() as i64,
+                chrono::Utc::now().timestamp(),
+                rusqlite::types::Null,
+                rusqlite::types::Null,
+            ],
+        );
         
-        let public_key = PublicKey::from_hex(pubkey).ok()?;
-        let filter = Filter::new()
-            .author(public_key)
-            .kind(Kind::Metadata)
-            .limit(1);
-        
-        let events = client.fetch_events(filter, Duration::from_secs(5)).await.ok()?;
-        client.shutdown().await;
-        
-        if let Some(event) = events.first() {
-            let content = event.content.clone();
-            
-            // eventsテーブルに保存
-            let _ = conn.execute(
-                "INSERT OR IGNORE INTO events (event_id, event_json, pubkey, kind, content, created_at, received_at, language, embedding) 
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                rusqlite::params![
-                    event.id.to_hex(),
-                    serde_json::to_string(&event).ok()?,
-                    event.pubkey.to_hex(),
-                    0,
-                    &content,
-                    event.created_at.as_u64() as i64,
-                    chrono::Utc::now().timestamp(),
-                    rusqlite::types::Null,
-                    rusqlite::types::Null,
-                ],
-            );
-            
-            Some(content)
-        } else {
-            None
-        }
-    })
+        Some(content)
+    } else {
+        None
+    }
 }
 
 // 名前取得関数（キャッシュ優先、なければリレーから取得）
