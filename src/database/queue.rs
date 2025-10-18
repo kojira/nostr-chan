@@ -4,6 +4,31 @@ use chrono::Utc;
 pub fn enqueue_event(conn: &Connection, event_json: &str) -> Result<i64> {
     let now = Utc::now().timestamp();
     
+    // event_idを抽出（重複チェック用）
+    let event_id = if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(event_json) {
+        parsed["id"].as_str().map(|s| s.to_string())
+    } else {
+        None
+    };
+    
+    // 既にキューに存在するかチェック
+    if let Some(ref eid) = event_id {
+        let exists: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM event_queue WHERE event_json LIKE ? AND status IN ('pending', 'processing')",
+            params![format!("%\"id\":\"{}%", eid)],
+            |row| row.get(0)
+        )?;
+        
+        if exists > 0 {
+            // 既に存在する場合は、既存のIDを返す（重複登録しない）
+            return conn.query_row(
+                "SELECT id FROM event_queue WHERE event_json LIKE ? AND status IN ('pending', 'processing') LIMIT 1",
+                params![format!("%\"id\":\"{}%", eid)],
+                |row| row.get(0)
+            );
+        }
+    }
+    
     // 現在のキューサイズを確認
     let queue_size: i64 = conn.query_row(
         "SELECT COUNT(*) FROM event_queue WHERE status = 'pending'",
