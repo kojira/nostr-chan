@@ -396,7 +396,7 @@ pub async fn prepare_context_for_reply(
                     println!("[Conversation] 要約対象: {}件, 最近のやり取り: {}件", old_events.len(), recent_events.len());
                     
                     return Ok(format!(
-                        "【会話の要約】\n{}\n\n【最近のやり取り】\n{}\n\n【現在の発言】\n{}",
+                        "【会話の要約】\n{}\n\n【最近のやり取り】\n{}\n\n【あなたへの質問・発言】\n{}",
                         summary,
                         recent_timeline,
                         user_input
@@ -407,7 +407,7 @@ pub async fn prepare_context_for_reply(
     }
     
     // 閾値以下の場合はそのまま返す
-    Ok(format!("【会話履歴】\n{}\n\n【現在の発言】\n{}", timeline_text, user_input))
+    Ok(format!("【会話履歴】\n{}\n\n【あなたへの質問・発言】\n{}", timeline_text, user_input))
 }
 
 /// バイト列をf32ベクトルに変換
