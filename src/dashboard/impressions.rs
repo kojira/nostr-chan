@@ -134,28 +134,53 @@ pub async fn update_user_impression_handler(
     Path((bot_pubkey, user_pubkey)): Path<(String, String)>,
     Json(payload): Json<UpdateImpressionRequest>,
 ) -> Result<StatusCode, StatusCode> {
-    let conn = db::connect().map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    eprintln!("[UpdateImpression] bot_pubkey: {}, user_pubkey: {}", bot_pubkey, user_pubkey);
+    eprintln!("[UpdateImpression] impression length: {}", payload.impression.len());
+    
+    let conn = db::connect().map_err(|e| {
+        eprintln!("[UpdateImpression] DB接続エラー: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
     
     // 印象の長さチェック（500文字制限）
     if payload.impression.len() > 500 {
+        eprintln!("[UpdateImpression] 印象が長すぎます: {} > 500", payload.impression.len());
         return Err(StatusCode::BAD_REQUEST);
     }
     
     // 既存のUserAttributesを取得
     let mut user_attrs = db::get_user_attributes(&conn, &bot_pubkey, &user_pubkey)
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
-        .unwrap_or_else(|| db::UserAttributes::empty());
+        .map_err(|e| {
+            eprintln!("[UpdateImpression] get_user_attributes エラー: {}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?
+        .unwrap_or_else(|| {
+            eprintln!("[UpdateImpression] 既存データなし、新規作成");
+            db::UserAttributes::empty()
+        });
+    
+    eprintln!("[UpdateImpression] 既存データ取得完了");
     
     // impressionフィールドのみを更新
-    user_attrs.impression = Some(payload.impression);
+    user_attrs.impression = Some(payload.impression.clone());
+    eprintln!("[UpdateImpression] impression更新完了");
     
     // JSON化して保存
     let json_str = user_attrs.to_json()
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .map_err(|e| {
+            eprintln!("[UpdateImpression] JSON化エラー: {}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+    
+    eprintln!("[UpdateImpression] JSON: {}", json_str);
     
     db::save_user_impression(&conn, &bot_pubkey, &user_pubkey, &json_str)
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .map_err(|e| {
+            eprintln!("[UpdateImpression] save_user_impression エラー: {}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
     
+    eprintln!("[UpdateImpression] 保存完了");
     Ok(StatusCode::OK)
 }
 
