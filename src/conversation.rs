@@ -284,7 +284,7 @@ pub async fn summarize_conversation_if_needed(
     };
     
     // GPT APIで要約を生成（カテゴリ: summary）
-    let summary = gpt::call_gpt_with_category(&summary_prompt, &content_to_summarize, bot_pubkey, "summary").await?;
+    let summary = gpt::call_gpt_with_category(&summary_prompt, &content_to_summarize, bot_pubkey, "summary", config).await?;
     
     println!("[Conversation] 要約完了: {} 文字", summary.len());
     

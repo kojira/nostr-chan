@@ -37,11 +37,11 @@ fn count_tokens(text: &str) -> usize {
 }
 
 #[allow(dead_code)]
-pub async fn call_gpt(prompt: &str, user_text: &str) -> Result<String, Box<dyn Error>> {
-    call_gpt_with_category(prompt, user_text, "unknown", "general").await
+pub async fn call_gpt(prompt: &str, user_text: &str, config: &AppConfig) -> Result<String, Box<dyn Error>> {
+    call_gpt_with_category(prompt, user_text, "unknown", "general", config).await
 }
 
-pub async fn call_gpt_with_category(prompt: &str, user_text: &str, bot_pubkey: &str, category: &str) -> Result<String, Box<dyn Error>> {
+pub async fn call_gpt_with_category(prompt: &str, user_text: &str, bot_pubkey: &str, category: &str, config: &AppConfig) -> Result<String, Box<dyn Error>> {
     const MAX_RETRIES: u32 = 3;
     const RETRY_DELAY_SECS: u64 = 3;
     
@@ -49,8 +49,6 @@ pub async fn call_gpt_with_category(prompt: &str, user_text: &str, bot_pubkey: &
     let api_key = env::var("OPEN_AI_API_KEY").expect("OPEN_AI_API_KEY is not set");
     
     // タイムアウト設定を取得
-    let file = File::open("../config.yml")?;
-    let config: AppConfig = serde_yaml::from_reader(file)?;
     let timeout_secs = config.get_u64_setting("gpt_timeout");
     
     // トークン数を計算
@@ -145,7 +143,7 @@ pub async fn call_gpt_with_category(prompt: &str, user_text: &str, bot_pubkey: &
 }
 
 /// GPT呼び出し（JSON mode、印象付き返信用）
-pub async fn call_gpt_with_json_mode(prompt: &str, user_text: &str, bot_pubkey: &str, category: &str) -> Result<String, Box<dyn Error>> {
+pub async fn call_gpt_with_json_mode(prompt: &str, user_text: &str, bot_pubkey: &str, category: &str, config: &AppConfig) -> Result<String, Box<dyn Error>> {
     const MAX_RETRIES: u32 = 3;
     const RETRY_DELAY_SECS: u64 = 3;
     
@@ -153,8 +151,6 @@ pub async fn call_gpt_with_json_mode(prompt: &str, user_text: &str, bot_pubkey: 
     let api_key = env::var("OPEN_AI_API_KEY").expect("OPEN_AI_API_KEY is not set");
     
     // タイムアウト設定を取得
-    let file = File::open("../config.yml")?;
-    let config: AppConfig = serde_yaml::from_reader(file)?;
     let timeout_secs = config.get_u64_setting("gpt_timeout");
     
     // トークン数を計算
@@ -322,7 +318,11 @@ pub async fn get_reply_with_context<'a>(
         "air_reply" // エアリプ
     };
     
-    match call_gpt_with_category(&prompt, &user_input, bot_pubkey, category).await {
+    // config.ymlを読み込み
+    let file = File::open("../config.yml")?;
+    let config: AppConfig = serde_yaml::from_reader(file)?;
+    
+    match call_gpt_with_category(&prompt, &user_input, bot_pubkey, category, &config).await {
         Ok(reply) => {
             println!("Reply: {}", reply);
             Ok(reply)
@@ -430,7 +430,11 @@ pub async fn get_reply<'a>(
         user_text.to_string()
     };
 
-    match call_gpt_with_category(&prompt, &user_input, bot_pubkey, category).await {
+    // config.ymlを読み込み
+    let file = File::open("../config.yml")?;
+    let config: AppConfig = serde_yaml::from_reader(file)?;
+
+    match call_gpt_with_category(&prompt, &user_input, bot_pubkey, category, &config).await {
         Ok(reply) => {
             println!("Reply: {}", reply);
             Ok(reply)
@@ -450,6 +454,7 @@ pub async fn get_air_reply_with_mental_diary<'a>(
     user_text: &'a str,
     has_mention: bool,
     context: Option<String>,
+    config: &'a AppConfig,
 ) -> Result<GptResponseWithMentalDiary, Box<dyn Error>> {
     // エアリプ用の追加指示
     let air_reply_instruction = if !has_mention {
@@ -468,6 +473,7 @@ pub async fn get_air_reply_with_mental_diary<'a>(
         Some(air_reply_instruction),
         "air_reply",
         None, // user_name なし（エアリプなので不要）
+        config,
     ).await
 }
 
@@ -661,6 +667,7 @@ pub async fn get_reply_with_mental_diary<'a>(
     user_text: &'a str,
     context: Option<String>,
     user_name: Option<&'a str>,
+    config: &'a AppConfig,
 ) -> Result<GptResponseWithMentalDiary, Box<dyn Error>> {
     call_gpt_with_mental_diary_internal(
         bot_pubkey,
@@ -671,6 +678,7 @@ pub async fn get_reply_with_mental_diary<'a>(
         None, // 追加指示なし
         "reply",
         user_name,
+        config,
     ).await
 }
 
@@ -684,6 +692,7 @@ async fn call_gpt_with_mental_diary_internal<'a>(
     additional_instruction: Option<&'a str>,
     category: &'a str,
     user_name: Option<&'a str>,
+    config: &'a AppConfig,
 ) -> Result<GptResponseWithMentalDiary, Box<dyn Error>> {
     // 共通のプロンプト構築関数を使用
     let (system_prompt, _conn) = build_mental_diary_prompt(
@@ -702,7 +711,7 @@ async fn call_gpt_with_mental_diary_internal<'a>(
     };
 
     // GPTを呼び出し（JSON mode使用）
-    match call_gpt_with_json_mode(&system_prompt, &user_input, bot_pubkey, category).await {
+    match call_gpt_with_json_mode(&system_prompt, &user_input, bot_pubkey, category, config).await {
         Ok(response_text) => {
             // 不完全なJSONを修正（partial-json-fixer 0.5.3は直接Stringを返す）
             let fixed_json = fix_json(&response_text);

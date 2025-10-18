@@ -273,7 +273,7 @@ pub async fn process_event(
     // GPT応答生成（メンションの場合は印象＋心境付き、エアリプの場合は心境のみ）
     // 注意: この時点ではDBに保存しない（送信成功後に保存）
     let (reply, gpt_response) = if has_mention {
-        match gpt::get_reply_with_mental_diary(&person.pubkey, &event.pubkey.to_string(), &prompt, &event.content, context, user_name.as_deref()).await {
+        match gpt::get_reply_with_mental_diary(&person.pubkey, &event.pubkey.to_string(), &prompt, &event.content, context, user_name.as_deref(), &config).await {
             Ok(response) => {
                 let reply = response.reply.clone();
                 (reply, Some(response))
@@ -285,7 +285,7 @@ pub async fn process_event(
         }
     } else {
         // エアリプ時も心境を参照・更新
-        match gpt::get_air_reply_with_mental_diary(&person.pubkey, &prompt, &event.content, has_mention, context).await {
+        match gpt::get_air_reply_with_mental_diary(&person.pubkey, &prompt, &event.content, has_mention, context, &config).await {
             Ok(response) => {
                 let reply = response.reply.clone();
                 (reply, Some(response))
