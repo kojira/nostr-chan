@@ -579,27 +579,27 @@ async fn build_mental_diary_prompt<'a>(
         \"personality_state\": \"人格の状態\"\n  \
       }";
     
-    // ユーザー属性のJSON構造
+    // ユーザー属性のJSON構造（客観的な特徴のみ）
     let user_attributes_json = "\
       \"user_attributes\": {\n    \
         \"nickname\": \"わからない\",\n    \
         \"age\": \"30歳くらい？\",\n    \
         \"gender\": \"男性かな？\",\n    \
-        \"personality\": \"明るくて社交的\",\n    \
+        \"personality\": \"せっかちで行動的\",\n    \
         \"likes\": [\"技術\", \"アニメ\"],\n    \
-        \"dislikes\": [\"早起き\"],\n    \
+        \"dislikes\": [\"早起き\", \"待つこと\"],\n    \
         \"family\": \"わからない\",\n    \
         \"catchphrase\": \"〜だぜ\",\n    \
-        \"current_boom\": \"Nostr\",\n    \
+        \"current_boom\": \"Nostr開発\",\n    \
         \"occupation\": \"エンジニアっぽい\",\n    \
         \"country\": \"日本\",\n    \
-        \"hobbies\": [\"プログラミング\"],\n    \
-        \"values\": \"自由を大切にしている感じ\",\n    \
-        \"recent_events\": \"新しいプロジェクトを始めたみたい\",\n    \
-        \"conversation_style\": \"カジュアルで短文\",\n    \
-        \"nostr_experience\": \"結構詳しそう\",\n    \
-        \"frequent_topics\": [\"技術\", \"Nostr\"],\n    \
-        \"impression\": \"技術好きで気さくな人\"\n  \
+        \"hobbies\": [\"プログラミング\", \"深夜作業\"],\n    \
+        \"values\": \"効率と自由を重視している様子\",\n    \
+        \"recent_events\": \"新しいプロジェクトを始めた\",\n    \
+        \"conversation_style\": \"カジュアルで短文、絵文字少なめ\",\n    \
+        \"nostr_experience\": \"開発者レベルで詳しい\",\n    \
+        \"frequent_topics\": [\"技術\", \"Nostr\", \"開発\"],\n    \
+        \"impression\": \"技術志向の夜型エンジニア\"\n  \
       }";
     
     // JSON出力形式とフィールド説明（ユーザー属性の有無で分岐）
@@ -611,11 +611,14 @@ async fn build_mental_diary_prompt<'a>(
                    {mental_diary_json}"
             ),
             "- **reply**: ユーザーへの返信\n\
-             - **user_attributes**: このユーザーについて会話から分かった情報や推測できる情報を積極的に更新してください\n\
-               * 明示的に言及されていなくても、会話の文脈や口調、話題から推測できる情報は積極的に埋めてください\n\
+             - **user_attributes**: **このユーザーについて**のメモ（感想や印象も含めて自由に記録してOK）\n\
+               * **重要**: あなた自身の属性（「会話練習」「友だちづくり」「思いやりの言葉を練習」など）は絶対に書かないでください\n\
+               * 記録すべきもの: ユーザーの口調、年齢、性別、職業、趣味、話題、性格、印象、感想など\n\
                * 例: 口調が若々しい→age: \"10代-20代\", 技術的な話題が多い→occupation: \"エンジニア系\", frequent_topics: [\"技術\", \"プログラミング\"]\n\
                * 例: 「〜だぜ」「〜だな」→gender: \"男性\", catchphrase: \"〜だぜ\"\n\
                * 例: アニメの話題→hobbies: [\"アニメ\"], current_boom: \"〇〇（アニメ名）\"\n\
+               * personality: ユーザーの性格（「温かい」「配慮深い」「せっかち」「応援好き」など）\n\
+               * impression: ユーザーへの印象や感想（「応援してくれる人」「技術好きで気さくな人」など）\n\
                * **重要**: nullや空配列は禁止です。不確実な場合は「わからない」「男性かな？」「30歳くらい？」「エンジニアっぽい」のように推測や不確実性を含めた自然な表現で記入してください\n\
                * 完全に情報がない項目は「わからない」または「不明」と記入してください\n\
              - **mental_diary**: あなた自身の心境を日記のように記録".to_string()
