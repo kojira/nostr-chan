@@ -1,5 +1,5 @@
 import { Card, CardContent, Typography, Box, Chip, IconButton, Tooltip, Avatar, Dialog, DialogTitle, DialogContent, DialogActions, TextField, Button } from '@mui/material';
-import { CheckCircle, Cancel, PlayArrow, Pause, Edit, Delete, SmartToy, Send, Info, Summarize, Publish } from '@mui/icons-material';
+import { CheckCircle, Cancel, PlayArrow, Pause, Edit, Delete, SmartToy, Send, Info, Summarize, Publish, Close } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import type { BotData } from '../types';
 import { useMemo, useState } from 'react';
@@ -19,6 +19,7 @@ export const BotCard = ({ bot, onEdit, onDelete, onToggle }: BotCardProps) => {
   const [postContent, setPostContent] = useState('');
   const [posting, setPosting] = useState(false);
   const [publishing, setPublishing] = useState(false);
+  const [confirmPublishOpen, setConfirmPublishOpen] = useState(false);
 
   // contentからJSONパース
   const kind0Info = useMemo(() => {
@@ -68,12 +69,14 @@ export const BotCard = ({ bot, onEdit, onDelete, onToggle }: BotCardProps) => {
     }
   };
 
-  const handlePublishKind0 = async () => {
-    if (!confirm('kind 0（プロフィール情報）をリレーに公開しますか？')) {
-      return;
-    }
+  const handlePublishKind0 = () => {
+    setConfirmPublishOpen(true);
+  };
 
+  const handleConfirmPublish = async () => {
+    setConfirmPublishOpen(false);
     setPublishing(true);
+    
     try {
       const response = await fetch(`/api/bots/${bot.pubkey}/kind0/publish`, {
         method: 'POST',
@@ -380,6 +383,53 @@ export const BotCard = ({ bot, onEdit, onDelete, onToggle }: BotCardProps) => {
           </Button>
           <Button onClick={handlePost} variant="contained" disabled={posting || !postContent.trim()}>
             {posting ? '投稿中...' : '投稿'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* kind 0公開確認ダイアログ */}
+      <Dialog 
+        open={confirmPublishOpen} 
+        onClose={() => setConfirmPublishOpen(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <Publish color="success" />
+          kind 0をリレーに公開
+        </DialogTitle>
+        <DialogContent>
+          <Typography variant="body1" sx={{ mb: 2 }}>
+            kind 0（プロフィール情報）をリレーに公開しますか？
+          </Typography>
+          <Box 
+            sx={{ 
+              bgcolor: 'grey.50', 
+              p: 2, 
+              borderRadius: 1,
+              borderLeft: '4px solid',
+              borderColor: 'primary.main',
+            }}
+          >
+            <Typography variant="body2" color="text.secondary">
+              現在DBに保存されているプロフィール情報がリレーに公開されます。
+            </Typography>
+          </Box>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button 
+            onClick={() => setConfirmPublishOpen(false)}
+            startIcon={<Close />}
+          >
+            キャンセル
+          </Button>
+          <Button 
+            onClick={handleConfirmPublish}
+            variant="contained"
+            color="success"
+            startIcon={<Publish />}
+          >
+            公開する
           </Button>
         </DialogActions>
       </Dialog>

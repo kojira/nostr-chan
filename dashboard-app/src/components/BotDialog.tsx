@@ -380,19 +380,15 @@ export const BotDialog = ({ open, bot, onClose, onSave }: BotDialogProps) => {
           </Typography>
           <Box 
             sx={{ 
-              bgcolor: 'warning.light', 
-              color: 'warning.contrastText',
+              bgcolor: 'grey.50', 
               p: 2, 
               borderRadius: 1,
-              border: '1px solid',
+              borderLeft: '4px solid',
               borderColor: 'warning.main',
             }}
           >
-            <Typography variant="body2" fontWeight="bold" sx={{ mb: 0.5 }}>
-              ⚠️ 注意
-            </Typography>
-            <Typography variant="body2">
-              保存されていない変更は反映されません。<br />
+            <Typography variant="body2" color="text.secondary">
+              ⚠️ 保存されていない変更は反映されません。<br />
               編集中の内容を公開したい場合は、先に「保存」ボタンをクリックしてください。
             </Typography>
           </Box>
