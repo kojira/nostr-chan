@@ -477,3 +477,70 @@ pub async fn get_bot_replies_handler(
     Ok(Json(replies))
 }
 
+/// Botのkind 0をリレーに公開
+pub async fn publish_kind0_handler(
+    Path(bot_pubkey): Path<String>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let conn = db::connect().map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    
+    // Botの情報を取得
+    let person = db::get_person(&conn, &bot_pubkey)
+        .map_err(|_| StatusCode::NOT_FOUND)?;
+    
+    // kind 0を公開
+    tokio::spawn(async move {
+        if let Err(e) = publish_kind0_only(&person.secretkey, &person.content).await {
+            eprintln!("[Publish Kind0] Error: {}", e);
+        }
+    });
+    
+    Ok(Json(serde_json::json!({
+        "success": true,
+        "message": "kind 0の公開を開始しました"
+    })))
+}
+
+/// kind 0のみを公開する関数
+async fn publish_kind0_only(secretkey: &str, content_json: &str) -> Result<(), Box<dyn std::error::Error>> {
+    use nostr_sdk::prelude::*;
+    
+    let keys = Keys::parse(secretkey)?;
+    let client = Client::new(keys);
+    
+    // config.ymlから設定を読み込む
+    let config_path = "../config.yml";
+    let file = std::fs::File::open(config_path)?;
+    let config: crate::config::AppConfig = serde_yaml::from_reader(file)?;
+    
+    // リレーに接続
+    for relay in &config.relay_servers.write {
+        let _ = client.add_relay(relay).await;
+    }
+    
+    client.connect().await;
+    
+    // kind 0（メタデータ）を送信
+    println!("[Publish Kind0] Publishing kind 0 metadata...");
+    if !content_json.is_empty() {
+        match Metadata::from_json(content_json) {
+            Ok(metadata) => {
+                match client.set_metadata(&metadata).await {
+                    Ok(_) => println!("✓ kind 0 published successfully"),
+                    Err(e) => {
+                        eprintln!("✗ Failed to publish kind 0: {}", e);
+                        return Err(Box::new(e));
+                    }
+                }
+            }
+            Err(e) => {
+                eprintln!("✗ Failed to parse metadata JSON: {}", e);
+                return Err(Box::new(e));
+            }
+        }
+    }
+    
+    client.disconnect().await;
+    
+    Ok(())
+}
+

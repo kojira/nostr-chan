@@ -49,6 +49,7 @@ pub async fn start_dashboard(
         .route("/api/bots/:pubkey", delete(bots::delete_bot_handler))
         .route("/api/bots/:pubkey/toggle", post(bots::toggle_bot_handler))
         .route("/api/bots/:pubkey/kind0", get(bots::fetch_kind0_handler))
+        .route("/api/bots/:pubkey/kind0/publish", post(bots::publish_kind0_handler))
         .route("/api/bots/:pubkey/post", post(bots::post_as_bot_handler))
         .route("/api/bots/:pubkey/replies", get(bots::get_bot_replies_handler))
         .route("/api/bots/:pubkey/summaries", get(summaries::list_summaries_handler))

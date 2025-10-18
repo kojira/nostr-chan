@@ -1,5 +1,5 @@
 import { Card, CardContent, Typography, Box, Chip, IconButton, Tooltip, Avatar, Dialog, DialogTitle, DialogContent, DialogActions, TextField, Button } from '@mui/material';
-import { CheckCircle, Cancel, PlayArrow, Pause, Edit, Delete, SmartToy, Send, Info, Summarize } from '@mui/icons-material';
+import { CheckCircle, Cancel, PlayArrow, Pause, Edit, Delete, SmartToy, Send, Info, Summarize, Publish } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import type { BotData } from '../types';
 import { useMemo, useState } from 'react';
@@ -18,6 +18,7 @@ export const BotCard = ({ bot, onEdit, onDelete, onToggle }: BotCardProps) => {
   const [postDialogOpen, setPostDialogOpen] = useState(false);
   const [postContent, setPostContent] = useState('');
   const [posting, setPosting] = useState(false);
+  const [publishing, setPublishing] = useState(false);
 
   // contentからJSONパース
   const kind0Info = useMemo(() => {
@@ -64,6 +65,30 @@ export const BotCard = ({ bot, onEdit, onDelete, onToggle }: BotCardProps) => {
       alert('❌ 投稿に失敗しました');
     } finally {
       setPosting(false);
+    }
+  };
+
+  const handlePublishKind0 = async () => {
+    if (!confirm('kind 0（プロフィール情報）をリレーに公開しますか？')) {
+      return;
+    }
+
+    setPublishing(true);
+    try {
+      const response = await fetch(`/api/bots/${bot.pubkey}/kind0/publish`, {
+        method: 'POST',
+      });
+
+      if (!response.ok) {
+        throw new Error('kind 0の公開に失敗しました');
+      }
+
+      alert('✅ kind 0の公開を開始しました！');
+    } catch (error) {
+      console.error('kind 0公開エラー:', error);
+      alert('❌ kind 0の公開に失敗しました');
+    } finally {
+      setPublishing(false);
     }
   };
 
@@ -241,6 +266,24 @@ export const BotCard = ({ bot, onEdit, onDelete, onToggle }: BotCardProps) => {
                 size="small"
               >
                 <Edit fontSize="small" />
+              </IconButton>
+            </Tooltip>
+            <Tooltip title="kind 0をリレーに公開">
+              <IconButton 
+                onClick={handlePublishKind0}
+                disabled={publishing}
+                sx={{
+                  color: 'text.secondary',
+                  bgcolor: 'rgba(0, 0, 0, 0.04)',
+                  '&:hover': {
+                    bgcolor: 'rgba(76, 175, 80, 0.08)',
+                    color: '#4caf50',
+                  },
+                  transition: 'all 0.2s',
+                }}
+                size="small"
+              >
+                <Publish fontSize="small" />
               </IconButton>
             </Tooltip>
             <Tooltip title="削除">
