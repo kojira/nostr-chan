@@ -129,6 +129,7 @@ pub struct TokenDetailsQuery {
 pub struct TokenDetail {
     id: i64,
     bot_pubkey: String,
+    bot_kind0_content: Option<String>,
     category_name: String,
     category_display_name: String,
     prompt_tokens: i64,
@@ -152,9 +153,11 @@ pub async fn token_details_handler(
     let limit = query.limit.unwrap_or(50);
     let offset = query.offset.unwrap_or(0);
     
-    // トークン使用量の詳細を取得
+    // トークン使用量の詳細を取得（Botのkind 0も含める）
     let mut stmt = conn.prepare(
-        "SELECT tu.id, tu.bot_pubkey, tc.name, tc.display_name, 
+        "SELECT tu.id, tu.bot_pubkey, 
+                (SELECT content FROM events WHERE pubkey = tu.bot_pubkey AND kind = 0 LIMIT 1) as bot_kind0_content,
+                tc.name, tc.display_name, 
                 tu.prompt_tokens, tu.completion_tokens, tu.total_tokens,
                 tu.prompt_text, tu.completion_text, tu.created_at
          FROM token_usage tu
@@ -170,14 +173,15 @@ pub async fn token_details_handler(
         Ok(TokenDetail {
             id: row.get(0)?,
             bot_pubkey: row.get(1)?,
-            category_name: row.get(2)?,
-            category_display_name: row.get(3)?,
-            prompt_tokens: row.get(4)?,
-            completion_tokens: row.get(5)?,
-            total_tokens: row.get(6)?,
-            prompt_text: row.get(7)?,
-            completion_text: row.get(8)?,
-            created_at: row.get(9)?,
+            bot_kind0_content: row.get(2)?,
+            category_name: row.get(3)?,
+            category_display_name: row.get(4)?,
+            prompt_tokens: row.get(5)?,
+            completion_tokens: row.get(6)?,
+            total_tokens: row.get(7)?,
+            prompt_text: row.get(8)?,
+            completion_text: row.get(9)?,
+            created_at: row.get(10)?,
         })
     }).map_err(|e| {
         eprintln!("クエリ実行エラー: {}", e);

@@ -18,11 +18,13 @@ import {
   DialogActions,
   Button,
   CircularProgress,
+  Avatar,
 } from '@mui/material';
 
 interface TokenDetail {
   id: number;
   bot_pubkey: string;
+  bot_kind0_content: string | null;
   category_name: string;
   category_display_name: string;
   prompt_tokens: number;
@@ -95,6 +97,21 @@ export default function TokenDetailsPage() {
     return colors[categoryName] || 'default';
   };
 
+  const getBotInfo = (kind0Content: string | null) => {
+    if (!kind0Content) {
+      return { name: null, picture: null };
+    }
+    try {
+      const parsed = JSON.parse(kind0Content);
+      return {
+        name: parsed.display_name || parsed.name || null,
+        picture: parsed.picture || null,
+      };
+    } catch {
+      return { name: null, picture: null };
+    }
+  };
+
   return (
     <Container maxWidth="xl" sx={{ mt: 4, mb: 4 }}>
       <Typography variant="h4" gutterBottom>
@@ -121,35 +138,57 @@ export default function TokenDetailsPage() {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {details.map((detail) => (
-                    <TableRow
-                      key={detail.id}
-                      hover
-                      onClick={() => handleRowClick(detail)}
-                      sx={{ cursor: 'pointer' }}
-                    >
-                      <TableCell>{formatDate(detail.created_at)}</TableCell>
-                      <TableCell>
-                        <Typography variant="body2" fontFamily="monospace">
-                          {detail.bot_pubkey.substring(0, 8)}...
-                        </Typography>
-                      </TableCell>
-                      <TableCell>
-                        <Chip
-                          label={detail.category_display_name}
-                          color={getCategoryColor(detail.category_name)}
-                          size="small"
-                        />
-                      </TableCell>
-                      <TableCell align="right">{detail.prompt_tokens.toLocaleString()}</TableCell>
-                      <TableCell align="right">{detail.completion_tokens.toLocaleString()}</TableCell>
-                      <TableCell align="right">
-                        <Typography variant="body2" fontWeight="bold">
-                          {detail.total_tokens.toLocaleString()}
-                        </Typography>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  {details.map((detail) => {
+                    const botInfo = getBotInfo(detail.bot_kind0_content);
+                    return (
+                      <TableRow
+                        key={detail.id}
+                        hover
+                        onClick={() => handleRowClick(detail)}
+                        sx={{ cursor: 'pointer' }}
+                      >
+                        <TableCell>{formatDate(detail.created_at)}</TableCell>
+                        <TableCell>
+                          <Box display="flex" alignItems="center" gap={1}>
+                            <Avatar
+                              src={botInfo.picture || undefined}
+                              sx={{ width: 32, height: 32 }}
+                            >
+                              {botInfo.name ? botInfo.name[0] : detail.bot_pubkey[0]}
+                            </Avatar>
+                            <Box>
+                              {botInfo.name ? (
+                                <>
+                                  <Typography variant="body2">{botInfo.name}</Typography>
+                                  <Typography variant="caption" color="text.secondary" fontFamily="monospace">
+                                    {detail.bot_pubkey.substring(0, 8)}...
+                                  </Typography>
+                                </>
+                              ) : (
+                                <Typography variant="body2" fontFamily="monospace">
+                                  {detail.bot_pubkey.substring(0, 8)}...
+                                </Typography>
+                              )}
+                            </Box>
+                          </Box>
+                        </TableCell>
+                        <TableCell>
+                          <Chip
+                            label={detail.category_display_name}
+                            color={getCategoryColor(detail.category_name)}
+                            size="small"
+                          />
+                        </TableCell>
+                        <TableCell align="right">{detail.prompt_tokens.toLocaleString()}</TableCell>
+                        <TableCell align="right">{detail.completion_tokens.toLocaleString()}</TableCell>
+                        <TableCell align="right">
+                          <Typography variant="body2" fontWeight="bold">
+                            {detail.total_tokens.toLocaleString()}
+                          </Typography>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
             </TableContainer>
