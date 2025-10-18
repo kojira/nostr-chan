@@ -1,4 +1,4 @@
-import { Card, CardContent, Typography, Box, Chip, IconButton, Tooltip, Avatar, Dialog, DialogTitle, DialogContent, DialogActions, TextField, Button } from '@mui/material';
+import { Card, CardContent, Typography, Box, Chip, IconButton, Tooltip, Avatar, Dialog, DialogTitle, DialogContent, DialogActions, TextField, Button, Snackbar, Alert } from '@mui/material';
 import { CheckCircle, Cancel, PlayArrow, Pause, Edit, Delete, SmartToy, Send, Info, Summarize, Publish, Close } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import type { BotData } from '../types';
@@ -20,6 +20,11 @@ export const BotCard = ({ bot, onEdit, onDelete, onToggle }: BotCardProps) => {
   const [posting, setPosting] = useState(false);
   const [publishing, setPublishing] = useState(false);
   const [confirmPublishOpen, setConfirmPublishOpen] = useState(false);
+  const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({
+    open: false,
+    message: '',
+    severity: 'success',
+  });
 
   // contentからJSONパース
   const kind0Info = useMemo(() => {
@@ -42,7 +47,7 @@ export const BotCard = ({ bot, onEdit, onDelete, onToggle }: BotCardProps) => {
 
   const handlePost = async () => {
     if (!postContent.trim()) {
-      alert('投稿内容を入力してください');
+      setSnackbar({ open: true, message: '投稿内容を入力してください', severity: 'error' });
       return;
     }
 
@@ -58,12 +63,12 @@ export const BotCard = ({ bot, onEdit, onDelete, onToggle }: BotCardProps) => {
         throw new Error('投稿に失敗しました');
       }
 
-      alert('✅ 投稿しました！');
+      setSnackbar({ open: true, message: '投稿しました！', severity: 'success' });
       setPostContent('');
       setPostDialogOpen(false);
     } catch (error) {
       console.error('投稿エラー:', error);
-      alert('❌ 投稿に失敗しました');
+      setSnackbar({ open: true, message: '投稿に失敗しました', severity: 'error' });
     } finally {
       setPosting(false);
     }
@@ -86,10 +91,10 @@ export const BotCard = ({ bot, onEdit, onDelete, onToggle }: BotCardProps) => {
         throw new Error('kind 0の公開に失敗しました');
       }
 
-      alert('✅ kind 0の公開を開始しました！');
+      setSnackbar({ open: true, message: 'kind 0の公開を開始しました！', severity: 'success' });
     } catch (error) {
       console.error('kind 0公開エラー:', error);
-      alert('❌ kind 0の公開に失敗しました');
+      setSnackbar({ open: true, message: 'kind 0の公開に失敗しました', severity: 'error' });
     } finally {
       setPublishing(false);
     }
@@ -433,6 +438,23 @@ export const BotCard = ({ bot, onEdit, onDelete, onToggle }: BotCardProps) => {
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* Snackbar */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={4000}
+        onClose={() => setSnackbar({ ...snackbar, open: false })}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert
+          onClose={() => setSnackbar({ ...snackbar, open: false })}
+          severity={snackbar.severity}
+          variant="filled"
+          sx={{ width: '100%' }}
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </Card>
   );
 };

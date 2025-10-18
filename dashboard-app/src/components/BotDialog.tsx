@@ -11,6 +11,8 @@ import {
   IconButton,
   Typography,
   Slider,
+  Snackbar,
+  Alert,
 } from '@mui/material';
 import { VpnKey, Psychology, Description, Save, Close, Add, Delete, CloudDownload, Casino, Publish } from '@mui/icons-material';
 import type { BotData, BotRequest } from '../types';
@@ -37,6 +39,11 @@ export const BotDialog = ({ open, bot, onClose, onSave }: BotDialogProps) => {
   const [fetchingKind0, setFetchingKind0] = useState(false);
   const [publishing, setPublishing] = useState(false);
   const [confirmPublishOpen, setConfirmPublishOpen] = useState(false);
+  const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({
+    open: false,
+    message: '',
+    severity: 'success',
+  });
 
   useEffect(() => {
     if (bot) {
@@ -92,13 +99,13 @@ export const BotDialog = ({ open, bot, onClose, onSave }: BotDialogProps) => {
       setFormData({ ...formData, secretkey: data.secretkey });
     } catch (error) {
       console.error('秘密鍵生成エラー:', error);
-      alert('❌ 秘密鍵を生成できませんでした');
+      setSnackbar({ open: true, message: '秘密鍵を生成できませんでした', severity: 'error' });
     }
   };
 
   const handleFetchKind0 = async () => {
     if (!bot?.pubkey) {
-      alert('❌ Botが選択されていません');
+      setSnackbar({ open: true, message: 'Botが選択されていません', severity: 'error' });
       return;
     }
 
@@ -118,13 +125,14 @@ export const BotDialog = ({ open, bot, onClose, onSave }: BotDialogProps) => {
             value: String(value),
           }));
           setJsonFields(fields.length > 0 ? fields : [{ key: '', value: '' }]);
+          setSnackbar({ open: true, message: 'Kind 0を取得しました', severity: 'success' });
         } catch (e) {
-          alert('❌ 取得したKind 0のパースに失敗しました');
+          setSnackbar({ open: true, message: '取得したKind 0のパースに失敗しました', severity: 'error' });
         }
       }
     } catch (error) {
       console.error('Kind 0取得エラー:', error);
-      alert('❌ リレーからKind 0を取得できませんでした');
+      setSnackbar({ open: true, message: 'リレーからKind 0を取得できませんでした', severity: 'error' });
     } finally {
       setFetchingKind0(false);
     }
@@ -148,7 +156,7 @@ export const BotDialog = ({ open, bot, onClose, onSave }: BotDialogProps) => {
 
   const handlePublishKind0 = async () => {
     if (!bot) {
-      alert('❌ Botが選択されていません');
+      setSnackbar({ open: true, message: 'Botが選択されていません', severity: 'error' });
       return;
     }
 
@@ -168,10 +176,10 @@ export const BotDialog = ({ open, bot, onClose, onSave }: BotDialogProps) => {
         throw new Error('kind 0の公開に失敗しました');
       }
 
-      alert('✅ kind 0の公開を開始しました！');
+      setSnackbar({ open: true, message: 'kind 0の公開を開始しました！', severity: 'success' });
     } catch (error) {
       console.error('kind 0公開エラー:', error);
-      alert('❌ kind 0の公開に失敗しました');
+      setSnackbar({ open: true, message: 'kind 0の公開に失敗しました', severity: 'error' });
     } finally {
       setPublishing(false);
     }
@@ -410,6 +418,23 @@ export const BotDialog = ({ open, bot, onClose, onSave }: BotDialogProps) => {
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* Snackbar */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={4000}
+        onClose={() => setSnackbar({ ...snackbar, open: false })}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert
+          onClose={() => setSnackbar({ ...snackbar, open: false })}
+          severity={snackbar.severity}
+          variant="filled"
+          sx={{ width: '100%' }}
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </Dialog>
   );
 };
