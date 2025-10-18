@@ -141,7 +141,19 @@ pub async fn update_user_impression_handler(
         return Err(StatusCode::BAD_REQUEST);
     }
     
-    db::save_user_impression(&conn, &bot_pubkey, &user_pubkey, &payload.impression)
+    // 既存のUserAttributesを取得
+    let mut user_attrs = db::get_user_attributes(&conn, &bot_pubkey, &user_pubkey)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+        .unwrap_or_else(|| db::UserAttributes::empty());
+    
+    // impressionフィールドのみを更新
+    user_attrs.impression = Some(payload.impression);
+    
+    // JSON化して保存
+    let json_str = user_attrs.to_json()
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    
+    db::save_user_impression(&conn, &bot_pubkey, &user_pubkey, &json_str)
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     
     Ok(StatusCode::OK)
