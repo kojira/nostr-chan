@@ -267,7 +267,15 @@ pub async fn summarize_conversation_if_needed(
             let available = max_tokens.saturating_sub(prompt_tokens);
             let ratio = available as f64 / content_tokens as f64;
             let target_len = (timeline_text.len() as f64 * ratio) as usize;
-            let trimmed = &timeline_text[timeline_text.len().saturating_sub(target_len)..];
+            
+            // 文字境界を考慮して切り詰め位置を調整
+            let start_pos = timeline_text.len().saturating_sub(target_len);
+            let safe_start = timeline_text.char_indices()
+                .find(|(idx, _)| *idx >= start_pos)
+                .map(|(idx, _)| idx)
+                .unwrap_or(timeline_text.len());
+            
+            let trimmed = &timeline_text[safe_start..];
             println!("[Conversation] トークン制限により{}文字から{}文字に切り詰めました", timeline_text.len(), trimmed.len());
             trimmed.to_string()
         } else {
