@@ -480,8 +480,8 @@ pub async fn get_user_name(pubkey: &str) -> Result<String> {
                 .unwrap_or(pubkey)
                 .to_string();
             
-            // キャッシュに保存
-            db::set_kind0_cache(&conn, pubkey, &name)?;
+            // キャッシュに保存（contentも保存）
+            db::set_kind0_cache(&conn, pubkey, &name, Some(&event.content))?;
             return Ok(name);
         }
     }

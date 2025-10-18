@@ -78,18 +78,18 @@ pub fn update_follower_cache(conn: &Connection, user_pubkey: &str, bot_pubkey: &
 pub fn get_kind0_cache(conn: &Connection, pubkey: &str, ttl: i64) -> Result<Option<String>> {
     let now = Utc::now().timestamp();
     let mut stmt = conn.prepare(
-        "SELECT name, cached_at FROM kind0_cache WHERE pubkey = ?"
+        "SELECT content, cached_at FROM kind0_cache WHERE pubkey = ?"
     )?;
     
     let result = stmt.query_map(params![pubkey], |row| {
-        Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?))
+        Ok((row.get::<_, Option<String>>(0)?, row.get::<_, i64>(1)?))
     })?
     .next();
     
-    if let Some(Ok((name, cached_at))) = result {
+    if let Some(Ok((content_opt, cached_at))) = result {
         // Check if cache is still valid
         if now - cached_at < ttl {
-            return Ok(Some(name));
+            return Ok(content_opt);
         }
     }
     
@@ -97,11 +97,11 @@ pub fn get_kind0_cache(conn: &Connection, pubkey: &str, ttl: i64) -> Result<Opti
 }
 
 #[allow(dead_code)]
-pub fn set_kind0_cache(conn: &Connection, pubkey: &str, name: &str) -> Result<()> {
+pub fn set_kind0_cache(conn: &Connection, pubkey: &str, name: &str, content: Option<&str>) -> Result<()> {
     let now = Utc::now().timestamp();
     conn.execute(
-        "INSERT OR REPLACE INTO kind0_cache (pubkey, name, cached_at) VALUES (?, ?, ?)",
-        params![pubkey, name, now],
+        "INSERT OR REPLACE INTO kind0_cache (pubkey, name, content, cached_at) VALUES (?, ?, ?, ?)",
+        params![pubkey, name, content, now],
     )?;
     Ok(())
 }
