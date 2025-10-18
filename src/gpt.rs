@@ -12,6 +12,7 @@ use openai_api_rs::v1::chat_completion::{self, chat_completion::ChatCompletionRe
 use chrono::{Local, TimeZone};
 use tiktoken_rs::o200k_base;
 use serde::{Deserialize, Serialize};
+use partial_json_fixer::fix_json;
 
 /// GPTの応答（返信＋印象）
 #[derive(Debug, Serialize, Deserialize)]
@@ -703,10 +704,13 @@ async fn call_gpt_with_mental_diary_internal<'a>(
     // GPTを呼び出し（JSON mode使用）
     match call_gpt_with_json_mode(&system_prompt, &user_input, bot_pubkey, category).await {
         Ok(response_text) => {
+            // 不完全なJSONを修正（partial-json-fixer 0.5.3は直接Stringを返す）
+            let fixed_json = fix_json(&response_text);
+            
             // user_pubkeyがある場合は印象あり、ない場合は印象なし
             if user_pubkey.is_some() {
                 // ユーザー属性ありのパース（保存はせず、パース結果とconnを返す）
-                match serde_json::from_str::<GptResponseWithMentalDiary>(&response_text) {
+                match serde_json::from_str::<GptResponseWithMentalDiary>(&fixed_json) {
                     Ok(parsed) => {
                         // 注意: ここではDBに保存しない！
                         // 送信成功後に呼び出し元で save_mental_diary_response を呼ぶこと
@@ -714,6 +718,7 @@ async fn call_gpt_with_mental_diary_internal<'a>(
                     },
                     Err(e) => {
                         eprintln!("[JSON Parse] エラー: {}", e);
+                        eprintln!("[JSON Parse] 修正後のJSON: {}", fixed_json);
                         eprintln!("[JSON Parse] 元の応答: {}", response_text);
                         Err(format!("JSONパースエラー: {} (応答: {})", e, response_text).into())
                     }
@@ -726,7 +731,7 @@ async fn call_gpt_with_mental_diary_internal<'a>(
                     mental_diary: db::MentalDiary,
                 }
                 
-                match serde_json::from_str::<AirReplyResponse>(&response_text) {
+                match serde_json::from_str::<AirReplyResponse>(&fixed_json) {
                     Ok(parsed) => {
                         // 注意: ここではDBに保存しない！
                         // 送信成功後に呼び出し元で save_mental_diary_response を呼ぶこと
@@ -740,6 +745,7 @@ async fn call_gpt_with_mental_diary_internal<'a>(
                     },
                     Err(e) => {
                         eprintln!("[JSON Parse] エラー: {}", e);
+                        eprintln!("[JSON Parse] 修正後のJSON: {}", fixed_json);
                         eprintln!("[JSON Parse] 元の応答: {}", response_text);
                         Err(format!("JSONパースエラー: {} (応答: {})", e, response_text).into())
                     }
