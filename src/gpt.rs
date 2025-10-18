@@ -466,6 +466,7 @@ pub async fn get_air_reply_with_mental_diary<'a>(
         context,
         Some(air_reply_instruction),
         "air_reply",
+        None, // user_name なし（エアリプなので不要）
     ).await?;
     
     Ok(response.reply)
@@ -478,6 +479,7 @@ async fn build_mental_diary_prompt<'a>(
     personality: &'a str,
     _user_text: &'a str,
     additional_instruction: Option<&'a str>,
+    user_name: Option<&'a str>,
 ) -> Result<(String, rusqlite::Connection), Box<dyn Error>> {
     dotenv().ok();
     
@@ -530,17 +532,39 @@ async fn build_mental_diary_prompt<'a>(
         }
     }
 
+    // ユーザー名の追加情報
+    let user_name_info = if let Some(name) = user_name {
+        format!("話しかけてきた相手の名前は「{}」です。", name)
+    } else {
+        String::new()
+    };
+    
     // ベースプロンプトの構築
     let base_prompt = if modified_personality.len() > 0 && extracted_prompt.len() > 0 {
-        format!(
-            "これはあなたの人格です。'{modified_personality}'\n{extracted_prompt}"
-        )
+        if user_name_info.is_empty() {
+            format!(
+                "これはあなたの人格です。'{modified_personality}'\n{extracted_prompt}"
+            )
+        } else {
+            format!(
+                "これはあなたの人格です。'{modified_personality}'\n{user_name_info}\n{extracted_prompt}"
+            )
+        }
     } else {
-        format!(
-            "これはあなたの人格です。'{personality}'\n\
-             この人格を演じて次の行の文章に対して{answer_length}文字程度で返信してください。\n\
-             ユーザーから文字数指定があった場合はそちらを優先してください。"
-        )
+        if user_name_info.is_empty() {
+            format!(
+                "これはあなたの人格です。'{personality}'\n\
+                 この人格を演じて次の行の文章に対して{answer_length}文字程度で返信してください。\n\
+                 ユーザーから文字数指定があった場合はそちらを優先してください。"
+            )
+        } else {
+            format!(
+                "これはあなたの人格です。'{personality}'\n\
+                 {user_name_info}\n\
+                 この人格を演じて次の行の文章に対して{answer_length}文字程度で返信してください。\n\
+                 ユーザーから文字数指定があった場合はそちらを優先してください。"
+            )
+        }
     };
     
     let additional_inst = additional_instruction.unwrap_or("");
@@ -616,6 +640,7 @@ pub async fn get_reply_with_mental_diary<'a>(
     personality: &'a str,
     user_text: &'a str,
     context: Option<String>,
+    user_name: Option<&'a str>,
 ) -> Result<GptResponseWithMentalDiary, Box<dyn Error>> {
     call_gpt_with_mental_diary_internal(
         bot_pubkey,
@@ -625,6 +650,7 @@ pub async fn get_reply_with_mental_diary<'a>(
         context,
         None, // 追加指示なし
         "reply",
+        user_name,
     ).await
 }
 
@@ -637,6 +663,7 @@ async fn call_gpt_with_mental_diary_internal<'a>(
     context: Option<String>,
     additional_instruction: Option<&'a str>,
     category: &'a str,
+    user_name: Option<&'a str>,
 ) -> Result<GptResponseWithMentalDiary, Box<dyn Error>> {
     // 共通のプロンプト構築関数を使用
     let (system_prompt, conn) = build_mental_diary_prompt(
@@ -645,6 +672,7 @@ async fn call_gpt_with_mental_diary_internal<'a>(
         personality,
         user_text,
         additional_instruction,
+        user_name,
     ).await?;
     
     let user_input = if let Some(ctx) = context {

@@ -184,16 +184,16 @@ pub async fn process_event(
     let has_conversation_log = conversation_log_id.is_some();
     
     // プロンプト準備
-    let mut prompt = person.prompt.clone();
+    let prompt = person.prompt.clone();
     let user_pubkey = event.pubkey.to_string();
     
-    if has_mention {
-        if let Ok(user_name) = util::get_user_name(&user_pubkey).await {
-            if !user_name.ends_with("...") {
-                prompt = format!("{}。話しかけてきた相手の名前は「{}」です。", prompt, user_name);
-            }
-        }
-    }
+    // ユーザー名を取得（メンション時のみ）
+    let user_name = if has_mention {
+        util::get_user_name(&user_pubkey).await.ok()
+            .filter(|name| !name.ends_with("..."))
+    } else {
+        None
+    };
     
     // 会話コンテキストを準備
     let context = if has_conversation_log {
@@ -271,7 +271,7 @@ pub async fn process_event(
     
     // GPT応答生成（メンションの場合は印象＋心境付き、エアリプの場合は心境のみ）
     let reply = if has_mention {
-        match gpt::get_reply_with_mental_diary(&person.pubkey, &event.pubkey.to_string(), &prompt, &event.content, context).await {
+        match gpt::get_reply_with_mental_diary(&person.pubkey, &event.pubkey.to_string(), &prompt, &event.content, context, user_name.as_deref()).await {
             Ok(response) => response.reply,
             Err(e) => {
                 eprintln!("[GPT Error] {}", e);
