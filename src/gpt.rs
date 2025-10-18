@@ -532,39 +532,24 @@ async fn build_mental_diary_prompt<'a>(
         }
     }
 
-    // ユーザー名の追加情報
-    let user_name_info = if let Some(name) = user_name {
-        format!("話しかけてきた相手の名前は「{}」です。", name)
+    // ユーザー名セクション
+    let user_name_section = if let Some(name) = user_name {
+        format!("\n# 対話相手\n話しかけてきた相手の名前は「{}」です。\n", name)
     } else {
         String::new()
     };
     
     // ベースプロンプトの構築
     let base_prompt = if modified_personality.len() > 0 && extracted_prompt.len() > 0 {
-        if user_name_info.is_empty() {
-            format!(
-                "これはあなたの人格です。'{modified_personality}'\n{extracted_prompt}"
-            )
-        } else {
-            format!(
-                "これはあなたの人格です。'{modified_personality}'\n{user_name_info}\n{extracted_prompt}"
-            )
-        }
+        format!(
+            "# あなたの役割\nこれはあなたの人格です。'{modified_personality}'{user_name_section}\n{extracted_prompt}"
+        )
     } else {
-        if user_name_info.is_empty() {
-            format!(
-                "これはあなたの人格です。'{personality}'\n\
-                 この人格を演じて次の行の文章に対して{answer_length}文字程度で返信してください。\n\
-                 ユーザーから文字数指定があった場合はそちらを優先してください。"
-            )
-        } else {
-            format!(
-                "これはあなたの人格です。'{personality}'\n\
-                 {user_name_info}\n\
-                 この人格を演じて次の行の文章に対して{answer_length}文字程度で返信してください。\n\
-                 ユーザーから文字数指定があった場合はそちらを優先してください。"
-            )
-        }
+        format!(
+            "# あなたの役割\nこれはあなたの人格です。'{personality}'{user_name_section}\n\
+             この人格を演じて次の行の文章に対して{answer_length}文字程度で返信してください。\n\
+             ユーザーから文字数指定があった場合はそちらを優先してください。"
+        )
     };
     
     let additional_inst = additional_instruction.unwrap_or("");
