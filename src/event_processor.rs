@@ -196,8 +196,8 @@ pub async fn process_event(
     };
     
     // 会話コンテキストを準備
-    let context = if has_conversation_log {
-        // スレッドIDを取得
+    let context = if has_mention {
+        // メンション時：スレッドの会話履歴を取得
         let event_json = serde_json::to_string(&event)?;
         let thread_root_id = db::extract_thread_root_id(&event_json).ok().flatten();
         
