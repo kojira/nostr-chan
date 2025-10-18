@@ -95,10 +95,17 @@ pub fn get_user_attributes(
     user_pubkey: &str,
 ) -> Result<Option<UserAttributes>> {
     match get_user_impression(conn, bot_pubkey, user_pubkey)? {
-        Some(json_str) => {
-            match UserAttributes::from_json(&json_str) {
+        Some(data_str) => {
+            // まずJSONとしてパースを試みる
+            match UserAttributes::from_json(&data_str) {
                 Ok(attrs) => Ok(Some(attrs)),
-                Err(_) => Ok(None),
+                Err(_) => {
+                    // JSONパースに失敗した場合、古い形式（単純なテキスト）として扱う
+                    // impressionフィールドに入れて返す
+                    let mut attrs = UserAttributes::empty();
+                    attrs.impression = Some(data_str);
+                    Ok(Some(attrs))
+                }
             }
         }
         None => Ok(None),
