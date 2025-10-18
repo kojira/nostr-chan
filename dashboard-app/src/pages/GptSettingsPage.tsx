@@ -126,13 +126,14 @@ export const GptSettingsPage = () => {
           value={answerLength}
           onChange={(_, value) => setAnswerLength(value as number)}
           min={10}
-          max={500}
+          max={1000}
+          step={10}
           marks={[
             { value: 10, label: '10' },
-            { value: 100, label: '100' },
-            { value: 200, label: '200' },
-            { value: 300, label: '300' },
+            { value: 250, label: '250' },
             { value: 500, label: '500' },
+            { value: 750, label: '750' },
+            { value: 1000, label: '1000' },
           ]}
         />
         <Box sx={{ display: 'flex', gap: 1, mt: 2, flexWrap: 'wrap' }}>
@@ -145,8 +146,11 @@ export const GptSettingsPage = () => {
           <Button variant="outlined" onClick={() => setAnswerLength(200)} size="small">
             長め (200文字)
           </Button>
-          <Button variant="outlined" onClick={() => setAnswerLength(300)} size="small">
-            詳細 (300文字)
+          <Button variant="outlined" onClick={() => setAnswerLength(500)} size="small">
+            詳細 (500文字)
+          </Button>
+          <Button variant="outlined" onClick={() => setAnswerLength(1000)} size="small">
+            最大 (1000文字)
           </Button>
         </Box>
         <Paper sx={{ mt: 2, p: 2, bgcolor: 'grey.50' }}>
@@ -179,13 +183,15 @@ export const GptSettingsPage = () => {
           value={timeout}
           onChange={(_, value) => setTimeout(value as number)}
           min={10}
-          max={180}
+          max={300}
+          step={10}
           marks={[
             { value: 10, label: '10秒' },
-            { value: 30, label: '30秒' },
             { value: 60, label: '60秒' },
             { value: 120, label: '120秒' },
             { value: 180, label: '180秒' },
+            { value: 240, label: '240秒' },
+            { value: 300, label: '300秒' },
           ]}
         />
         <Box sx={{ display: 'flex', gap: 1, mt: 2, flexWrap: 'wrap' }}>
@@ -195,11 +201,14 @@ export const GptSettingsPage = () => {
           <Button variant="outlined" onClick={() => setTimeout(60)} size="small">
             1分
           </Button>
-          <Button variant="outlined" onClick={() => setTimeout(90)} size="small">
-            1.5分
-          </Button>
           <Button variant="outlined" onClick={() => setTimeout(120)} size="small">
             2分
+          </Button>
+          <Button variant="outlined" onClick={() => setTimeout(180)} size="small">
+            3分
+          </Button>
+          <Button variant="outlined" onClick={() => setTimeout(300)} size="small">
+            5分
           </Button>
         </Box>
         <Paper sx={{ mt: 2, p: 2, bgcolor: 'grey.50' }}>
@@ -289,13 +298,13 @@ export const GptSettingsPage = () => {
           value={recentContextCount}
           onChange={(_, value) => setRecentContextCount(value as number)}
           min={1}
-          max={50}
+          max={100}
           marks={[
             { value: 1, label: '1件' },
-            { value: 5, label: '5件' },
-            { value: 10, label: '10件' },
-            { value: 20, label: '20件' },
+            { value: 25, label: '25件' },
             { value: 50, label: '50件' },
+            { value: 75, label: '75件' },
+            { value: 100, label: '100件' },
           ]}
         />
         <Box sx={{ display: 'flex', gap: 1, mt: 2, flexWrap: 'wrap' }}>
@@ -305,11 +314,14 @@ export const GptSettingsPage = () => {
           <Button variant="outlined" onClick={() => setRecentContextCount(10)} size="small">
             10件
           </Button>
-          <Button variant="outlined" onClick={() => setRecentContextCount(15)} size="small">
-            15件
-          </Button>
           <Button variant="outlined" onClick={() => setRecentContextCount(20)} size="small">
             20件
+          </Button>
+          <Button variant="outlined" onClick={() => setRecentContextCount(50)} size="small">
+            50件
+          </Button>
+          <Button variant="outlined" onClick={() => setRecentContextCount(100)} size="small">
+            100件
           </Button>
         </Box>
         <Paper sx={{ mt: 2, p: 2, bgcolor: 'grey.50' }}>
@@ -342,14 +354,14 @@ export const GptSettingsPage = () => {
           value={summaryThreshold}
           onChange={(_, value) => setSummaryThreshold(value as number)}
           min={1000}
-          max={20000}
+          max={50000}
           step={1000}
           marks={[
             { value: 1000, label: '1k' },
-            { value: 5000, label: '5k' },
-            { value: 10000, label: '10k' },
-            { value: 15000, label: '15k' },
-            { value: 20000, label: '20k' },
+            { value: 12500, label: '12.5k' },
+            { value: 25000, label: '25k' },
+            { value: 37500, label: '37.5k' },
+            { value: 50000, label: '50k' },
           ]}
         />
         <Box sx={{ display: 'flex', gap: 1, mt: 2, flexWrap: 'wrap' }}>
@@ -359,11 +371,14 @@ export const GptSettingsPage = () => {
           <Button variant="outlined" onClick={() => setSummaryThreshold(5000)} size="small">
             5,000文字
           </Button>
-          <Button variant="outlined" onClick={() => setSummaryThreshold(8000)} size="small">
-            8,000文字
-          </Button>
           <Button variant="outlined" onClick={() => setSummaryThreshold(10000)} size="small">
             10,000文字
+          </Button>
+          <Button variant="outlined" onClick={() => setSummaryThreshold(20000)} size="small">
+            20,000文字
+          </Button>
+          <Button variant="outlined" onClick={() => setSummaryThreshold(50000)} size="small">
+            50,000文字
           </Button>
         </Box>
         <Paper sx={{ mt: 2, p: 2, bgcolor: 'grey.50' }}>
@@ -396,14 +411,14 @@ export const GptSettingsPage = () => {
           value={maxSummaryTokens}
           onChange={(_, value) => setMaxSummaryTokens(value as number)}
           min={1000}
-          max={30000}
+          max={100000}
           step={1000}
           marks={[
             { value: 1000, label: '1k' },
-            { value: 5000, label: '5k' },
-            { value: 10000, label: '10k' },
-            { value: 20000, label: '20k' },
-            { value: 30000, label: '30k' },
+            { value: 25000, label: '25k' },
+            { value: 50000, label: '50k' },
+            { value: 75000, label: '75k' },
+            { value: 100000, label: '100k' },
           ]}
         />
         <Box sx={{ display: 'flex', gap: 1, mt: 2, flexWrap: 'wrap' }}>
@@ -418,6 +433,12 @@ export const GptSettingsPage = () => {
           </Button>
           <Button variant="outlined" onClick={() => setMaxSummaryTokens(32000)} size="small">
             32,000
+          </Button>
+          <Button variant="outlined" onClick={() => setMaxSummaryTokens(64000)} size="small">
+            64,000
+          </Button>
+          <Button variant="outlined" onClick={() => setMaxSummaryTokens(100000)} size="small">
+            100,000
           </Button>
         </Box>
         <Paper sx={{ mt: 2, p: 2, bgcolor: 'grey.50' }}>
@@ -504,14 +525,14 @@ export const GptSettingsPage = () => {
           value={maxMentalDiaryLength}
           onChange={(_, value) => setMaxMentalDiaryLength(value as number)}
           min={100}
-          max={3000}
+          max={5000}
           step={100}
           marks={[
             { value: 100, label: '100' },
-            { value: 500, label: '500' },
-            { value: 1000, label: '1k' },
-            { value: 2000, label: '2k' },
-            { value: 3000, label: '3k' },
+            { value: 1250, label: '1.25k' },
+            { value: 2500, label: '2.5k' },
+            { value: 3750, label: '3.75k' },
+            { value: 5000, label: '5k' },
           ]}
         />
         <Box sx={{ display: 'flex', gap: 1, mt: 2, flexWrap: 'wrap' }}>
@@ -525,7 +546,10 @@ export const GptSettingsPage = () => {
             詳細 (2000文字)
           </Button>
           <Button variant="outlined" onClick={() => setMaxMentalDiaryLength(3000)} size="small">
-            最大 (3000文字)
+            長め (3000文字)
+          </Button>
+          <Button variant="outlined" onClick={() => setMaxMentalDiaryLength(5000)} size="small">
+            最大 (5000文字)
           </Button>
         </Box>
         <Paper sx={{ mt: 2, p: 2, bgcolor: 'grey.50' }}>
