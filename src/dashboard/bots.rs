@@ -528,16 +528,14 @@ async fn publish_kind0_only(secretkey: &str, content_json: &str) -> Result<(), B
                     Ok(_) => {
                         println!("✓ kind 0 published successfully");
                         
-                        // ローカルDBにも保存
+                        // ローカルDBにも保存（upsert処理で最新のみ保持）
                         if let Ok(conn) = db::connect() {
                             // 署名済みイベントを作成
                             let event_builder = EventBuilder::metadata(&metadata);
                             if let Ok(event) = event_builder.sign(&keys).await {
-                                // DBに保存
+                                // DBに保存（upsert処理）
                                 if let Err(e) = db::insert_event(&conn, &event, None) {
-                                    if !e.to_string().contains("UNIQUE constraint failed") {
-                                        eprintln!("✗ Failed to save kind 0 to DB: {}", e);
-                                    }
+                                    eprintln!("✗ Failed to save kind 0 to DB: {}", e);
                                 }
                             }
                         }

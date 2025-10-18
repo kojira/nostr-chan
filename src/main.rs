@@ -89,30 +89,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let mut info = bot_info.write().await;
         info.connected_relays = config.relay_servers.read.clone();
     }
-    
-    // すべてのBotのkind 0をeventsテーブルに保存（起動時）
-    println!("Saving bot kind 0 metadata to events table...");
-    if let Ok(persons) = db::get_all_persons(&conn) {
-        for person in persons {
-            if !person.content.is_empty() {
-                // kind 0イベントを作成
-                if let Ok(keys) = Keys::parse(&person.secretkey) {
-                    if let Ok(metadata) = nostr_sdk::Metadata::from_json(&person.content) {
-                        let event_builder = nostr_sdk::EventBuilder::metadata(&metadata);
-                        if let Ok(event) = event_builder.sign(&keys).await {
-                            // DBに保存
-                            if let Err(e) = db::insert_event(&conn, &event, None) {
-                                if !e.to_string().contains("UNIQUE constraint failed") {
-                                    eprintln!("Failed to save bot kind 0 to DB: {}", e);
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        println!("Bot kind 0 metadata saved");
-    }
 
     // TextNote、ChannelMessage、Metadata (kind 0) をsubscribe
     let subscription = Filter::new()
@@ -257,11 +233,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             
             // kind 0 (Metadata) の処理
             if kind == Kind::Metadata {
-                // eventsテーブルに保存（既存のものは上書き）
+                // eventsテーブルに保存（upsert処理で最新のみ保持）
                 if let Err(e) = db::insert_event(&conn, &event, None) {
-                    if !e.to_string().contains("UNIQUE constraint failed") {
-                        eprintln!("[Kind0] DB保存エラー: {}", e);
-                    }
+                    eprintln!("[Kind0] DB保存エラー: {}", e);
                 }
                 continue; // kind 0はキューに入れない
             }
