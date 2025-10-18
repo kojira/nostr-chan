@@ -505,7 +505,7 @@ async fn publish_kind0_only(secretkey: &str, content_json: &str) -> Result<(), B
     use nostr_sdk::prelude::*;
     
     let keys = Keys::parse(secretkey)?;
-    let client = Client::new(keys);
+    let client = Client::new(keys.clone());
     
     // config.ymlから設定を読み込む
     let config_path = "../config.yml";
@@ -525,7 +525,23 @@ async fn publish_kind0_only(secretkey: &str, content_json: &str) -> Result<(), B
         match Metadata::from_json(content_json) {
             Ok(metadata) => {
                 match client.set_metadata(&metadata).await {
-                    Ok(_) => println!("✓ kind 0 published successfully"),
+                    Ok(_) => {
+                        println!("✓ kind 0 published successfully");
+                        
+                        // ローカルDBにも保存
+                        if let Ok(conn) = db::connect() {
+                            // 署名済みイベントを作成
+                            let event_builder = EventBuilder::metadata(&metadata);
+                            if let Ok(event) = event_builder.sign(&keys).await {
+                                // DBに保存
+                                if let Err(e) = db::insert_event(&conn, &event, None) {
+                                    if !e.to_string().contains("UNIQUE constraint failed") {
+                                        eprintln!("✗ Failed to save kind 0 to DB: {}", e);
+                                    }
+                                }
+                            }
+                        }
+                    },
                     Err(e) => {
                         eprintln!("✗ Failed to publish kind 0: {}", e);
                         return Err(Box::new(e));
