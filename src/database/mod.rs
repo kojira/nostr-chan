@@ -80,9 +80,9 @@ pub use stats::{get_dashboard_stats, DashboardStats};
 
 // ユーザー印象を再エクスポート
 pub use impression::{
-    get_user_impression, save_user_impression, get_user_impression_history,
+    get_user_impression, get_user_attributes, save_user_impression, get_user_impression_history,
     get_all_user_impressions, count_users_with_impressions, count_user_impression_history,
-    UserImpressionRecord
+    UserImpressionRecord, UserAttributes
 };
 
 // mental_stateモジュールから再エクスポート

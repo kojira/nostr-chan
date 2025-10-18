@@ -24,7 +24,7 @@ pub struct GptResponseWithImpression {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct GptResponseWithMentalDiary {
     pub reply: String,
-    pub impression: String,
+    pub user_attributes: db::UserAttributes,
     pub mental_diary: db::MentalDiary,
 }
 
@@ -487,15 +487,20 @@ async fn build_mental_diary_prompt<'a>(
     let file = File::open("../config.yml")?;
     let config: AppConfig = serde_yaml::from_reader(file)?;
     let answer_length = config.get_i32_setting("gpt_answer_length");
-    let max_impression_length = config.get_usize_setting("max_impression_length");
+    let _max_impression_length = config.get_usize_setting("max_impression_length");
     
     // DB接続
     let conn = db::connect()?;
     
-    // 既存の印象を取得（user_pubkeyがある場合のみ）
-    let impression_context = if let Some(upk) = user_pubkey {
-        if let Some(imp) = db::get_user_impression(&conn, bot_pubkey, upk)? {
-            format!("\n\n【このユーザーについてのあなたの印象】\n{}", imp)
+    // 既存のユーザー属性を取得（user_pubkeyがある場合のみ）
+    let user_attributes_context = if let Some(upk) = user_pubkey {
+        if let Some(attrs) = db::get_user_attributes(&conn, bot_pubkey, upk)? {
+            let yaml_str = attrs.to_yaml_string();
+            if !yaml_str.is_empty() && yaml_str != "{}" {
+                format!("\n\n【このユーザーについて分かっていること】\n{}", yaml_str)
+            } else {
+                String::new()
+            }
         } else {
             String::new()
         }
@@ -574,19 +579,40 @@ async fn build_mental_diary_prompt<'a>(
         \"personality_state\": \"人格の状態\"\n  \
       }";
     
-    // JSON出力形式とフィールド説明（印象の有無で分岐）
+    // ユーザー属性のJSON構造
+    let user_attributes_json = "\
+      \"user_attributes\": {\n    \
+        \"nickname\": null,\n    \
+        \"age\": null,\n    \
+        \"gender\": null,\n    \
+        \"personality\": null,\n    \
+        \"likes\": [],\n    \
+        \"dislikes\": [],\n    \
+        \"family\": null,\n    \
+        \"catchphrase\": null,\n    \
+        \"current_boom\": null,\n    \
+        \"occupation\": null,\n    \
+        \"country\": null,\n    \
+        \"hobbies\": [],\n    \
+        \"values\": null,\n    \
+        \"recent_events\": null,\n    \
+        \"conversation_style\": null,\n    \
+        \"nostr_experience\": null,\n    \
+        \"frequent_topics\": [],\n    \
+        \"impression\": null\n  \
+      }";
+    
+    // JSON出力形式とフィールド説明（ユーザー属性の有無で分岐）
     let (json_fields, field_descriptions) = if user_pubkey.is_some() {
         (
             format!(
                 "  \"reply\": \"ユーザーへの返信文\",\n  \
-                   \"impression\": \"このユーザーへの印象\",\n  \
+                   {user_attributes_json},\n  \
                    {mental_diary_json}"
             ),
-            format!(
-                "- **reply**: ユーザーへの返信\n\
-                 - **impression**: このユーザーへの印象（{max_impression_length}文字以内）\n\
-                 - **mental_diary**: あなた自身の心境を日記のように記録"
-            )
+            "- **reply**: ユーザーへの返信\n\
+             - **user_attributes**: このユーザーについて会話から分かった情報を更新（分からない項目はnullや空配列のまま）\n\
+             - **mental_diary**: あなた自身の心境を日記のように記録".to_string()
         )
     } else {
         (
@@ -603,7 +629,7 @@ async fn build_mental_diary_prompt<'a>(
     let system_prompt = format!(
         "# あなたの役割\n\
          {base_prompt}{additional_inst}\
-         {impression_context}\
+         {user_attributes_context}\
          {mental_state_context}\n\n\
          # 出力形式\n\
          重要: あなたは必ずJSON形式で応答してください。他の形式は一切使用しないでください。\n\n\
@@ -671,17 +697,19 @@ async fn call_gpt_with_mental_diary_internal<'a>(
         Ok(response_text) => {
             // user_pubkeyがある場合は印象あり、ない場合は印象なし
             if user_pubkey.is_some() {
-                // 印象ありのパース
+                // ユーザー属性ありのパース
                 match serde_json::from_str::<GptResponseWithMentalDiary>(&response_text) {
                     Ok(parsed) => {
-                        // 印象が空の場合は警告
-                        if parsed.impression.is_empty() {
-                            eprintln!("[Warning] 印象が空です");
-                        }
-                        
-                        // 印象をDBに保存
-                        if let Err(e) = db::save_user_impression(&conn, bot_pubkey, user_pubkey.unwrap(), &parsed.impression) {
-                            eprintln!("[Impression] 保存エラー: {}", e);
+                        // ユーザー属性をJSONとしてDBに保存
+                        match parsed.user_attributes.to_json() {
+                            Ok(json_str) => {
+                                if let Err(e) = db::save_user_impression(&conn, bot_pubkey, user_pubkey.unwrap(), &json_str) {
+                                    eprintln!("[UserAttributes] 保存エラー: {}", e);
+                                }
+                            }
+                            Err(e) => {
+                                eprintln!("[UserAttributes] JSON変換エラー: {}", e);
+                            }
                         }
                         
                         // 心境をDBに保存
@@ -712,10 +740,10 @@ async fn call_gpt_with_mental_diary_internal<'a>(
                             eprintln!("[MentalDiary] 保存エラー: {}", e);
                         }
                         
-                        // 印象なしのレスポンスを印象ありの形式に変換
+                        // 印象なしのレスポンスをユーザー属性ありの形式に変換
                         Ok(GptResponseWithMentalDiary {
                             reply: parsed.reply,
-                            impression: String::new(),
+                            user_attributes: db::UserAttributes::empty(),
                             mental_diary: parsed.mental_diary,
                         })
                     },
