@@ -24,12 +24,24 @@ pub struct EventRecord {
 impl EventRecord {
     /// 表示名を取得（kind0_cacheから取得、なければpubkey短縮）
     pub fn display_name(&self, conn: &Connection) -> String {
-        // kind0_cacheから名前を取得
-        if let Ok(Some(name)) = super::cache::get_kind0_cache(conn, &self.pubkey, 86400 * 7) {
-            return name;
+        // eventsテーブルからkind 0を取得
+        if let Ok(content) = conn.query_row(
+            "SELECT content FROM events WHERE pubkey = ? AND kind = 0 ORDER BY created_at DESC LIMIT 1",
+            rusqlite::params![&self.pubkey],
+            |row| row.get::<_, String>(0)
+        ) {
+            // JSONから名前を抽出
+            if let Ok(metadata) = serde_json::from_str::<serde_json::Value>(&content) {
+                if let Some(name) = metadata.get("display_name")
+                    .or_else(|| metadata.get("name"))
+                    .and_then(|n| n.as_str())
+                {
+                    return name.to_string();
+                }
+            }
         }
         
-        // キャッシュにない場合はpubkey短縮表示
+        // 取得できない場合はpubkey短縮表示
         if self.pubkey.len() > 8 {
             format!("{}...", &self.pubkey[..8])
         } else {
