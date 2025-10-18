@@ -582,24 +582,24 @@ async fn build_mental_diary_prompt<'a>(
     // ユーザー属性のJSON構造
     let user_attributes_json = "\
       \"user_attributes\": {\n    \
-        \"nickname\": null,\n    \
-        \"age\": null,\n    \
-        \"gender\": null,\n    \
-        \"personality\": null,\n    \
-        \"likes\": [],\n    \
-        \"dislikes\": [],\n    \
-        \"family\": null,\n    \
-        \"catchphrase\": null,\n    \
-        \"current_boom\": null,\n    \
-        \"occupation\": null,\n    \
-        \"country\": null,\n    \
-        \"hobbies\": [],\n    \
-        \"values\": null,\n    \
-        \"recent_events\": null,\n    \
-        \"conversation_style\": null,\n    \
-        \"nostr_experience\": null,\n    \
-        \"frequent_topics\": [],\n    \
-        \"impression\": null\n  \
+        \"nickname\": \"わからない\",\n    \
+        \"age\": \"30歳くらい？\",\n    \
+        \"gender\": \"男性かな？\",\n    \
+        \"personality\": \"明るくて社交的\",\n    \
+        \"likes\": [\"技術\", \"アニメ\"],\n    \
+        \"dislikes\": [\"早起き\"],\n    \
+        \"family\": \"わからない\",\n    \
+        \"catchphrase\": \"〜だぜ\",\n    \
+        \"current_boom\": \"Nostr\",\n    \
+        \"occupation\": \"エンジニアっぽい\",\n    \
+        \"country\": \"日本\",\n    \
+        \"hobbies\": [\"プログラミング\"],\n    \
+        \"values\": \"自由を大切にしている感じ\",\n    \
+        \"recent_events\": \"新しいプロジェクトを始めたみたい\",\n    \
+        \"conversation_style\": \"カジュアルで短文\",\n    \
+        \"nostr_experience\": \"結構詳しそう\",\n    \
+        \"frequent_topics\": [\"技術\", \"Nostr\"],\n    \
+        \"impression\": \"技術好きで気さくな人\"\n  \
       }";
     
     // JSON出力形式とフィールド説明（ユーザー属性の有無で分岐）
@@ -616,7 +616,8 @@ async fn build_mental_diary_prompt<'a>(
                * 例: 口調が若々しい→age: \"10代-20代\", 技術的な話題が多い→occupation: \"エンジニア系\", frequent_topics: [\"技術\", \"プログラミング\"]\n\
                * 例: 「〜だぜ」「〜だな」→gender: \"男性\", catchphrase: \"〜だぜ\"\n\
                * 例: アニメの話題→hobbies: [\"アニメ\"], current_boom: \"〇〇（アニメ名）\"\n\
-               * 確信が持てない場合でも、可能性が高ければ推測して記入してください（完全に不明な項目のみnullや空配列）\n\
+               * **重要**: nullや空配列は禁止です。不確実な場合は「わからない」「男性かな？」「30歳くらい？」「エンジニアっぽい」のように推測や不確実性を含めた自然な表現で記入してください\n\
+               * 完全に情報がない項目は「わからない」または「不明」と記入してください\n\
              - **mental_diary**: あなた自身の心境を日記のように記録".to_string()
         )
     } else {
