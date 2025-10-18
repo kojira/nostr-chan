@@ -449,7 +449,7 @@ pub async fn get_air_reply_with_mental_diary<'a>(
     user_text: &'a str,
     has_mention: bool,
     context: Option<String>,
-) -> Result<String, Box<dyn Error>> {
+) -> Result<GptResponseWithMentalDiary, Box<dyn Error>> {
     // エアリプ用の追加指示
     let air_reply_instruction = if !has_mention {
         "\n\n以下は最近のタイムラインです。この流れを見て、あなたが気になった投稿に自然に反応してください。\
@@ -458,7 +458,7 @@ pub async fn get_air_reply_with_mental_diary<'a>(
         ""
     };
     
-    let response = call_gpt_with_mental_diary_internal(
+    call_gpt_with_mental_diary_internal(
         bot_pubkey,
         None, // user_pubkey なし（エアリプなので印象不要）
         personality,
@@ -467,9 +467,7 @@ pub async fn get_air_reply_with_mental_diary<'a>(
         Some(air_reply_instruction),
         "air_reply",
         None, // user_name なし（エアリプなので不要）
-    ).await?;
-    
-    Ok(response.reply)
+    ).await
 }
 
 /// 心境・印象付きプロンプトを構築する共通関数
@@ -687,7 +685,7 @@ async fn call_gpt_with_mental_diary_internal<'a>(
     user_name: Option<&'a str>,
 ) -> Result<GptResponseWithMentalDiary, Box<dyn Error>> {
     // 共通のプロンプト構築関数を使用
-    let (system_prompt, conn) = build_mental_diary_prompt(
+    let (system_prompt, _conn) = build_mental_diary_prompt(
         bot_pubkey,
         user_pubkey,
         personality,
@@ -707,26 +705,11 @@ async fn call_gpt_with_mental_diary_internal<'a>(
         Ok(response_text) => {
             // user_pubkeyがある場合は印象あり、ない場合は印象なし
             if user_pubkey.is_some() {
-                // ユーザー属性ありのパース
+                // ユーザー属性ありのパース（保存はせず、パース結果とconnを返す）
                 match serde_json::from_str::<GptResponseWithMentalDiary>(&response_text) {
                     Ok(parsed) => {
-                        // ユーザー属性をJSONとしてDBに保存
-                        match parsed.user_attributes.to_json() {
-                            Ok(json_str) => {
-                                if let Err(e) = db::save_user_impression(&conn, bot_pubkey, user_pubkey.unwrap(), &json_str) {
-                                    eprintln!("[UserAttributes] 保存エラー: {}", e);
-                                }
-                            }
-                            Err(e) => {
-                                eprintln!("[UserAttributes] JSON変換エラー: {}", e);
-                            }
-                        }
-                        
-                        // 心境をDBに保存
-                        if let Err(e) = db::save_bot_mental_state(&conn, bot_pubkey, &parsed.mental_diary) {
-                            eprintln!("[MentalDiary] 保存エラー: {}", e);
-                        }
-                        
+                        // 注意: ここではDBに保存しない！
+                        // 送信成功後に呼び出し元で save_mental_diary_response を呼ぶこと
                         Ok(parsed)
                     },
                     Err(e) => {
@@ -745,10 +728,8 @@ async fn call_gpt_with_mental_diary_internal<'a>(
                 
                 match serde_json::from_str::<AirReplyResponse>(&response_text) {
                     Ok(parsed) => {
-                        // 心境をDBに保存
-                        if let Err(e) = db::save_bot_mental_state(&conn, bot_pubkey, &parsed.mental_diary) {
-                            eprintln!("[MentalDiary] 保存エラー: {}", e);
-                        }
+                        // 注意: ここではDBに保存しない！
+                        // 送信成功後に呼び出し元で save_mental_diary_response を呼ぶこと
                         
                         // 印象なしのレスポンスをユーザー属性ありの形式に変換
                         Ok(GptResponseWithMentalDiary {
@@ -770,4 +751,35 @@ async fn call_gpt_with_mental_diary_internal<'a>(
             Err(e)
         }
     }
+}
+
+/// GPTレスポンス（印象・心境）をDBに保存するヘルパー関数
+/// 送信成功後に呼び出すこと
+pub fn save_mental_diary_response(
+    bot_pubkey: &str,
+    user_pubkey: Option<&str>,
+    response: &GptResponseWithMentalDiary,
+) -> Result<(), Box<dyn Error>> {
+    let conn = db::connect()?;
+    
+    // ユーザー属性を保存（user_pubkeyがある場合のみ）
+    if let Some(upk) = user_pubkey {
+        match response.user_attributes.to_json() {
+            Ok(json_str) => {
+                if let Err(e) = db::save_user_impression(&conn, bot_pubkey, upk, &json_str) {
+                    eprintln!("[UserAttributes] 保存エラー: {}", e);
+                }
+            }
+            Err(e) => {
+                eprintln!("[UserAttributes] JSON変換エラー: {}", e);
+            }
+        }
+    }
+    
+    // 心境をDBに保存
+    if let Err(e) = db::save_bot_mental_state(&conn, bot_pubkey, &response.mental_diary) {
+        eprintln!("[MentalDiary] 保存エラー: {}", e);
+    }
+    
+    Ok(())
 }

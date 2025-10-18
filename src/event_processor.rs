@@ -271,9 +271,13 @@ pub async fn process_event(
     };
     
     // GPT応答生成（メンションの場合は印象＋心境付き、エアリプの場合は心境のみ）
-    let reply = if has_mention {
+    // 注意: この時点ではDBに保存しない（送信成功後に保存）
+    let (reply, gpt_response) = if has_mention {
         match gpt::get_reply_with_mental_diary(&person.pubkey, &event.pubkey.to_string(), &prompt, &event.content, context, user_name.as_deref()).await {
-            Ok(response) => response.reply,
+            Ok(response) => {
+                let reply = response.reply.clone();
+                (reply, Some(response))
+            },
             Err(e) => {
                 eprintln!("[GPT Error] {}", e);
                 return Ok(());
@@ -281,7 +285,16 @@ pub async fn process_event(
         }
     } else {
         // エアリプ時も心境を参照・更新
-        gpt::get_air_reply_with_mental_diary(&person.pubkey, &prompt, &event.content, has_mention, context).await?
+        match gpt::get_air_reply_with_mental_diary(&person.pubkey, &prompt, &event.content, has_mention, context).await {
+            Ok(response) => {
+                let reply = response.reply.clone();
+                (reply, Some(response))
+            },
+            Err(e) => {
+                eprintln!("[GPT Error] {}", e);
+                return Ok(());
+            }
+        }
     };
     
     if reply.is_empty() {
@@ -294,6 +307,13 @@ pub async fn process_event(
     let sent_event = if has_mention {
         match util::reply_to(&config, event.clone(), person.clone(), &reply).await {
             Ok(evt) => {
+                // 送信成功！GPTレスポンスをDBに保存
+                if let Some(ref response) = gpt_response {
+                    if let Err(e) = gpt::save_mental_diary_response(&person.pubkey, Some(&event.pubkey.to_string()), response) {
+                        eprintln!("[Worker] GPTレスポンス保存エラー: {}", e);
+                    }
+                }
+                
                 // ダッシュボードに最終返信時刻を更新
                 {
                     let mut info = bot_info.write().await;
@@ -303,12 +323,20 @@ pub async fn process_event(
             }
             Err(e) => {
                 eprintln!("[Worker] Failed to reply: {}", e);
+                // 送信失敗時はDBに保存しない
                 None
             }
         }
     } else if event.kind == Kind::TextNote {
         let send_ok = util::send_to(&config, event.clone(), person.clone(), &reply).await.is_ok();
         if send_ok {
+            // 送信成功！GPTレスポンスをDBに保存
+            if let Some(ref response) = gpt_response {
+                if let Err(e) = gpt::save_mental_diary_response(&person.pubkey, None, response) {
+                    eprintln!("[Worker] GPTレスポンス保存エラー: {}", e);
+                }
+            }
+            
             if let Ok(bot_keys) = Keys::parse(&person.secretkey) {
                 let event_builder = EventBuilder::text_note(&reply);
                 event_builder.sign(&bot_keys).await.ok()
@@ -317,6 +345,7 @@ pub async fn process_event(
             }
         } else {
             eprintln!("[Worker] Failed to send");
+            // 送信失敗時はDBに保存しない
             None
         }
     } else {
