@@ -24,12 +24,8 @@ pub struct EventRecord {
 impl EventRecord {
     /// 表示名を取得（kind0_cacheから取得、なければpubkey短縮）
     pub fn display_name(&self, conn: &Connection) -> String {
-        // eventsテーブルからkind 0を取得
-        if let Ok(content) = conn.query_row(
-            "SELECT content FROM events WHERE pubkey = ? AND kind = 0 ORDER BY created_at DESC LIMIT 1",
-            rusqlite::params![&self.pubkey],
-            |row| row.get::<_, String>(0)
-        ) {
+        // utilのget_kind0_metadataを使用（eventsテーブル優先、なければリレーから取得）
+        if let Some(content) = crate::util::get_kind0_metadata(conn, &self.pubkey) {
             // JSONから名前を抽出
             if let Ok(metadata) = serde_json::from_str::<serde_json::Value>(&content) {
                 if let Some(name) = metadata.get("display_name")
