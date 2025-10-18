@@ -20,11 +20,18 @@ pub struct ImpressionResponse {
 
 impl ImpressionResponse {
     fn from_record(record: db::UserImpressionRecord, conn: &rusqlite::Connection) -> Self {
-        // kind0_cacheからユーザー情報を取得（TTL: 1日 = 86400秒）
-        let kind0_json = db::get_kind0_cache(conn, &record.user_pubkey, 86400).ok().flatten();
+        // eventsテーブルからkind 0イベントを取得
+        let kind0_json = conn.query_row(
+            "SELECT content FROM events WHERE pubkey = ? AND kind = 0 ORDER BY created_at DESC LIMIT 1",
+            rusqlite::params![&record.user_pubkey],
+            |row| row.get::<_, String>(0)
+        ).ok();
+        
         let user_name = kind0_json.as_ref().and_then(|json| {
             serde_json::from_str::<serde_json::Value>(json).ok()
-                .and_then(|v| v.get("name").and_then(|n| n.as_str().map(|s| s.to_string())))
+                .and_then(|v| v.get("name")
+                    .or_else(|| v.get("display_name"))
+                    .and_then(|n| n.as_str().map(|s| s.to_string())))
         });
         let user_picture = kind0_json.as_ref().and_then(|json| {
             serde_json::from_str::<serde_json::Value>(json).ok()
