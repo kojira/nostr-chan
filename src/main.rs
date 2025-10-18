@@ -90,12 +90,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         info.connected_relays = config.relay_servers.read.clone();
     }
 
+    // TextNote、ChannelMessage、Metadata (kind 0) をsubscribe
     let subscription = Filter::new()
-        .kinds([nostr_sdk::Kind::TextNote, nostr_sdk::Kind::ChannelMessage].to_vec())
+        .kinds([nostr_sdk::Kind::TextNote, nostr_sdk::Kind::ChannelMessage, nostr_sdk::Kind::Metadata].to_vec())
         .since(Timestamp::now());
 
     let _ = client.subscribe(subscription, None).await;
-    println!("subscribe");
+    println!("subscribe (TextNote, ChannelMessage, Metadata)");
     
     // バックグラウンドでembedding生成タスクを開始
     let conn_bg = db::connect()?;
@@ -227,8 +228,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             if config.bot.blacklist.iter().any(|s| s == &event.pubkey.to_string()) {
                 continue;
             }
-            // NIP-36(コンテンツ警告)をスキップ
+            
             let kind = event.kind;
+            
+            // kind 0 (Metadata) の処理
+            if kind == Kind::Metadata {
+                // eventsテーブルに保存（既存のものは上書き）
+                if let Err(e) = db::insert_event(&conn, &event, None) {
+                    if !e.to_string().contains("UNIQUE constraint failed") {
+                        eprintln!("[Kind0] DB保存エラー: {}", e);
+                    }
+                }
+                continue; // kind 0はキューに入れない
+            }
+            
+            // NIP-36(コンテンツ警告)をスキップ
             if kind == Kind::TextNote || kind == Kind::ChannelMessage {
                 let mut detect_nip36 = false;
                 for tag in event.tags.clone().into_iter() {
