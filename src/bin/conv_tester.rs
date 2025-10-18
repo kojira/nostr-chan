@@ -166,7 +166,7 @@ async fn chat_repl(db_path: &str, bot_pubkey: &str, bot_secret: &str, user_secre
         let thread_root_id = db::extract_thread_root_id(&event_json).ok().flatten();
         let _ = db::insert_conversation_log(&conn, bot_pubkey, event_ref_id, thread_root_id.as_deref(), None, false, false)?;
 
-        let context = conversation::prepare_context_for_reply(&conn, bot_pubkey, &user_pubkey, input, 50, &config, None).await?;
+        let context = conversation::prepare_context_for_reply(&conn, bot_pubkey, &user_pubkey, input, 50, &config, None, None).await?;
 
         let prompt = "あなたは有益で礼儀正しい日本語のアシスタントです。".to_string();
         let reply = gpt::get_reply_with_context(bot_pubkey, &prompt, input, true, if context.is_empty() { None } else { Some(context) }).await?;
@@ -211,7 +211,7 @@ async fn dump_context(db_path: &str, bot_pubkey: &str, user_pubkey: &str, input:
     let file = std::fs::File::open("../config.yml")?;
     let config: config::AppConfig = serde_yaml::from_reader(file)?;
     
-    let ctx = conversation::prepare_context_for_reply(&conn, bot_pubkey, user_pubkey, input, 50, &config, None).await?;
+    let ctx = conversation::prepare_context_for_reply(&conn, bot_pubkey, user_pubkey, input, 50, &config, None, None).await?;
     println!("{}", ctx);
     Ok(())
 }

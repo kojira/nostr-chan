@@ -209,6 +209,7 @@ pub async fn process_event(
             50,
             &config,
             thread_root_id.as_deref(),
+            user_name.as_deref(),
         ).await {
             Ok(ctx) => {
                 if ctx.is_empty() {

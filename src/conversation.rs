@@ -362,6 +362,7 @@ pub async fn prepare_context_for_reply(
     limit: usize,
     config: &AppConfig,
     thread_root_id: Option<&str>,
+    user_name: Option<&str>,
 ) -> Result<String, Box<dyn std::error::Error>> {
     // 会話タイムラインを構築（80%高類似度 + 20%低類似度）
     let timeline_text = build_conversation_timeline_with_diversity(conn, bot_pubkey, Some(user_input), limit).await?;
@@ -395,10 +396,17 @@ pub async fn prepare_context_for_reply(
                     
                     println!("[Conversation] 要約対象: {}件, 最近のやり取り: {}件", old_events.len(), recent_events.len());
                     
+                    let user_label = if let Some(name) = user_name {
+                        format!("【{}からあなたへの質問・発言】", name)
+                    } else {
+                        "【あなたへの質問・発言】".to_string()
+                    };
+                    
                     return Ok(format!(
-                        "【会話の要約】\n{}\n\n【最近のやり取り】\n{}\n\n【あなたへの質問・発言】\n{}",
+                        "【会話の要約】\n{}\n\n【最近のやり取り】\n{}\n\n{}\n{}",
                         summary,
                         recent_timeline,
+                        user_label,
                         user_input
                     ));
                 }
@@ -407,7 +415,13 @@ pub async fn prepare_context_for_reply(
     }
     
     // 閾値以下の場合はそのまま返す
-    Ok(format!("【会話履歴】\n{}\n\n【あなたへの質問・発言】\n{}", timeline_text, user_input))
+    let user_label = if let Some(name) = user_name {
+        format!("【{}からあなたへの質問・発言】", name)
+    } else {
+        "【あなたへの質問・発言】".to_string()
+    };
+    
+    Ok(format!("【会話履歴】\n{}\n\n{}\n{}", timeline_text, user_label, user_input))
 }
 
 /// バイト列をf32ベクトルに変換
