@@ -98,12 +98,31 @@ export const BotDetailPage = () => {
   const [mentalDiaryLoading, setMentalDiaryLoading] = useState(false);
   const [mentalDiaryHistory, setMentalDiaryHistory] = useState<MentalDiaryRecord[]>([]);
   const [mentalDiaryPage, setMentalDiaryPage] = useState(0);
+  
+  // 設定
+  const [maxImpressionLength, setMaxImpressionLength] = useState(500);
   const [mentalDiaryRowsPerPage, setMentalDiaryRowsPerPage] = useState(10);
   const [totalMentalDiaries, setTotalMentalDiaries] = useState(0);
   const [mentalDiaryEditDialogOpen, setMentalDiaryEditDialogOpen] = useState(false);
   const [editingMentalDiary, setEditingMentalDiary] = useState<string>('');
 
   const bot = bots.find(b => b.pubkey === pubkey);
+
+  // 設定を取得
+  useEffect(() => {
+    const fetchSettings = async () => {
+      try {
+        const response = await fetch('/api/settings/all');
+        if (response.ok) {
+          const settings = await response.json();
+          setMaxImpressionLength(settings.max_impression_length || 500);
+        }
+      } catch (error) {
+        console.error('設定の取得エラー:', error);
+      }
+    };
+    fetchSettings();
+  }, []);
 
   useEffect(() => {
     if (pubkey && currentTab === 0) {
@@ -703,8 +722,8 @@ export const BotDetailPage = () => {
             value={editingImpression}
             onChange={(e) => setEditingImpression(e.target.value)}
             placeholder="このユーザーへの印象を入力..."
-            inputProps={{ maxLength: 500 }}
-            helperText={`${editingImpression.length} / 500文字`}
+            inputProps={{ maxLength: maxImpressionLength }}
+            helperText={`${editingImpression.length} / ${maxImpressionLength}文字`}
           />
         </DialogContent>
         <DialogActions>
