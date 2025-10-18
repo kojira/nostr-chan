@@ -450,13 +450,14 @@ export const GptSettingsPage = () => {
           value={maxImpressionLength}
           onChange={(_, value) => setMaxImpressionLength(value as number)}
           min={50}
-          max={1000}
+          max={2000}
           step={50}
           marks={[
             { value: 50, label: '50' },
-            { value: 200, label: '200' },
             { value: 500, label: '500' },
             { value: 1000, label: '1000' },
+            { value: 1500, label: '1500' },
+            { value: 2000, label: '2000' },
           ]}
         />
         <Box sx={{ display: 'flex', gap: 1, mt: 2, flexWrap: 'wrap' }}>
@@ -466,11 +467,11 @@ export const GptSettingsPage = () => {
           <Button variant="outlined" onClick={() => setMaxImpressionLength(500)} size="small">
             標準 (500文字)
           </Button>
-          <Button variant="outlined" onClick={() => setMaxImpressionLength(800)} size="small">
-            詳細 (800文字)
-          </Button>
           <Button variant="outlined" onClick={() => setMaxImpressionLength(1000)} size="small">
-            最大 (1000文字)
+            詳細 (1000文字)
+          </Button>
+          <Button variant="outlined" onClick={() => setMaxImpressionLength(2000)} size="small">
+            最大 (2000文字)
           </Button>
         </Box>
         <Paper sx={{ mt: 2, p: 2, bgcolor: 'grey.50' }}>
