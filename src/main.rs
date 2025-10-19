@@ -102,40 +102,43 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let conn_bg = db::connect()?;
     tokio::spawn(async move {
         loop {
-            // 10秒ごとにembedding未設定のイベントを処理
-            tokio::time::sleep(tokio::time::Duration::from_secs(10)).await;
-            
-            match db::get_events_without_embedding(&conn_bg, 10) {
+            // 1件ずつ処理して、処理間に短い待機時間を入れる
+            match db::get_events_without_embedding(&conn_bg, 1) {
                 Ok(events) => {
-                    for event in events {
+                    if let Some(event) = events.first() {
                         // contentが空の場合はスキップし、空のベクトルを保存（再試行を防ぐ）
                         if event.content.trim().is_empty() {
                             let empty_vec = vec![0.0f32; 384]; // multilingual-e5-smallの次元数
                             if let Err(e) = db::update_event_embedding(&conn_bg, &event.event_id, &empty_vec) {
                                 eprintln!("[Embedding] 空コンテンツのDB更新エラー: {}", e);
                             }
-                            continue;
-                        }
-                        
-                        match embedding::generate_embedding_global(&event.content) {
-                            Ok(embedding_vec) => {
-                                if let Err(e) = db::update_event_embedding(&conn_bg, &event.event_id, &embedding_vec) {
-                                    eprintln!("[Embedding] DB更新エラー: {}", e);
+                        } else {
+                            match embedding::generate_embedding_global(&event.content) {
+                                Ok(embedding_vec) => {
+                                    if let Err(e) = db::update_event_embedding(&conn_bg, &event.event_id, &embedding_vec) {
+                                        eprintln!("[Embedding] DB更新エラー: {}", e);
+                                    }
+                                }
+                                Err(e) => {
+                                    eprintln!("[Embedding] ベクトル化エラー (event_id: {}): {}", event.event_id, e);
+                                    // エラーの場合も空のベクトルを保存して再試行を防ぐ
+                                    let empty_vec = vec![0.0f32; 384];
+                                    if let Err(e) = db::update_event_embedding(&conn_bg, &event.event_id, &empty_vec) {
+                                        eprintln!("[Embedding] エラー時のDB更新エラー: {}", e);
+                                    }
                                 }
                             }
-                            Err(e) => {
-                                eprintln!("[Embedding] ベクトル化エラー (event_id: {}): {}", event.event_id, e);
-                                // エラーの場合も空のベクトルを保存して再試行を防ぐ
-                                let empty_vec = vec![0.0f32; 384];
-                                if let Err(e) = db::update_event_embedding(&conn_bg, &event.event_id, &empty_vec) {
-                                    eprintln!("[Embedding] エラー時のDB更新エラー: {}", e);
-                                }
-                            }
                         }
+                        // 処理後、次の処理まで短い待機（負荷分散）
+                        tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+                    } else {
+                        // 未処理イベントがない場合は長めに待機
+                        tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
                     }
                 }
                 Err(e) => {
                     eprintln!("[Embedding] イベント取得エラー: {}", e);
+                    tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
                 }
             }
         }
