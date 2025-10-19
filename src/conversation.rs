@@ -1,6 +1,5 @@
 use crate::config::AppConfig;
 use crate::database as db;
-use crate::embedding;
 use crate::gpt;
 use chrono::{Local, TimeZone};
 use rusqlite::Connection;
@@ -88,10 +87,10 @@ fn format_timeline_text(conn: &Connection, events: Vec<db::EventRecord>) -> Resu
 pub async fn build_conversation_timeline_with_diversity(
     conn: &Connection,
     bot_pubkey: &str,
-    user_input: Option<&str>,
+    _user_input: Option<&str>,
     limit: usize,
 ) -> Result<String, Box<dyn std::error::Error>> {
-    let mut events = db::get_conversation_timeline(conn, bot_pubkey, limit)?;
+    let events = db::get_conversation_timeline(conn, bot_pubkey, limit)?;
     
     if events.is_empty() {
         return Ok(String::new());
@@ -236,14 +235,11 @@ pub async fn summarize_conversation_if_needed(
     participants.sort();
     participants.dedup();
     
-    // embedding無効化のため、空のベクトルを保存
-    let empty_embedding = vec![0.0f32; 384];
     db::insert_conversation_summary(
         conn,
         bot_pubkey,
         &summary,
         user_input,
-        &empty_embedding,
         Some(&participants),
         from_timestamp,
         to_timestamp,
@@ -333,7 +329,7 @@ pub fn build_japanese_timeline_for_air_reply(
     // 日本語のイベントを取得
     let mut stmt = conn.prepare(
         "SELECT id, event_id, event_json, pubkey, kind, content, created_at, received_at,
-                language, embedding
+                language
          FROM events
          WHERE language = 'ja'
          ORDER BY created_at DESC
@@ -351,7 +347,6 @@ pub fn build_japanese_timeline_for_air_reply(
             created_at: row.get(6)?,
             received_at: row.get(7)?,
             language: row.get(8)?,
-            embedding: row.get(9)?,
         })
     })?
     .collect::<Result<Vec<_>, _>>()?;

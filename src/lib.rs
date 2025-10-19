@@ -4,7 +4,6 @@ pub use database as db;  // 外部クレートからdb::でアクセス可能に
 pub mod gpt;
 pub mod commands;
 pub mod util;
-pub mod embedding;
 pub mod conversation;
 pub mod dashboard;
 pub mod init;

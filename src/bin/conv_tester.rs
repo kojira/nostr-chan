@@ -3,7 +3,6 @@ use std::io::{self, Write};
 
 use bot::config;
 use bot::database as db;
-use bot::embedding;
 use bot::conversation;
 use bot::gpt;
 use nostr_sdk::prelude::*;
@@ -99,7 +98,6 @@ fn parse_flag_value(args: &[String], flag: &str) -> Option<String> {
 }
 
 async fn seed_data(db_path: &str, bot_pubkey: &str, users: usize, topics_csv: &str, count: usize) -> Result<(), Box<dyn std::error::Error>> {
-    embedding::EmbeddingService::initialize_global()?;
     let conn = db::connect_at_path(db_path)?;
 
     let topics: Vec<String> = topics_csv.split(',').map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect();
@@ -119,10 +117,6 @@ async fn seed_data(db_path: &str, bot_pubkey: &str, users: usize, topics_csv: &s
         let language = if is_japanese { Some("ja") } else { None };
         let event_ref_id = db::insert_event(&conn, &event, language)?;
 
-        if let Ok(emb) = embedding::generate_embedding_global(&content) {
-            let _ = db::update_event_embedding(&conn, &event.id.to_string(), &emb);
-        }
-
         let event_json = serde_json::to_string(&event)?;
         let thread_root_id = db::extract_thread_root_id(&event_json).ok().flatten();
         let _ = db::insert_conversation_log(&conn, bot_pubkey, event_ref_id, thread_root_id.as_deref(), None, false, false)?;
@@ -133,7 +127,6 @@ async fn seed_data(db_path: &str, bot_pubkey: &str, users: usize, topics_csv: &s
 }
 
 async fn chat_repl(db_path: &str, bot_pubkey: &str, bot_secret: &str, user_secret: Option<&str>) -> Result<(), Box<dyn std::error::Error>> {
-    embedding::EmbeddingService::initialize_global()?;
     let conn = db::connect_at_path(db_path)?;
     
     // configを読み込む
@@ -161,7 +154,6 @@ async fn chat_repl(db_path: &str, bot_pubkey: &str, bot_secret: &str, user_secre
         let is_japanese = whatlang::detect(input).map(|d| matches!(d.lang(), whatlang::Lang::Jpn)).unwrap_or(false);
         let language = if is_japanese { Some("ja") } else { None };
         let event_ref_id = db::insert_event(&conn, &user_event, language)?;
-        if let Ok(emb) = embedding::generate_embedding_global(input) { let _ = db::update_event_embedding(&conn, &user_event.id.to_string(), &emb); }
         let event_json = serde_json::to_string(&user_event)?;
         let thread_root_id = db::extract_thread_root_id(&event_json).ok().flatten();
         let _ = db::insert_conversation_log(&conn, bot_pubkey, event_ref_id, thread_root_id.as_deref(), None, false, false)?;
@@ -175,7 +167,6 @@ async fn chat_repl(db_path: &str, bot_pubkey: &str, bot_secret: &str, user_secre
         if reply.is_empty() { continue; }
         let bot_event = EventBuilder::text_note(reply.clone()).sign(&bot_keys).await?;
         let event_ref_id = db::insert_event(&conn, &bot_event, Some("ja"))?;
-        if let Ok(emb) = embedding::generate_embedding_global(&reply) { let _ = db::update_event_embedding(&conn, &bot_event.id.to_string(), &emb); }
         let bot_json = serde_json::to_string(&bot_event)?;
         let thread_root_id = db::extract_thread_root_id(&bot_json).ok().flatten();
         let _ = db::insert_conversation_log(&conn, bot_pubkey, event_ref_id, thread_root_id.as_deref(), None, true, false)?;

@@ -17,6 +17,8 @@ pub fn initialize_db(conn: &Connection) -> Result<()> {
     super::migration::migrate_normalize_events_table(conn)?; // events正規化
     super::migration::migrate_add_user_impressions(conn)?; // ユーザー印象テーブル
     super::migration::migrate_add_bot_mental_state(conn)?; // Bot心境テーブル
+    super::migration::migrate_remove_embedding_from_events(conn)?; // embedding削除
+    super::migration::migrate_remove_embedding_from_summaries(conn)?; // embedding削除
     
     Ok(())
 }
@@ -100,8 +102,7 @@ fn create_tables(conn: &Connection) -> Result<()> {
             content TEXT NOT NULL,
             created_at INTEGER NOT NULL,
             received_at INTEGER NOT NULL,
-            language TEXT,
-            embedding BLOB
+            language TEXT
         )",
         [],
     )?;
@@ -141,7 +142,6 @@ fn create_tables(conn: &Connection) -> Result<()> {
             bot_pubkey TEXT NOT NULL,
             summary TEXT NOT NULL,
             user_input TEXT NOT NULL,
-            user_input_embedding BLOB NOT NULL,
             participants_json TEXT,
             from_timestamp INTEGER NOT NULL,
             to_timestamp INTEGER NOT NULL,

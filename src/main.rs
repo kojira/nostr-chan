@@ -3,7 +3,6 @@ mod database;
 mod gpt;
 mod commands;
 mod util;
-mod embedding;
 mod conversation;
 mod dashboard;
 mod init;
@@ -60,15 +59,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     });
     
-    // Embeddingサービスを初期化
-    println!("Embeddingサービスを初期化中...");
-    if let Err(e) = embedding::EmbeddingService::initialize_global() {
-        eprintln!("警告: Embeddingサービスの初期化に失敗しました: {}", e);
-        eprintln!("ベクトル化機能は利用できません");
-    } else {
-        println!("Embeddingサービスの初期化完了");
-    }
-
     let secret_key = env::var("BOT_SECRETKEY").expect("BOT_SECRETKEY is not set");
 
     let my_keys = Keys::from_str(&secret_key)?;

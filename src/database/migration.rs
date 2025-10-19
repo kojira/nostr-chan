@@ -619,3 +619,158 @@ pub(crate) fn migrate_add_bot_mental_state(conn: &Connection) -> Result<()> {
     
     Ok(())
 }
+
+/// eventsテーブルからembeddingカラムを削除するマイグレーション
+pub(crate) fn migrate_remove_embedding_from_events(conn: &Connection) -> Result<()> {
+    // カラムが存在するかチェック
+    let column_exists: bool = conn
+        .query_row(
+            "SELECT COUNT(*) FROM pragma_table_info('events') WHERE name='embedding'",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap_or(0) > 0;
+    
+    if !column_exists {
+        return Ok(());
+    }
+    
+    println!("🔄 マイグレーション: eventsテーブルからembeddingカラムを削除");
+    
+    // SQLiteではALTER TABLE DROP COLUMNが使えないので、テーブルを再作成する
+    
+    // 1. 外部キー制約を一時的に無効化
+    conn.execute("PRAGMA foreign_keys = OFF", [])?;
+    
+    // 2. トランザクション開始
+    conn.execute("BEGIN TRANSACTION", [])?;
+    
+    // 3. 新しいテーブルを作成（embeddingカラムなし）
+    conn.execute(
+        "CREATE TABLE events_new (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            event_id TEXT NOT NULL UNIQUE,
+            pubkey TEXT NOT NULL,
+            kind INTEGER NOT NULL,
+            content TEXT NOT NULL,
+            created_at INTEGER NOT NULL,
+            tags_json TEXT NOT NULL,
+            received_at INTEGER NOT NULL,
+            language TEXT
+        )",
+        [],
+    )?;
+    
+    // 4. データをコピー（embeddingカラムを除く）
+    conn.execute(
+        "INSERT INTO events_new (id, event_id, pubkey, kind, content, created_at, tags_json, received_at, language)
+         SELECT id, event_id, pubkey, kind, content, created_at, tags_json, received_at, language
+         FROM events",
+        [],
+    )?;
+    
+    // 5. 古いテーブルを削除
+    conn.execute("DROP TABLE events", [])?;
+    
+    // 6. 新しいテーブルをリネーム
+    conn.execute("ALTER TABLE events_new RENAME TO events", [])?;
+    
+    // 7. インデックスを再作成
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_events_pubkey ON events(pubkey)",
+        [],
+    )?;
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_events_kind ON events(kind)",
+        [],
+    )?;
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_events_created_at ON events(created_at)",
+        [],
+    )?;
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_events_language ON events(language)",
+        [],
+    )?;
+    
+    // 8. トランザクションをコミット
+    conn.execute("COMMIT", [])?;
+    
+    // 9. 外部キー制約を再度有効化
+    conn.execute("PRAGMA foreign_keys = ON", [])?;
+    
+    println!("✅ マイグレーション完了: eventsテーブルからembeddingカラムを削除");
+    
+    Ok(())
+}
+
+/// conversation_summariesテーブルからuser_input_embeddingカラムを削除するマイグレーション
+pub(crate) fn migrate_remove_embedding_from_summaries(conn: &Connection) -> Result<()> {
+    // カラムが存在するかチェック
+    let column_exists: bool = conn
+        .query_row(
+            "SELECT COUNT(*) FROM pragma_table_info('conversation_summaries') WHERE name='user_input_embedding'",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap_or(0) > 0;
+    
+    if !column_exists {
+        return Ok(());
+    }
+    
+    println!("🔄 マイグレーション: conversation_summariesテーブルからuser_input_embeddingカラムを削除");
+    
+    // SQLiteではALTER TABLE DROP COLUMNが使えないので、テーブルを再作成する
+    
+    // 1. 外部キー制約を一時的に無効化
+    conn.execute("PRAGMA foreign_keys = OFF", [])?;
+    
+    // 2. トランザクション開始
+    conn.execute("BEGIN TRANSACTION", [])?;
+    
+    // 3. 新しいテーブルを作成（user_input_embeddingカラムなし）
+    conn.execute(
+        "CREATE TABLE conversation_summaries_new (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            bot_pubkey TEXT NOT NULL,
+            summary TEXT NOT NULL,
+            user_input TEXT NOT NULL,
+            participants_json TEXT,
+            from_timestamp INTEGER NOT NULL,
+            to_timestamp INTEGER NOT NULL,
+            created_at INTEGER NOT NULL
+        )",
+        [],
+    )?;
+    
+    // 4. データをコピー（user_input_embeddingカラムを除く）
+    conn.execute(
+        "INSERT INTO conversation_summaries_new (id, bot_pubkey, summary, user_input, participants_json, from_timestamp, to_timestamp, created_at)
+         SELECT id, bot_pubkey, summary, user_input, participants_json, from_timestamp, to_timestamp, created_at
+         FROM conversation_summaries",
+        [],
+    )?;
+    
+    // 5. 古いテーブルを削除
+    conn.execute("DROP TABLE conversation_summaries", [])?;
+    
+    // 6. 新しいテーブルをリネーム
+    conn.execute("ALTER TABLE conversation_summaries_new RENAME TO conversation_summaries", [])?;
+    
+    // 7. インデックスを再作成
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_conversation_summaries_bot ON conversation_summaries(bot_pubkey, created_at DESC)",
+        [],
+    )?;
+    
+    // 8. トランザクションをコミット
+    conn.execute("COMMIT", [])?;
+    
+    // 9. 外部キー制約を再度有効化
+    conn.execute("PRAGMA foreign_keys = ON", [])?;
+    
+    println!("✅ マイグレーション完了: conversation_summariesテーブルからuser_input_embeddingカラムを削除");
+    
+    Ok(())
+}

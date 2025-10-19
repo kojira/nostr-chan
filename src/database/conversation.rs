@@ -42,7 +42,7 @@ pub fn get_conversation_timeline(
     limit: usize,
 ) -> Result<Vec<EventRecord>> {
     let mut stmt = conn.prepare(
-        "SELECT e.id, e.event_id, e.event_json, e.pubkey, e.kind, e.content, e.created_at, e.received_at, e.language, e.embedding
+        "SELECT e.id, e.event_id, e.event_json, e.pubkey, e.kind, e.content, e.created_at, e.received_at, e.language
          FROM events e
          INNER JOIN conversation_logs cl ON e.id = cl.event_ref_id
          WHERE cl.bot_pubkey = ?
@@ -61,7 +61,6 @@ pub fn get_conversation_timeline(
             created_at: row.get(6)?,
             received_at: row.get(7)?,
             language: row.get(8)?,
-            embedding: row.get(9)?,
         })
     })?
     .collect::<Result<Vec<_>>>()?;
@@ -79,7 +78,7 @@ pub fn get_conversation_timeline_with_user(
 ) -> Result<Vec<EventRecord>> {
     let mut stmt = conn.prepare(
         "SELECT e.id, e.event_id, e.event_json, e.pubkey, e.kind, e.content, e.created_at, e.received_at,
-                e.language, e.embedding
+                e.language
          FROM events e
          INNER JOIN conversation_logs cl ON e.id = cl.event_ref_id
          WHERE cl.bot_pubkey = ?
@@ -99,7 +98,6 @@ pub fn get_conversation_timeline_with_user(
             created_at: row.get(6)?,
             received_at: row.get(7)?,
             language: row.get(8)?,
-            embedding: row.get(9)?,
         })
     })?
     .collect::<Result<Vec<_>>>()?;
@@ -120,7 +118,7 @@ pub fn get_conversation_timeline_in_thread(
         // スレッドが指定されている場合
         conn.prepare(
             "SELECT e.id, e.event_id, e.event_json, e.pubkey, e.kind, e.content, e.created_at, e.received_at,
-                    e.language, e.embedding
+                    e.language
              FROM events e
              INNER JOIN conversation_logs cl ON e.id = cl.event_ref_id
              WHERE cl.bot_pubkey = ?
@@ -133,7 +131,7 @@ pub fn get_conversation_timeline_in_thread(
         // スレッドが指定されていない場合（thread_root_idがNULLのもの）
         conn.prepare(
             "SELECT e.id, e.event_id, e.event_json, e.pubkey, e.kind, e.content, e.created_at, e.received_at,
-                    e.language, e.embedding
+                    e.language
              FROM events e
              INNER JOIN conversation_logs cl ON e.id = cl.event_ref_id
              WHERE cl.bot_pubkey = ?
@@ -156,7 +154,6 @@ pub fn get_conversation_timeline_in_thread(
                 created_at: row.get(6)?,
                 received_at: row.get(7)?,
                 language: row.get(8)?,
-                embedding: row.get(9)?,
             })
         })?
         .collect::<Result<Vec<_>>>()?
@@ -172,10 +169,9 @@ pub fn get_conversation_timeline_in_thread(
                 created_at: row.get(6)?,
                 received_at: row.get(7)?,
                 language: row.get(8)?,
-                embedding: row.get(9)?,
             })
         })?
-        .collect::<Result<Vec<_>>>()?
+        .collect::<Result<_>>()?
     };
     
     // 時系列順（古い順）に反転
@@ -231,7 +227,6 @@ pub struct ConversationSummary {
     pub bot_pubkey: String,
     pub summary: String,
     pub user_input: String,
-    pub user_input_embedding: Vec<u8>,
     pub participants_json: Option<String>,
     pub from_timestamp: i64,
     pub to_timestamp: i64,
@@ -245,17 +240,10 @@ pub fn insert_conversation_summary(
     bot_pubkey: &str,
     summary: &str,
     user_input: &str,
-    user_input_embedding: &[f32],
     participants: Option<&[String]>,
     from_timestamp: i64,
     to_timestamp: i64,
 ) -> Result<i64> {
-    // f32のスライスをバイト列に変換
-    let embedding_bytes: Vec<u8> = user_input_embedding
-        .iter()
-        .flat_map(|&f| f.to_le_bytes())
-        .collect();
-    
     let participants_json = participants.map(|p| {
         serde_json::to_string(p).unwrap_or_default()
     });
@@ -263,13 +251,12 @@ pub fn insert_conversation_summary(
     let now = Utc::now().timestamp();
     
     conn.execute(
-        "INSERT INTO conversation_summaries (bot_pubkey, summary, user_input, user_input_embedding, participants_json, from_timestamp, to_timestamp, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO conversation_summaries (bot_pubkey, summary, user_input, participants_json, from_timestamp, to_timestamp, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?)",
         params![
             bot_pubkey,
             summary,
             user_input,
-            embedding_bytes,
             participants_json,
             from_timestamp,
             to_timestamp,
@@ -289,7 +276,7 @@ pub fn get_conversation_summaries(
     limit: usize,
 ) -> Result<Vec<ConversationSummary>> {
     let mut stmt = conn.prepare(
-        "SELECT id, bot_pubkey, summary, user_input, user_input_embedding, participants_json, from_timestamp, to_timestamp, created_at
+        "SELECT id, bot_pubkey, summary, user_input, participants_json, from_timestamp, to_timestamp, created_at
          FROM conversation_summaries
          WHERE bot_pubkey = ?
          AND (participants_json LIKE '%' || ? || '%' OR participants_json IS NULL)
@@ -303,11 +290,10 @@ pub fn get_conversation_summaries(
             bot_pubkey: row.get(1)?,
             summary: row.get(2)?,
             user_input: row.get(3)?,
-            user_input_embedding: row.get(4)?,
-            participants_json: row.get(5)?,
-            from_timestamp: row.get(6)?,
-            to_timestamp: row.get(7)?,
-            created_at: row.get(8)?,
+            participants_json: row.get(4)?,
+            from_timestamp: row.get(5)?,
+            to_timestamp: row.get(6)?,
+            created_at: row.get(7)?,
         })
     })?
     .collect::<Result<Vec<_>>>()?;

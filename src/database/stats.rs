@@ -39,12 +39,8 @@ pub fn get_dashboard_stats(conn: &Connection) -> Result<DashboardStats> {
         |row| row.get(0)
     ).unwrap_or(0);
     
-    // RAG統計
-    let vectorized_events: u32 = conn.query_row(
-        "SELECT COUNT(*) FROM events WHERE embedding IS NOT NULL AND length(embedding) > 0",
-        [],
-        |row| row.get(0)
-    ).unwrap_or(0);
+    // RAG統計（embedding無効化のため常に0）
+    let vectorized_events: u32 = 0;
     
     let total_events: u32 = conn.query_row(
         "SELECT COUNT(*) FROM events",

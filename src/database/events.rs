@@ -18,7 +18,6 @@ pub struct EventRecord {
     pub received_at: i64,
     #[allow(dead_code)]
     pub language: Option<String>,
-    pub embedding: Option<Vec<u8>>,
 }
 
 impl EventRecord {
@@ -131,7 +130,7 @@ fn upsert_kind0_event(conn: &Connection, event: &Event) -> Result<i64> {
 #[allow(dead_code)]
 pub fn get_event_by_event_id(conn: &Connection, event_id: &str) -> Result<Option<EventRecord>> {
     let mut stmt = conn.prepare(
-        "SELECT id, event_id, event_json, pubkey, kind, content, created_at, received_at, language, embedding
+        "SELECT id, event_id, event_json, pubkey, kind, content, created_at, received_at, language
          FROM events WHERE event_id = ?"
     )?;
     
@@ -148,54 +147,11 @@ pub fn get_event_by_event_id(conn: &Connection, event_id: &str) -> Result<Option
             created_at: row.get(6)?,
             received_at: row.get(7)?,
             language: row.get(8)?,
-            embedding: row.get(9)?,
         }))
     } else {
         Ok(None)
     }
 }
-
-/// イベントのembeddingを更新
-pub fn update_event_embedding(conn: &Connection, event_id: &str, embedding: &[f32]) -> Result<()> {
-    // f32のスライスをバイト列に変換
-    let bytes: Vec<u8> = embedding
-        .iter()
-        .flat_map(|&f| f.to_le_bytes())
-        .collect();
-    
-    conn.execute(
-        "UPDATE events SET embedding = ? WHERE event_id = ?",
-        params![bytes, event_id],
-    )?;
-    Ok(())
-}
-
-/// embedding未設定のイベントを取得（バックグラウンド処理用）
-pub fn get_events_without_embedding(conn: &Connection, limit: usize) -> Result<Vec<EventRecord>> {
-    let mut stmt = conn.prepare(
-        "SELECT id, event_id, event_json, pubkey, kind, content, created_at, received_at, language, embedding
-         FROM events WHERE embedding IS NULL LIMIT ?"
-    )?;
-    
-    let events = stmt.query_map(params![limit], |row| {
-        Ok(EventRecord {
-            id: row.get(0)?,
-            event_id: row.get(1)?,
-            event_json: row.get(2)?,
-            pubkey: row.get(3)?,
-            kind: row.get(4)?,
-            content: row.get(5)?,
-            created_at: row.get(6)?,
-            received_at: row.get(7)?,
-            language: row.get(8)?,
-            embedding: row.get(9)?,
-        })
-    })?
-    .collect::<Result<Vec<_>>>()?;
-    
-    Ok(events)
-}
-
 
 #[allow(dead_code)]
 pub fn extract_reply_to_event_id(event_json: &str) -> Result<Option<String>> {
