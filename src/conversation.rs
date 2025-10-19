@@ -91,76 +91,14 @@ pub async fn build_conversation_timeline_with_diversity(
     user_input: Option<&str>,
     limit: usize,
 ) -> Result<String, Box<dyn std::error::Error>> {
-    let mut events = db::get_conversation_timeline(conn, bot_pubkey, limit * 2)?; // 多めに取得
+    let mut events = db::get_conversation_timeline(conn, bot_pubkey, limit)?;
     
     if events.is_empty() {
         return Ok(String::new());
     }
     
-    // user_inputがある場合は類似度で選別
-    let selected_events = if let Some(input) = user_input {
-        // ユーザー入力をベクトル化（spawn_blockingで非同期実行）
-        let input_cloned = input.to_string();
-        let user_embedding = match tokio::task::spawn_blocking(move || {
-            embedding::generate_embedding_global(&input_cloned)
-        }).await {
-            Ok(Ok(emb)) => emb,
-            Ok(Err(_)) | Err(_) => {
-                // ベクトル化失敗時は通常の時系列順
-                events.truncate(limit);
-                return format_timeline_text(conn, events);
-            }
-        };
-        
-        // embeddingを持つイベントのみを対象に類似度計算
-        let mut scored_events: Vec<(db::EventRecord, f32)> = Vec::new();
-        for event in events {
-            if let Some(embedding_bytes) = &event.embedding {
-                let embedding = bytes_to_f32_vec(embedding_bytes);
-                
-                // ゼロベクトルはスキップ
-                if embedding.iter().all(|&x| x == 0.0) {
-                    continue;
-                }
-                
-                if let Ok(similarity) = embedding::cosine_similarity(&user_embedding, &embedding) {
-                    scored_events.push((event, similarity));
-                }
-            }
-        }
-        
-        if scored_events.is_empty() {
-            return Ok(String::new());
-        }
-        
-        // 類似度でソート（降順）
-        scored_events.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
-        
-        // 80%高類似度 + 20%低類似度
-        let high_count = (limit as f32 * 0.8).ceil() as usize;
-        let low_count = limit.saturating_sub(high_count);
-        
-        let mut result = Vec::new();
-        
-        // 上位80%を追加
-        result.extend(scored_events.iter().take(high_count).map(|(e, _)| e.clone()));
-        
-        // 下位から20%を追加（類似度が低いもの）
-        if low_count > 0 && scored_events.len() > high_count {
-            let low_similarity_start = scored_events.len().saturating_sub(low_count);
-            result.extend(scored_events.iter()
-                .skip(low_similarity_start)
-                .map(|(e, _)| e.clone()));
-        }
-        
-        // 時系列順にソート（新しい順）
-        result.sort_by(|a, b| b.created_at.cmp(&a.created_at));
-        result
-    } else {
-        // user_inputがない場合は通常の時系列順
-        events.truncate(limit);
-        events
-    };
+    // 時系列順のみ（embedding無効化のため類似度選別を削除）
+    let selected_events = events;
     
     format_timeline_text(conn, selected_events)
 }
@@ -193,11 +131,8 @@ pub async fn summarize_conversation_if_needed(
     
     println!("[Conversation] タイムラインが{}文字のため要約を作成します（閾値: {}文字）", timeline_text.len(), summary_threshold);
     
-    // ユーザー入力をベクトル化
-    let user_input_embedding = embedding::generate_embedding_global(user_input)?;
-    
-    // 過去の類似要約を検索（同じユーザーとの会話のみ）
-    let similar_summary = search_most_similar_summary(conn, bot_pubkey, user_pubkey, &user_input_embedding)?;
+    // embedding無効化のため、類似要約検索は行わない
+    let similar_summary: Option<db::ConversationSummary> = None;
     
     // Botのパーソナリティを取得
     let bot_person = db::get_person(conn, bot_pubkey)?;
@@ -301,12 +236,14 @@ pub async fn summarize_conversation_if_needed(
     participants.sort();
     participants.dedup();
     
+    // embedding無効化のため、空のベクトルを保存
+    let empty_embedding = vec![0.0f32; 384];
     db::insert_conversation_summary(
         conn,
         bot_pubkey,
         &summary,
         user_input,
-        &user_input_embedding,
+        &empty_embedding,
         Some(&participants),
         from_timestamp,
         to_timestamp,
