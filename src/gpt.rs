@@ -569,8 +569,8 @@ async fn build_mental_diary_prompt<'a>(
         \"disliked_people\": [],\n    \
         \"trusted_people\": [],\n    \
         \"current_interests\": [\"興味1\", \"興味2\"],\n    \
-        \"want_to_learn\": [],\n    \
-        \"bored_with\": [],\n    \
+        \"want_to_learn\": [\"学びたいこと1\", \"学びたいこと2\"],\n    \
+        \"bored_with\": [\"飽きたこと1\", \"飽きたこと2\"],\n    \
         \"short_term_goals\": \"短期目標\",\n    \
         \"long_term_goals\": \"長期目標\",\n    \
         \"concerns\": \"悩み\",\n    \
