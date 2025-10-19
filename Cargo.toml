@@ -14,11 +14,11 @@ serde_yaml = "0.9.25"
 chrono = { version = "0.4.23", features = ["serde"] }
 time = "0.3.20"
 serde_json = "1.0.94"
-axum = "0.7"
-tower = "0.4"
-tower-http = { version = "0.5", features = ["fs", "cors"] }
+axum = "0.8.6"
+tower = "0.5.2"
+tower-http = { version = "0.6.6", features = ["fs", "cors"] }
 rusqlite = { version = "0.37.0", features = ["bundled"] }
-whatlang = "0.16.2"
+whatlang = "0.18.0"
 dotenv = "0.15.0"
 regex = "1.7.1"
 openai-api-rs = "7.0.0"
