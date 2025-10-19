@@ -129,8 +129,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 }
                             }
                         }
-                        // 処理後、次の処理まで短い待機（負荷分散）
-                        tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+                        // 処理後、次の処理まで待機（負荷分散）
+                        tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
                     } else {
                         // 未処理イベントがない場合は長めに待機
                         tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
