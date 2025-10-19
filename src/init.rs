@@ -32,12 +32,6 @@ pub fn initialize_system_settings(conn: &rusqlite::Connection, config: &config::
         println!("⚙️ 会話制限時間: {}分", config.bot.conversation_limit_minutes);
     }
     
-    // RAG設定
-    if db::get_system_setting(conn, "rag_similarity_threshold")?.is_none() {
-        db::set_system_setting(conn, "rag_similarity_threshold", &config.bot.rag_similarity_threshold.to_string())?;
-        println!("⚙️ RAG類似度閾値: {}", config.bot.rag_similarity_threshold);
-    }
-    
     // GPT設定
     if db::get_system_setting(conn, "gpt_answer_length")?.is_none() {
         db::set_system_setting(conn, "gpt_answer_length", &config.gpt.answer_length.to_string())?;

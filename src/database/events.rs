@@ -6,6 +6,7 @@ use chrono::Utc;
 #[derive(Debug, Clone)]
 pub struct EventRecord {
     pub id: i64,
+    #[allow(dead_code)]
     pub event_id: String,
     #[allow(dead_code)]
     pub event_json: String,

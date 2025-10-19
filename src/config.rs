@@ -15,7 +15,6 @@ pub struct BotConfig {
     pub timeline_size: usize,
     pub conversation_limit_count: usize,
     pub conversation_limit_minutes: i64,
-    pub rag_similarity_threshold: f32,
     pub blacklist: Vec<String>,
 }
 
@@ -99,21 +98,6 @@ impl AppConfig {
         }
     }
 
-    /// f32型の設定値を取得（DB優先、なければconfig値）
-    pub fn get_f32_setting(&self, key: &str) -> f32 {
-        match db::connect() {
-            Ok(conn) => {
-                match db::get_system_setting(&conn, key) {
-                    Ok(Some(value)) => {
-                        value.parse::<f32>().unwrap_or_else(|_| self.get_default_f32(key))
-                    }
-                    _ => self.get_default_f32(key),
-                }
-            }
-            Err(_) => self.get_default_f32(key),
-        }
-    }
-
     /// u64型の設定値を取得（DB優先、なければconfig値）
     pub fn get_u64_setting(&self, key: &str) -> u64 {
         match db::connect() {
@@ -165,13 +149,6 @@ impl AppConfig {
         }
     }
 
-    /// デフォルト値を取得（f32）
-    fn get_default_f32(&self, key: &str) -> f32 {
-        match key {
-            "rag_similarity_threshold" => self.bot.rag_similarity_threshold,
-            _ => 0.0,
-        }
-    }
 
     /// デフォルト値を取得（u64）
     fn get_default_u64(&self, key: &str) -> u64 {
