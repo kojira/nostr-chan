@@ -11,7 +11,7 @@ pub async fn zap_ranking(config: config::AppConfig, person: db::Person, event: E
     println!("zap_ranking");
     let pubkey = &event.pubkey.to_string();
     let text = &format!("「現在から過去1年分のzapを集計します。しばらくお待ち下さい。」をあなたらしく言い換えてください。元の文章に含まれる内容が欠落しないようにしてください。「」内に入る文字だけを返信してください。カギカッコは不要です。");
-    let reply = gpt::get_reply(&person.pubkey, &person.prompt, text, true, None).await.unwrap();
+    let reply = gpt::get_reply(&person.pubkey, &person.prompt, text, true, None, &config).await.unwrap();
     let root_event: Event;
     if reply.len() > 0 {
         root_event = util::reply_to(&config, event.clone(), person.clone(), &reply).await?;

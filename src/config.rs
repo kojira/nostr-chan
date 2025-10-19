@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 use crate::database as db;
+use std::fs::File;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BotConfig {
@@ -145,6 +146,7 @@ impl AppConfig {
             "gpt_answer_length" => self.gpt.answer_length,
             "gpt_timeout" => self.gpt.timeout,
             "gemini_search_timeout" => self.gpt.gemini_search_timeout,
+            "search_answer_length" => self.gpt.search_answer_length,
             _ => 0,
         }
     }
@@ -178,4 +180,30 @@ impl AppConfig {
             _ => 0,
         }
     }
+    
+    /// ブラックリストを取得（DB優先、なければconfig値）
+    pub fn get_blacklist(&self) -> Vec<String> {
+        match db::connect() {
+            Ok(conn) => {
+                match db::get_system_setting(&conn, "blacklist") {
+                    Ok(Some(value)) => {
+                        if value.is_empty() {
+                            self.bot.blacklist.clone()
+                        } else {
+                            value.split(',').map(|s| s.to_string()).collect()
+                        }
+                    }
+                    _ => self.bot.blacklist.clone(),
+                }
+            }
+            Err(_) => self.bot.blacklist.clone(),
+        }
+    }
+}
+
+/// config.ymlを読み込んでAppConfigを返すユーティリティ関数
+pub fn load_config() -> Result<AppConfig, Box<dyn std::error::Error>> {
+    let file = File::open("../config.yml")?;
+    let config: AppConfig = serde_yaml::from_reader(file)?;
+    Ok(config)
 }

@@ -224,8 +224,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     
     while let Ok(notification) = notifications.recv().await {
         if let RelayPoolNotification::Event{relay_url: _, subscription_id: _, event} = notification {
-            // ブラックリストチェック
-            if config.bot.blacklist.iter().any(|s| s == &event.pubkey.to_string()) {
+            // ブラックリストチェック（DB優先）
+            let blacklist = config.get_blacklist();
+            if blacklist.iter().any(|s| s == &event.pubkey.to_string()) {
                 continue;
             }
             

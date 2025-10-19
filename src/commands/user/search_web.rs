@@ -104,19 +104,20 @@ pub async fn search_web(config: config::AppConfig, person: db::Person, event: Ev
     match util::gemini_search(&search_keyword, gemini_timeout).await {
         Ok(search_result) => {
             // 検索結果を一次回答を踏まえて要約
+            let search_answer_length = config.get_i32_setting("search_answer_length");
             let summary_prompt = format!(
                 "{}\n\nユーザーからの質問:「{}」\nあなたの一次回答:「{}」\n\n以下の検索結果を読んで、一次回答に続く形で{}文字程度であなたらしく要約して返答してください。返答のみを出力してください。説明や前置きは不要です。",
                 person.prompt,
                 cleaned_content,
                 initial_reply,
-                config.gpt.search_answer_length
+                search_answer_length
             );
             let final_reply = match gpt::call_gpt_with_category(&summary_prompt, &search_result, &person.pubkey, "search_final_reply", &config).await {
                 Ok(summary) => summary,
                 Err(e) => {
                     eprintln!("Failed to summarize search result: {}", e);
                     // フォールバック: 検索結果をそのまま返す（文字数制限）
-                    let max_len = config.gpt.search_answer_length as usize;
+                    let max_len = search_answer_length as usize;
                     if search_result.len() > max_len {
                         format!("{}...", &search_result[..max_len])
                     } else {

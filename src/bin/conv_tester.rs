@@ -169,7 +169,7 @@ async fn chat_repl(db_path: &str, bot_pubkey: &str, bot_secret: &str, user_secre
         let context = conversation::prepare_context_for_reply(&conn, bot_pubkey, &user_pubkey, input, 50, &config, None, None).await?;
 
         let prompt = "あなたは有益で礼儀正しい日本語のアシスタントです。".to_string();
-        let reply = gpt::get_reply_with_context(bot_pubkey, &prompt, input, true, if context.is_empty() { None } else { Some(context) }).await?;
+        let reply = gpt::get_reply_with_context(bot_pubkey, &prompt, input, true, if context.is_empty() { None } else { Some(context) }, &config).await?;
         println!("BOT> {}", reply);
 
         if reply.is_empty() { continue; }

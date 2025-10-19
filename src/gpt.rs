@@ -257,12 +257,11 @@ pub async fn get_reply_with_context<'a>(
     user_text: &'a str,
     has_mention: bool,
     context: Option<String>,
+    config: &'a AppConfig,
 ) -> Result<String, Box<dyn Error>> {
     dotenv().ok();
     
     // 回答長設定を取得
-    let file = File::open("../config.yml")?;
-    let config: AppConfig = serde_yaml::from_reader(file)?;
     let answer_length = config.get_i32_setting("gpt_answer_length");
 
     let start_delimiter = "<<";
@@ -342,12 +341,11 @@ pub async fn get_reply<'a>(
     user_text: &'a str, 
     _has_mention: bool,
     timeline: Option<Vec<TimelinePost>>,
+    config: &'a AppConfig,
 ) -> Result<String, Box<dyn Error>> {
     dotenv().ok();
     
     // 回答長設定を取得
-    let file = File::open("../config.yml")?;
-    let config: AppConfig = serde_yaml::from_reader(file)?;
     let answer_length = config.get_i32_setting("gpt_answer_length");
 
     let start_delimiter = "<<";
@@ -485,12 +483,11 @@ async fn build_mental_diary_prompt<'a>(
     _user_text: &'a str,
     additional_instruction: Option<&'a str>,
     user_name: Option<&'a str>,
+    config: &'a AppConfig,
 ) -> Result<(String, rusqlite::Connection), Box<dyn Error>> {
     dotenv().ok();
     
     // 設定を取得
-    let file = File::open("../config.yml")?;
-    let config: AppConfig = serde_yaml::from_reader(file)?;
     let answer_length = config.get_i32_setting("gpt_answer_length");
     let _max_impression_length = config.get_usize_setting("max_impression_length");
     
@@ -702,6 +699,7 @@ async fn call_gpt_with_mental_diary_internal<'a>(
         user_text,
         additional_instruction,
         user_name,
+        config,
     ).await?;
     
     let user_input = if let Some(ctx) = context {

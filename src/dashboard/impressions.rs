@@ -138,10 +138,8 @@ pub async fn update_user_impression_handler(
     eprintln!("[UpdateImpression] impression length: {}", payload.impression.len());
     
     // config.ymlから最大文字数を取得
-    let config = std::fs::File::open("../config.yml")
-        .ok()
-        .and_then(|file| serde_yaml::from_reader::<_, crate::config::AppConfig>(file).ok())
-        .ok_or(StatusCode::INTERNAL_SERVER_ERROR)?;
+    let config = crate::config::load_config()
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     
     let max_length = config.get_usize_setting("max_impression_length");
     eprintln!("[UpdateImpression] max_impression_length: {}", max_length);
