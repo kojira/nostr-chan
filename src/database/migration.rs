@@ -650,11 +650,11 @@ pub(crate) fn migrate_remove_embedding_from_events(conn: &Connection) -> Result<
         "CREATE TABLE events_new (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             event_id TEXT NOT NULL UNIQUE,
+            event_json TEXT NOT NULL,
             pubkey TEXT NOT NULL,
             kind INTEGER NOT NULL,
             content TEXT NOT NULL,
             created_at INTEGER NOT NULL,
-            tags_json TEXT NOT NULL,
             received_at INTEGER NOT NULL,
             language TEXT
         )",
@@ -663,8 +663,8 @@ pub(crate) fn migrate_remove_embedding_from_events(conn: &Connection) -> Result<
     
     // 4. データをコピー（embeddingカラムを除く）
     conn.execute(
-        "INSERT INTO events_new (id, event_id, pubkey, kind, content, created_at, tags_json, received_at, language)
-         SELECT id, event_id, pubkey, kind, content, created_at, tags_json, received_at, language
+        "INSERT INTO events_new (id, event_id, event_json, pubkey, kind, content, created_at, received_at, language)
+         SELECT id, event_id, event_json, pubkey, kind, content, created_at, received_at, language
          FROM events",
         [],
     )?;
