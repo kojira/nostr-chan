@@ -4,6 +4,7 @@ use chrono::Utc;
 
 /// Bot心境の構造化データ
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
 pub struct MentalDiary {
     pub mood: String,                          // 現在の気分
     pub favorite_people: Vec<String>,          // 好きな人・気になる人
@@ -20,6 +21,28 @@ pub struct MentalDiary {
     pub recent_surprises: String,              // 驚いたこと
     pub self_changes: String,                  // 自分の変化
     pub personality_state: String,             // 人格の状態
+}
+
+impl Default for MentalDiary {
+    fn default() -> Self {
+        Self {
+            mood: String::new(),
+            favorite_people: Vec::new(),
+            disliked_people: Vec::new(),
+            trusted_people: Vec::new(),
+            current_interests: Vec::new(),
+            want_to_learn: Vec::new(),
+            bored_with: Vec::new(),
+            short_term_goals: String::new(),
+            long_term_goals: String::new(),
+            concerns: String::new(),
+            recent_happy_events: String::new(),
+            recent_sad_events: String::new(),
+            recent_surprises: String::new(),
+            self_changes: String::new(),
+            personality_state: String::new(),
+        }
+    }
 }
 
 impl MentalDiary {
