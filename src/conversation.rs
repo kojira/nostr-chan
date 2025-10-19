@@ -252,43 +252,6 @@ pub async fn summarize_conversation_if_needed(
     Ok(Some((summary, to_timestamp)))
 }
 
-/// 最も類似する要約を検索
-fn search_most_similar_summary(
-    conn: &Connection,
-    bot_pubkey: &str,
-    user_pubkey: &str,
-    user_input_embedding: &[f32],
-) -> Result<Option<db::ConversationSummary>, Box<dyn std::error::Error>> {
-    let summaries = db::get_conversation_summaries(conn, bot_pubkey, user_pubkey, 10)?;
-    
-    if summaries.is_empty() {
-        return Ok(None);
-    }
-    
-    let mut best_summary: Option<db::ConversationSummary> = None;
-    let mut best_similarity: f32 = 0.5; // 閾値: 0.5以上の類似度が必要
-    
-    for summary in summaries {
-        // バイト列からf32配列に変換
-        let embedding_vec = bytes_to_f32_vec(&summary.user_input_embedding);
-        
-        // コサイン類似度を計算
-        let similarity = embedding::cosine_similarity(user_input_embedding, &embedding_vec)?;
-        
-        if similarity > best_similarity {
-            best_similarity = similarity;
-            best_summary = Some(summary);
-        }
-    }
-    
-    if let Some(ref summary) = best_summary {
-        println!("[Conversation] 最も類似する要約の類似度: {:.3}", best_similarity);
-        println!("[Conversation] ユーザー入力: {}", summary.user_input);
-    }
-    
-    Ok(best_summary)
-}
-
 /// 返信用のコンテキストを準備
 #[allow(dead_code)]
 pub async fn prepare_context_for_reply(
@@ -359,18 +322,6 @@ pub async fn prepare_context_for_reply(
     };
     
     Ok(format!("【会話履歴】\n{}\n\n{}\n{}", timeline_text, user_label, user_input))
-}
-
-/// バイト列をf32ベクトルに変換
-#[allow(dead_code)]
-fn bytes_to_f32_vec(bytes: &[u8]) -> Vec<f32> {
-    bytes
-        .chunks_exact(4)
-        .map(|chunk| {
-            let arr: [u8; 4] = [chunk[0], chunk[1], chunk[2], chunk[3]];
-            f32::from_le_bytes(arr)
-        })
-        .collect()
 }
 
 /// エアリプ用の日本語タイムライン構築（従来のtimeline機能の代替）
